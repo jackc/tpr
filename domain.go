@@ -161,6 +161,7 @@ func parseRSS(body []byte) (*parsedFeed, error) {
 		Title       string `xml:"title"`
 		Description string `xml:"description"`
 		Date        string `xml:"date"`
+		PubDate     string `xml:"pubDate"`
 	}
 
 	type Channel struct {
@@ -181,8 +182,32 @@ func parseRSS(body []byte) (*parsedFeed, error) {
 		feed.items[i].url = item.Link
 		feed.items[i].title = item.Title
 		feed.items[i].body = item.Description
-		feed.items[i].publicationTime, _ = time.Parse("2006-01-02T15:04:05-07:00", item.Date)
+		if item.Date != "" {
+			feed.items[i].publicationTime, _ = parseTime(item.Date)
+		}
+		if item.PubDate != "" {
+			feed.items[i].publicationTime, _ = parseTime(item.PubDate)
+		}
 	}
 
 	return &feed, err
+}
+
+// Try multiple time formats one after another until one works or all fail
+func parseTime(value string) (t time.Time, err error) {
+	formats := []string{
+		"2006-01-02T15:04:05-07:00",
+		time.RFC822,
+		"02 Jan 2006 15:04 MST",    // RFC822 with 4 digit year
+		"02 Jan 2006 15:04:05 MST", // RFC822 with 4 digit year and seconds
+		time.RFC1123,
+	}
+	for _, f := range formats {
+		t, err = time.Parse(f, value)
+		if err == nil {
+			return
+		}
+	}
+
+	return t, errors.New("Unable to parse time")
 }
