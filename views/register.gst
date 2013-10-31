@@ -4,7 +4,13 @@ func: RenderRegister
 parameters: f *form.Form
 escape: html
 ---
-<% RenderHeader(writer) %>
+<html>
+<head>
+  <link type="text/css" rel="stylesheet" href="/css/application.css">
+  <script src="/js/vendor/jquery-2.0.3.min.js"></script>
+  <script src="/js/application.js"></script>
+</head>
+<body>
 <h1>Registration</h1>
 <form action="" method="POST">
   <dl>
@@ -34,4 +40,5 @@ escape: html
   </dl>
   <input type="submit" value="Register" />
 </form>
-<% RenderFooter(writer) %>
+</body>
+</html>

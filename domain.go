@@ -112,6 +112,25 @@ func Subscribe(userID int32, feedURL string) (err error) {
 	return
 }
 
+type feedIndexFeed struct {
+	id   int32
+	name string
+	url  string
+}
+
+func GetFeedsForUserID(userID int32) (feeds []feedIndexFeed, err error) {
+	err = pool.SelectFunc("select id, name, url from feeds join subscriptions on feeds.id=subscriptions.feed_id where user_id=$1 order by name", func(r *pgx.DataRowReader) (err error) {
+		var feed feedIndexFeed
+		feed.id = r.ReadValue().(int32)
+		feed.name = r.ReadValue().(string)
+		feed.url = r.ReadValue().(string)
+		feeds = append(feeds, feed)
+		return
+	}, userID)
+
+	return
+}
+
 // func fetchFeed(url string, etag string) (body string, err error) {
 // 	var req *http.Request
 // 	var resp *http.Response

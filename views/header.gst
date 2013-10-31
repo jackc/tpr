@@ -1,5 +1,6 @@
 package: main
 func: RenderHeader
+parameters: e *environment
 escape: html
 ---
 <html>
@@ -9,4 +10,13 @@ escape: html
   <script src="/js/application.js"></script>
 </head>
 <body>
-<h1>Reader</h1>
+
+<header>
+  <h1>Reader</h1>
+
+  <p>Welcome <%= e.CurrentAccount().name %></p>
+
+  <form action="/logout" method="POST">
+    <input type="submit" value="Logout" />
+  </form>
+</header>

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"code.google.com/p/go.crypto/scrypt"
 	"errors"
 	"flag"
 	"fmt"
@@ -22,6 +24,7 @@ var config struct {
 	listenPort    string
 }
 
+var loginFormTemplate *form.FormTemplate
 var registrationFormTemplate *form.FormTemplate
 var subscriptionFormTemplate *form.FormTemplate
 
@@ -93,6 +96,10 @@ func init() {
 
 	subscriptionFormTemplate = form.NewFormTemplate()
 	subscriptionFormTemplate.AddField(&form.StringTemplate{Name: "url", Required: true, MaxLength: 8192})
+
+	loginFormTemplate = form.NewFormTemplate()
+	loginFormTemplate.AddField(&form.StringTemplate{Name: "name", Required: true, MaxLength: 30})
+	loginFormTemplate.AddField(&form.StringTemplate{Name: "password", Required: true, MaxLength: 50})
 }
 
 func extractConnectionOptions(config *yaml.File) (connectionOptions pgx.ConnectionParameters, err error) {
@@ -121,6 +128,56 @@ func afterConnect(conn *pgx.Connection) (err error) {
 	return
 }
 
+type SecureHandlerFunc func(w http.ResponseWriter, req *http.Request, env *environment)
+
+func (f SecureHandlerFunc) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	env := CreateEnvironment(req)
+	if env.CurrentAccount() == nil {
+		http.Redirect(w, req, "/login", http.StatusSeeOther)
+		return
+	}
+	f(w, req, env)
+}
+
+type currentAccount struct {
+	id   int32
+	name string
+}
+
+type environment struct {
+	request        *http.Request
+	currentAccount *currentAccount
+}
+
+func CreateEnvironment(req *http.Request) *environment {
+	return &environment{request: req}
+}
+
+func (env *environment) CurrentAccount() *currentAccount {
+	if env.currentAccount == nil {
+		var cookie *http.Cookie
+		var session Session
+		var err error
+		var present bool
+
+		if cookie, err = env.request.Cookie("sessionId"); err != nil {
+			return nil
+		}
+
+		if session, present = getSession(cookie.Value); !present {
+			return nil
+		}
+
+		var name interface{}
+		// TODO - this could be an error from no records found -- or the connection could be dead or we could have a syntax error...
+		name, err = pool.SelectValue("select name from users where id=$1", session.userID)
+		if err == nil {
+			env.currentAccount = &currentAccount{id: session.userID, name: name.(string)}
+		}
+	}
+	return env.currentAccount
+}
+
 func RegistrationFormHandler(w http.ResponseWriter, req *http.Request) {
 	RenderRegister(w, registrationFormTemplate.New())
 }
@@ -134,7 +191,7 @@ func RegisterHandler(w http.ResponseWriter, req *http.Request) {
 			sessionId := createSession(userID)
 			cookie := createSessionCookie(sessionId)
 			http.SetCookie(w, cookie)
-			http.Redirect(w, req, "/", http.StatusSeeOther)
+			http.Redirect(w, req, "/subscribe", http.StatusSeeOther)
 		} else {
 			if strings.Contains(err.Error(), "users_name_unq") {
 				f.Fields["name"].Error = errors.New("User name is already taken")
@@ -148,22 +205,70 @@ func RegisterHandler(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func SubscriptionFormHandler(w http.ResponseWriter, req *http.Request) {
-	RenderSubscribe(w, subscriptionFormTemplate.New())
+func SubscriptionFormHandler(w http.ResponseWriter, req *http.Request, env *environment) {
+	RenderSubscribe(w, env, subscriptionFormTemplate.New())
 }
 
-func SubscribeHandler(w http.ResponseWriter, req *http.Request) {
+func SubscribeHandler(w http.ResponseWriter, req *http.Request, env *environment) {
 	req.ParseForm()
 	f := subscriptionFormTemplate.Parse(req.Form)
 	subscriptionFormTemplate.Validate(f)
 	if f.IsValid() {
-		if err := Subscribe(1, f.Fields["url"].Parsed.(string)); err == nil {
-			http.Redirect(w, req, "/", http.StatusSeeOther)
+		if err := Subscribe(env.CurrentAccount().id, f.Fields["url"].Parsed.(string)); err == nil {
+			http.Redirect(w, req, "/feeds", http.StatusSeeOther)
 		} else {
 			panic(err.Error())
 		}
 	} else {
-		RenderSubscribe(w, f)
+		RenderSubscribe(w, env, f)
+	}
+}
+
+func AuthenticateUser(name, password string) (userID int32, err error) {
+	var passwordDigest []byte
+	var passwordSalt []byte
+
+	err = pool.SelectFunc("select id, password_digest, password_salt from users where name=$1", func(r *pgx.DataRowReader) (err error) {
+		userID = r.ReadValue().(int32)
+		passwordDigest = r.ReadValue().([]byte)
+		passwordSalt = r.ReadValue().([]byte)
+		return
+	}, name)
+
+	if err != nil {
+		return
+	}
+
+	var digest []byte
+	digest, _ = scrypt.Key([]byte(password), passwordSalt, 16384, 8, 1, 32)
+
+	if !bytes.Equal(digest, passwordDigest) {
+		err = fmt.Errorf("Bad user name or password")
+	}
+	return
+}
+
+func LoginFormHandler(w http.ResponseWriter, req *http.Request) {
+	RenderLogin(w, loginFormTemplate.New())
+}
+
+func LoginHandler(w http.ResponseWriter, req *http.Request) {
+	req.ParseForm()
+	f := loginFormTemplate.Parse(req.Form)
+	loginFormTemplate.Validate(f)
+
+	if !f.IsValid() {
+		RenderLogin(w, f)
+		return
+	}
+
+	if userID, err := AuthenticateUser(f.Fields["name"].Parsed.(string), f.Fields["password"].Parsed.(string)); err == nil {
+		sessionId := createSession(userID)
+		cookie := createSessionCookie(sessionId)
+		http.SetCookie(w, cookie)
+		http.Redirect(w, req, "/feeds", http.StatusSeeOther)
+	} else {
+		RenderLogin(w, f)
 	}
 }
 
@@ -171,12 +276,24 @@ func createSessionCookie(sessionId string) *http.Cookie {
 	return &http.Cookie{Name: "sessionId", Value: sessionId}
 }
 
+func FeedsIndexHandler(w http.ResponseWriter, req *http.Request, env *environment) {
+	feeds, err := GetFeedsForUserID(env.CurrentAccount().id)
+	if err != nil {
+		panic("unable to find feeds")
+	}
+
+	RenderFeedsIndex(w, env, feeds)
+}
+
 func main() {
 	router := qv.NewRouter()
-	router.Get("/subscribe", http.HandlerFunc(SubscriptionFormHandler))
-	router.Post("/subscribe", http.HandlerFunc(SubscribeHandler))
+	router.Get("/login", http.HandlerFunc(LoginFormHandler))
+	router.Post("/login", http.HandlerFunc(LoginHandler))
+	router.Get("/subscribe", SecureHandlerFunc(SubscriptionFormHandler))
+	router.Post("/subscribe", SecureHandlerFunc(SubscribeHandler))
 	router.Get("/register", http.HandlerFunc(RegistrationFormHandler))
 	router.Post("/register", http.HandlerFunc(RegisterHandler))
+	router.Get("/feeds", SecureHandlerFunc(FeedsIndexHandler))
 	http.Handle("/", router)
 
 	listenAt := fmt.Sprintf("%s:%s", config.listenAddress, config.listenPort)

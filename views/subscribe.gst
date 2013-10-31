@@ -1,10 +1,10 @@
 package: main
 imports: github.com/JackC/form
 func: RenderSubscribe
-parameters: f *form.Form
+parameters: e *environment, f *form.Form
 escape: html
 ---
-<% RenderHeader(writer) %>
+<% RenderHeader(writer, e) %>
 <h1>New Subscription</h1>
 <form action="" method="POST">
   <dl>
