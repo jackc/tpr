@@ -43,8 +43,8 @@ func migrate(connectionParameters pgx.ConnectionParameters) (err error) {
 	m.AppendMigration("Create feeds", `
     create table feeds(
       id serial primary key,
-      name varchar not null,
-      url varchar not null unique,
+      name varchar not null check(name<>''),
+      url varchar not null unique check(url<>''),
       last_fetch_time timestamp with time zone,
       etag varchar,
       last_failure varchar,
@@ -60,9 +60,9 @@ func migrate(connectionParameters pgx.ConnectionParameters) (err error) {
     create table items(
       id serial primary key,
       feed_id integer not null references feeds,
-      url varchar not null,
-      title varchar not null,
-      body text not null,
+      url varchar not null check(url<>''),
+      title varchar not null check(title<>''),
+      body text not null check(body<>''),
       publication_time timestamp with time zone,
       creation_time timestamp with time zone not null default now()
     );
