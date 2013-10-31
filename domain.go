@@ -57,7 +57,7 @@ func Subscribe(userID int32, feedURL string) (err error) {
 		}
 
 		var feed *parsedFeed
-		feed, err = parseRSS(body)
+		feed, err = parseFeed(body)
 		if err != nil {
 			return fmt.Errorf("Unable to parse feed: %v", err)
 		}
@@ -150,9 +150,38 @@ type parsedItem struct {
 	publicationTime time.Time
 }
 
+func (i *parsedItem) isValid() bool {
+	var zeroTime time.Time
+
+	return i.url != "" && i.title != "" && i.body != "" && i.publicationTime != zeroTime
+}
+
 type parsedFeed struct {
 	name  string
 	items []parsedItem
+}
+
+func (f *parsedFeed) isValid() bool {
+	if f.name == "" {
+		return false
+	}
+
+	for _, item := range f.items {
+		if !item.isValid() {
+			return false
+		}
+	}
+
+	return true
+}
+
+func parseFeed(body []byte) (f *parsedFeed, err error) {
+	f, err = parseRSS(body)
+	if err == nil {
+		return f, nil
+	}
+
+	return parseAtom(body)
 }
 
 func parseRSS(body []byte) (*parsedFeed, error) {
@@ -174,6 +203,9 @@ func parseRSS(body []byte) (*parsedFeed, error) {
 	}
 
 	err := xml.Unmarshal(body, &rss)
+	if err != nil {
+		return nil, err
+	}
 
 	var feed parsedFeed
 	feed.name = rss.Channel.Title
@@ -190,17 +222,77 @@ func parseRSS(body []byte) (*parsedFeed, error) {
 		}
 	}
 
-	return &feed, err
+	if !feed.isValid() {
+		return nil, errors.New("Invalid RSS")
+	}
+
+	return &feed, nil
+}
+
+func parseAtom(body []byte) (*parsedFeed, error) {
+	type Link struct {
+		Href string `xml:"href,attr"`
+	}
+
+	type Entry struct {
+		Link      Link   `xml:"link"`
+		Title     string `xml:"title"`
+		Content   string `xml:"content"`
+		Published string `xml:"published"`
+		Updated   string `xml:"updated"`
+	}
+
+	var atom struct {
+		Title string  `xml:"title"`
+		Entry []Entry `xml:"entry"`
+	}
+
+	err := xml.Unmarshal(body, &atom)
+	if err != nil {
+		return nil, err
+	}
+
+	var feed parsedFeed
+	feed.name = atom.Title
+	feed.items = make([]parsedItem, len(atom.Entry))
+	for i, entry := range atom.Entry {
+		feed.items[i].url = entry.Link.Href
+		feed.items[i].title = entry.Title
+		feed.items[i].body = entry.Content
+		if entry.Published != "" {
+			feed.items[i].publicationTime, _ = parseTime(entry.Published)
+		}
+		if entry.Updated != "" {
+			feed.items[i].publicationTime, _ = parseTime(entry.Updated)
+		}
+	}
+
+	fmt.Println(feed.name)
+
+	for _, item := range feed.items {
+		fmt.Println(item.url)
+		fmt.Println(item.title)
+		fmt.Println(len(item.body))
+		fmt.Println(item.publicationTime)
+	}
+
+	if !feed.isValid() {
+		return nil, errors.New("Invalid Atom")
+	}
+
+	return &feed, nil
 }
 
 // Try multiple time formats one after another until one works or all fail
 func parseTime(value string) (t time.Time, err error) {
 	formats := []string{
 		"2006-01-02T15:04:05-07:00",
+		"2006-01-02T15:04:05Z",
 		time.RFC822,
 		"02 Jan 2006 15:04 MST",    // RFC822 with 4 digit year
 		"02 Jan 2006 15:04:05 MST", // RFC822 with 4 digit year and seconds
 		time.RFC1123,
+		time.RFC1123Z,
 	}
 	for _, f := range formats {
 		t, err = time.Parse(f, value)
