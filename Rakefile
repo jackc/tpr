@@ -31,6 +31,11 @@ task server: 'reader' do
   exec './reader'
 end
 
+desc "Run reader server and restart when source change"
+task :rerun do
+  exec "rerun --dir='.,views' --pattern='*.{go,gst}' rake server"
+end
+
 task spec_server: :build do
   FileUtils.mkdir_p 'tmp/spec/server'
   FileUtils.touch 'tmp/spec/server/stdout.log'
