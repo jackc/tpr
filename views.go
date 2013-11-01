@@ -96,7 +96,7 @@ func RenderLogin(writer io.Writer, f *form.Form) (err error) {
 	}
 	io.WriteString(writer, `
       </dt>
-      <dd><input type="text" name="name" value="`)
+      <dd><input type="text" id="name" name="name" value="`)
 	io.WriteString(writer, html.EscapeString(f.Fields["name"].Unparsed))
 	io.WriteString(writer, `" /></dd>
 
@@ -112,7 +112,7 @@ func RenderLogin(writer io.Writer, f *form.Form) (err error) {
 	}
 	io.WriteString(writer, `
       </dt>
-      <dd><input type="password" name="password" value="`)
+      <dd><input type="password" id="password" name="password" value="`)
 	io.WriteString(writer, html.EscapeString(f.Fields["password"].Unparsed))
 	io.WriteString(writer, `"/></dd>
     </dl>
@@ -150,7 +150,7 @@ func RenderRegister(writer io.Writer, f *form.Form) (err error) {
 	}
 	io.WriteString(writer, `
     </dt>
-    <dd><input type="text" name="name" value="`)
+    <dd><input type="text" id="name" name="name" value="`)
 	io.WriteString(writer, html.EscapeString(f.Fields["name"].Unparsed))
 	io.WriteString(writer, `" /></dd>
 
@@ -166,7 +166,7 @@ func RenderRegister(writer io.Writer, f *form.Form) (err error) {
 	}
 	io.WriteString(writer, `
     </dt>
-    <dd><input type="password" name="password" value="`)
+    <dd><input type="password" id="password" name="password" value="`)
 	io.WriteString(writer, html.EscapeString(f.Fields["password"].Unparsed))
 	io.WriteString(writer, `"/></dd>
 
@@ -182,7 +182,7 @@ func RenderRegister(writer io.Writer, f *form.Form) (err error) {
 	}
 	io.WriteString(writer, `
     </dt>
-    <dd><input type="password" name="passwordConfirmation" value="`)
+    <dd><input type="password" id="passwordConfirmation" name="passwordConfirmation" value="`)
 	io.WriteString(writer, html.EscapeString(f.Fields["passwordConfirmation"].Unparsed))
 	io.WriteString(writer, `" /></dd>
   </dl>

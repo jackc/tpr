@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 var pool *pgx.ConnectionPool
@@ -272,6 +273,12 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func LogoutHandler(w http.ResponseWriter, req *http.Request) {
+	cookie := &http.Cookie{Name: "sessionId", Value: "logged out", Expires: time.Unix(0, 0)}
+	http.SetCookie(w, cookie)
+	http.Redirect(w, req, "/login", http.StatusSeeOther)
+}
+
 func createSessionCookie(sessionId string) *http.Cookie {
 	return &http.Cookie{Name: "sessionId", Value: sessionId}
 }
@@ -289,6 +296,7 @@ func main() {
 	router := qv.NewRouter()
 	router.Get("/login", http.HandlerFunc(LoginFormHandler))
 	router.Post("/login", http.HandlerFunc(LoginHandler))
+	router.Post("/logout", http.HandlerFunc(LogoutHandler))
 	router.Get("/subscribe", SecureHandlerFunc(SubscriptionFormHandler))
 	router.Post("/subscribe", SecureHandlerFunc(SubscribeHandler))
 	router.Get("/register", http.HandlerFunc(RegistrationFormHandler))

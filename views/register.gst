@@ -20,7 +20,7 @@ escape: html
         <span class="error"><%= f.Fields["name"].Error.Error() %></span>
       <% } %>
     </dt>
-    <dd><input type="text" name="name" value="<%= f.Fields["name"].Unparsed %>" /></dd>
+    <dd><input type="text" id="name" name="name" value="<%= f.Fields["name"].Unparsed %>" /></dd>
 
     <dt>
       <label for="password">Password</label>
@@ -28,7 +28,7 @@ escape: html
         <span class="error"><%= f.Fields["password"].Error.Error() %></span>
       <% } %>
     </dt>
-    <dd><input type="password" name="password" value="<%= f.Fields["password"].Unparsed %>"/></dd>
+    <dd><input type="password" id="password" name="password" value="<%= f.Fields["password"].Unparsed %>"/></dd>
 
     <dt>
       <label for="passwordConfirmation">Password Confirmation</label>
@@ -36,7 +36,7 @@ escape: html
         <span class="error"><%= f.Fields["passwordConfirmation"].Error.Error() %></span>
       <% } %>
     </dt>
-    <dd><input type="password" name="passwordConfirmation" value="<%= f.Fields["passwordConfirmation"].Unparsed %>" /></dd>
+    <dd><input type="password" id="passwordConfirmation" name="passwordConfirmation" value="<%= f.Fields["passwordConfirmation"].Unparsed %>" /></dd>
   </dl>
   <input type="submit" value="Register" />
 </form>
