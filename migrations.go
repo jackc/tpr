@@ -60,11 +60,11 @@ func migrate(connectionParameters pgx.ConnectionParameters) (err error) {
     create table items(
       id serial primary key,
       feed_id integer not null references feeds,
-      url varchar not null check(url<>''),
-      title varchar not null check(title<>''),
-      body text not null check(body<>''),
       publication_time timestamp with time zone,
-      creation_time timestamp with time zone not null default now()
+      title varchar not null check(title<>''),
+      url varchar not null check(url<>''),
+      creation_time timestamp with time zone not null default now(),
+      unique(feed_id, publication_time, title, url)
     );
 
     create index on items (feed_id);

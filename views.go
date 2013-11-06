@@ -72,6 +72,40 @@ func RenderHeader(writer io.Writer, e *environment) (err error) {
 
 	return
 }
+func RenderHome(writer io.Writer, e *environment, items []homeUnreadItem) (err error) {
+	RenderHeader(writer, e)
+	io.WriteString(writer, `
+<h1>Unread Items</h1>
+<ul>
+  `)
+	for _, item := range items {
+		io.WriteString(writer, `
+    <li>
+      <div class="feedName">`)
+		io.WriteString(writer, html.EscapeString(item.feedName))
+		io.WriteString(writer, `</div>
+      <div class="title">
+        <a href="`)
+		io.WriteString(writer, html.EscapeString(item.url))
+		io.WriteString(writer, `">`)
+		io.WriteString(writer, html.EscapeString(item.title))
+		io.WriteString(writer, `</a>
+      </div>
+      <div class="publicationTime">`)
+		io.WriteString(writer, html.EscapeString(item.publicationTime.String()))
+		io.WriteString(writer, `</div>
+    </li>
+  `)
+	}
+	io.WriteString(writer, `
+</ul>
+`)
+	RenderFooter(writer)
+	io.WriteString(writer, `
+`)
+
+	return
+}
 func RenderLogin(writer io.Writer, f *form.Form) (err error) {
 	io.WriteString(writer, `<html>
 <head>

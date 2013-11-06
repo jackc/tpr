@@ -29,7 +29,7 @@ var loginFormTemplate *form.FormTemplate
 var registrationFormTemplate *form.FormTemplate
 var subscriptionFormTemplate *form.FormTemplate
 
-func init() {
+func initialize() {
 	var err error
 	var yf *yaml.File
 
@@ -70,13 +70,14 @@ func init() {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
+	connectionParameters.Logger = logger
 
 	if err = migrate(connectionParameters); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 
-	poolOptions := pgx.ConnectionPoolOptions{MaxConnections: 5, AfterConnect: afterConnect}
+	poolOptions := pgx.ConnectionPoolOptions{MaxConnections: 5, AfterConnect: afterConnect, Logger: logger}
 	pool, err = pgx.NewConnectionPool(connectionParameters, poolOptions)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to create database connection pool: %v\n", err)
@@ -249,6 +250,15 @@ func AuthenticateUser(name, password string) (userID int32, err error) {
 	return
 }
 
+func HomeHandler(w http.ResponseWriter, req *http.Request, env *environment) {
+	items, err := GetUnreadItemsForUserID(env.CurrentAccount().id)
+	if err != nil {
+		panic("unable to find unread items")
+	}
+
+	RenderHome(w, env, items)
+}
+
 func LoginFormHandler(w http.ResponseWriter, req *http.Request) {
 	RenderLogin(w, loginFormTemplate.New())
 }
@@ -267,7 +277,7 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 		sessionId := createSession(userID)
 		cookie := createSessionCookie(sessionId)
 		http.SetCookie(w, cookie)
-		http.Redirect(w, req, "/feeds", http.StatusSeeOther)
+		http.Redirect(w, req, "/", http.StatusSeeOther)
 	} else {
 		RenderLogin(w, f)
 	}
@@ -293,7 +303,9 @@ func FeedsIndexHandler(w http.ResponseWriter, req *http.Request, env *environmen
 }
 
 func main() {
+	initialize()
 	router := qv.NewRouter()
+	router.Get("/", SecureHandlerFunc(HomeHandler))
 	router.Get("/login", http.HandlerFunc(LoginFormHandler))
 	router.Post("/login", http.HandlerFunc(LoginHandler))
 	router.Post("/logout", http.HandlerFunc(LogoutHandler))
@@ -306,6 +318,8 @@ func main() {
 
 	listenAt := fmt.Sprintf("%s:%s", config.listenAddress, config.listenPort)
 	fmt.Printf("Starting to listen on: %s\n", listenAt)
+
+	go KeepFeedsFresh()
 
 	if err := http.ListenAndServe(listenAt, nil); err != nil {
 		os.Stderr.WriteString("Could not start web server!\n")

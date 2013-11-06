@@ -76,7 +76,7 @@ func Subscribe(userID int32, feedURL string) (err error) {
 			}
 
 			for _, item := range feed.items {
-				_, err = conn.Execute("insert into items(feed_id, url, title, body, publication_time) values($1, $2, $3, $4, $5)", feedID, item.url, item.title, item.body, item.publicationTime)
+				_, err = conn.Execute("insert into items(feed_id, url, title, publication_time) values($1, $2, $3, $4)", feedID, item.url, item.title, item.publicationTime)
 				if err != nil {
 					return false
 				}
@@ -112,6 +112,118 @@ func Subscribe(userID int32, feedURL string) (err error) {
 	return
 }
 
+func KeepFeedsFresh() {
+	for {
+		if staleFeeds, err := FindStaleFeeds(); err == nil {
+			for _, sf := range staleFeeds {
+				RefreshFeed(sf)
+			}
+		}
+		time.Sleep(time.Minute)
+	}
+}
+
+type staleFeed struct {
+	id  int32
+	url string
+}
+
+func FindStaleFeeds() (feeds []staleFeed, err error) {
+	err = pool.SelectFunc("select id, url from feeds where last_fetch_time < now() - '10 minutes'::interval", func(r *pgx.DataRowReader) (err error) {
+		var feed staleFeed
+		feed.id = r.ReadValue().(int32)
+		feed.url = r.ReadValue().(string)
+		feeds = append(feeds, feed)
+		return
+	})
+
+	return
+}
+
+func RefreshFeed(staleFeed staleFeed) {
+	var conn *pgx.Connection
+	var err error
+
+	conn, err = pool.Acquire()
+	if err != nil {
+		return
+	}
+	defer pool.Release(conn)
+
+	logFailure := func(failure string) {
+		conn.Execute(`
+			update feeds
+			set last_failure=$1,
+				last_failure_time=now(),
+				failure_count=failure_count+1
+			where id=$2`,
+			failure, staleFeed.id)
+	}
+
+	var resp *http.Response
+	resp, err = http.Get(staleFeed.url)
+	if err != nil {
+		logFailure(err.Error())
+		return
+	}
+	if resp.StatusCode != 200 {
+		logFailure(fmt.Sprintf("Bad HTTP response: %s", resp.Status))
+		return
+	}
+	var body []byte
+	body, err = ioutil.ReadAll(resp.Body)
+	if err != nil {
+		logFailure(fmt.Sprintf("Unable to read response body: %v", err))
+		return
+	}
+
+	var feed *parsedFeed
+	feed, err = parseFeed(body)
+	if err != nil {
+		logFailure(fmt.Sprintf("Unable to parse feed: %v", err))
+		return
+	}
+
+	conn.Transaction(func() bool {
+		_, err = conn.Execute(`
+			update feeds
+			set name=$1,
+		 	  last_fetch_time=now(),
+		 	  etag=$2,
+		 	  last_failure=null,
+		 	  last_failure_time=null,
+		 	  failure_count=0
+			where id=$3`,
+			feed.name,
+			resp.Header.Get("Etag"),
+			staleFeed.id)
+		if err != nil {
+			return false
+		}
+
+		for _, item := range feed.items {
+			_, err = conn.Execute(`
+				insert into items(feed_id, url, title, publication_time)
+				select $1, $2, $3, $4
+				where not exists(
+					select 1
+					from items
+					where feed_id=$1
+					  and url=$2
+					  and title=$3
+					  and publication_time=$4
+				)
+				`,
+				staleFeed.id, item.url, item.title, item.publicationTime)
+			if err != nil {
+				return false
+			}
+		}
+
+		return true
+	})
+}
+
 type feedIndexFeed struct {
 	id   int32
 	name string
@@ -127,6 +239,44 @@ func GetFeedsForUserID(userID int32) (feeds []feedIndexFeed, err error) {
 		feeds = append(feeds, feed)
 		return
 	}, userID)
+
+	return
+}
+
+type homeUnreadItem struct {
+	id              int32
+	feedID          int32
+	feedName        string
+	title           string
+	url             string
+	publicationTime time.Time
+}
+
+func GetUnreadItemsForUserID(userID int32) (items []homeUnreadItem, err error) {
+	err = pool.SelectFunc(`
+			select
+				items.id,
+				feeds.id,
+				feeds.name,
+				items.title,
+				items.url,
+				publication_time
+			from feeds
+				join subscriptions on feeds.id=subscriptions.feed_id
+				join items on feeds.id=items.feed_id
+			where user_id=$1
+			order by name`,
+		func(r *pgx.DataRowReader) (err error) {
+			var item homeUnreadItem
+			item.id = r.ReadValue().(int32)
+			item.feedID = r.ReadValue().(int32)
+			item.feedName = r.ReadValue().(string)
+			item.title = r.ReadValue().(string)
+			item.url = r.ReadValue().(string)
+			item.publicationTime = r.ReadValue().(time.Time)
+			items = append(items, item)
+			return
+		}, userID)
 
 	return
 }
@@ -165,14 +315,13 @@ func GetFeedsForUserID(userID int32) (feeds []feedIndexFeed, err error) {
 type parsedItem struct {
 	url             string
 	title           string
-	body            string
 	publicationTime time.Time
 }
 
 func (i *parsedItem) isValid() bool {
 	var zeroTime time.Time
 
-	return i.url != "" && i.title != "" && i.body != "" && i.publicationTime != zeroTime
+	return i.url != "" && i.title != "" && i.publicationTime != zeroTime
 }
 
 type parsedFeed struct {
@@ -205,11 +354,10 @@ func parseFeed(body []byte) (f *parsedFeed, err error) {
 
 func parseRSS(body []byte) (*parsedFeed, error) {
 	type Item struct {
-		Link        string `xml:"link"`
-		Title       string `xml:"title"`
-		Description string `xml:"description"`
-		Date        string `xml:"date"`
-		PubDate     string `xml:"pubDate"`
+		Link    string `xml:"link"`
+		Title   string `xml:"title"`
+		Date    string `xml:"date"`
+		PubDate string `xml:"pubDate"`
 	}
 
 	type Channel struct {
@@ -232,7 +380,6 @@ func parseRSS(body []byte) (*parsedFeed, error) {
 	for i, item := range rss.Channel.Item {
 		feed.items[i].url = item.Link
 		feed.items[i].title = item.Title
-		feed.items[i].body = item.Description
 		if item.Date != "" {
 			feed.items[i].publicationTime, _ = parseTime(item.Date)
 		}
@@ -256,7 +403,6 @@ func parseAtom(body []byte) (*parsedFeed, error) {
 	type Entry struct {
 		Link      Link   `xml:"link"`
 		Title     string `xml:"title"`
-		Content   string `xml:"content"`
 		Published string `xml:"published"`
 		Updated   string `xml:"updated"`
 	}
@@ -277,22 +423,12 @@ func parseAtom(body []byte) (*parsedFeed, error) {
 	for i, entry := range atom.Entry {
 		feed.items[i].url = entry.Link.Href
 		feed.items[i].title = entry.Title
-		feed.items[i].body = entry.Content
 		if entry.Published != "" {
 			feed.items[i].publicationTime, _ = parseTime(entry.Published)
 		}
 		if entry.Updated != "" {
 			feed.items[i].publicationTime, _ = parseTime(entry.Updated)
 		}
-	}
-
-	fmt.Println(feed.name)
-
-	for _, item := range feed.items {
-		fmt.Println(item.url)
-		fmt.Println(item.title)
-		fmt.Println(len(item.body))
-		fmt.Println(item.publicationTime)
 	}
 
 	if !feed.isValid() {
