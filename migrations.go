@@ -57,17 +57,37 @@ func migrate(connectionParameters pgx.ConnectionParameters) (err error) {
   `)
 
 	m.AppendMigration("Create items", `
+    create extension pgcrypto;
+
     create table items(
       id serial primary key,
       feed_id integer not null references feeds,
       publication_time timestamp with time zone,
-      title varchar not null check(title<>''),
-      url varchar not null check(url<>''),
+      title varchar not null,
+      url varchar not null,
+      digest bytea not null unique,
       creation_time timestamp with time zone not null default now(),
-      unique(feed_id, publication_time, title, url)
+      unique(feed_id, id)
     );
 
     create index on items (feed_id);
+
+    create function digest_item(feed_id integer, publication_time timestamp with time zone, title text, url text) returns bytea as $$
+      begin
+        return digest(feed_id::text || publication_time::text || title || url, 'sha256');
+        return new;
+      end;
+    $$ language plpgsql;
+
+    create function digest_items() returns trigger as $$
+      begin
+        new.digest := digest_item(new.feed_id, new.publication_time, new.title, new.url);
+        return new;
+      end;
+    $$ language plpgsql;
+
+    create trigger digest_items before insert or update on items
+      for each row execute procedure digest_items();
   `)
 
 	m.AppendMigration("Create subscriptions", `
@@ -78,6 +98,17 @@ func migrate(connectionParameters pgx.ConnectionParameters) (err error) {
     );
 
     create index on subscriptions (feed_id);
+  `)
+
+	m.AppendMigration("Create unread_items", `
+    create table unread_items(
+      user_id integer not null,
+      feed_id integer not null,
+      item_id integer not null,
+      primary key(user_id, feed_id, item_id),
+      foreign key (user_id, feed_id) references subscriptions (user_id, feed_id) on delete cascade,
+      foreign key (feed_id, item_id) references items (feed_id, id) on delete cascade
+    );
   `)
 
 	return m.Migrate()

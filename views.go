@@ -75,6 +75,9 @@ func RenderHeader(writer io.Writer, e *environment) (err error) {
 func RenderHome(writer io.Writer, e *environment, items []homeUnreadItem) (err error) {
 	RenderHeader(writer, e)
 	io.WriteString(writer, `
+<div>
+  <a href="/subscribe">Subscribe</a>
+</div>
 <h1>Unread Items</h1>
 <ul>
   `)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"code.google.com/p/go.crypto/scrypt"
 	"crypto/rand"
 	"encoding/xml"
@@ -9,6 +10,7 @@ import (
 	"github.com/JackC/pgx"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -39,50 +41,41 @@ func CreateUser(name string, password string) (userID int32, err error) {
 }
 
 func Subscribe(userID int32, feedURL string) (err error) {
+	var conn *pgx.Connection
+	conn, err = pool.Acquire()
+	if err != nil {
+		return err
+	}
+	defer pool.Release(conn)
+
 	var feedID interface{}
-	feedID, err = pool.SelectValue("select id from feeds where url=$1", feedURL)
+	feedID, err = conn.SelectValue("select id from feeds where url=$1", feedURL)
 	if _, ok := err.(pgx.NotSingleRowError); ok {
-		var resp *http.Response
-		resp, err = http.Get(feedURL)
+		var rawFeed *rawFeed
+		rawFeed, err = fetchFeed(feedURL)
 		if err != nil {
 			return err
 		}
-		if resp.StatusCode != 200 {
-			return fmt.Errorf("Bad HTTP response: %s", resp.Status)
-		}
-		var body []byte
-		body, err = ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf("Unable to read response body: %v", err)
-		}
 
 		var feed *parsedFeed
-		feed, err = parseFeed(body)
+		feed, err = parseFeed(rawFeed.body)
 		if err != nil {
 			return fmt.Errorf("Unable to parse feed: %v", err)
 		}
 
-		var conn *pgx.Connection
-		conn, err = pool.Acquire()
-		if err != nil {
-			return err
-		}
-		defer pool.Release(conn)
-
 		committed, txErr := conn.Transaction(func() bool {
-			feedID, err = conn.SelectValue("insert into feeds(name, url, last_fetch_time, etag) values($1, $2, now(), $3) returning id", feed.name, feedURL, resp.Header.Get("Etag"))
+			feedID, err = conn.SelectValue("insert into feeds(name, url, last_fetch_time, etag) values($1, $2, now(), $3) returning id", feed.name, feedURL, rawFeed.etag)
 			if err != nil {
 				return false
 			}
 
-			for _, item := range feed.items {
-				_, err = conn.Execute("insert into items(feed_id, url, title, publication_time) values($1, $2, $3, $4)", feedID, item.url, item.title, item.publicationTime)
-				if err != nil {
-					return false
-				}
+			_, err = conn.Execute("insert into subscriptions(user_id, feed_id) values($1, $2)", userID, feedID)
+			if err != nil {
+				return false
 			}
 
-			_, err = conn.Execute("insert into subscriptions(user_id, feed_id) values($1, $2)", userID, feedID)
+			insertSQL, insertArgs := buildNewItemsSQL(feedID.(int32), feed.items)
+			_, err = conn.Execute(insertSQL, insertArgs...)
 			if err != nil {
 				return false
 			}
@@ -105,10 +98,35 @@ func Subscribe(userID int32, feedURL string) (err error) {
 		return err
 	}
 
-	_, err = pool.Execute("insert into subscriptions(user_id, feed_id) values($1, $2)", userID, feedID)
+	committed, txErr := conn.Transaction(func() bool {
+		_, err = pool.Execute("insert into subscriptions(user_id, feed_id) values($1, $2)", userID, feedID)
+		if err != nil {
+			return false
+		}
+
+		_, err = pool.Execute(`
+			insert into unread_items(user_id, feed_id, item_id)
+			select $1, $2, item_id
+			from items
+			where items.user_id=$1
+			  and items.feed_id=$2
+		`, userID, feedID)
+		if err != nil {
+			return false
+		}
+
+		return true
+	})
 	if err != nil {
 		return err
 	}
+	if txErr != nil {
+		return err
+	}
+	if !committed {
+		return errors.New("Commit failed")
+	}
+
 	return
 }
 
@@ -140,6 +158,36 @@ func FindStaleFeeds() (feeds []staleFeed, err error) {
 	return
 }
 
+type rawFeed struct {
+	url  string
+	body []byte
+	etag string
+}
+
+func fetchFeed(url string) (feed *rawFeed, err error) {
+	feed = &rawFeed{url: url}
+
+	var resp *http.Response
+	resp, err = http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("Bad HTTP response: %s", resp.Status)
+	}
+
+	feed.body, err = ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to read response body: %v", err)
+	}
+
+	feed.etag = resp.Header.Get("Etag")
+
+	return feed, nil
+}
+
 func RefreshFeed(staleFeed staleFeed) {
 	var conn *pgx.Connection
 	var err error
@@ -160,25 +208,15 @@ func RefreshFeed(staleFeed staleFeed) {
 			failure, staleFeed.id)
 	}
 
-	var resp *http.Response
-	resp, err = http.Get(staleFeed.url)
+	var rawFeed *rawFeed
+	rawFeed, err = fetchFeed(staleFeed.url)
 	if err != nil {
 		logFailure(err.Error())
 		return
 	}
-	if resp.StatusCode != 200 {
-		logFailure(fmt.Sprintf("Bad HTTP response: %s", resp.Status))
-		return
-	}
-	var body []byte
-	body, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		logFailure(fmt.Sprintf("Unable to read response body: %v", err))
-		return
-	}
 
 	var feed *parsedFeed
-	feed, err = parseFeed(body)
+	feed, err = parseFeed(rawFeed.body)
 	if err != nil {
 		logFailure(fmt.Sprintf("Unable to parse feed: %v", err))
 		return
@@ -195,33 +233,73 @@ func RefreshFeed(staleFeed staleFeed) {
 		 	  failure_count=0
 			where id=$3`,
 			feed.name,
-			resp.Header.Get("Etag"),
+			rawFeed.etag,
 			staleFeed.id)
 		if err != nil {
 			return false
 		}
 
-		for _, item := range feed.items {
-			_, err = conn.Execute(`
-				insert into items(feed_id, url, title, publication_time)
-				select $1, $2, $3, $4
-				where not exists(
-					select 1
-					from items
-					where feed_id=$1
-					  and url=$2
-					  and title=$3
-					  and publication_time=$4
-				)
-				`,
-				staleFeed.id, item.url, item.title, item.publicationTime)
-			if err != nil {
-				return false
-			}
+		insertSQL, insertArgs := buildNewItemsSQL(staleFeed.id, feed.items)
+		_, err = conn.Execute(insertSQL, insertArgs...)
+		if err != nil {
+			return false
 		}
 
 		return true
 	})
+}
+
+func buildNewItemsSQL(feedID int32, items []parsedItem) (sql string, args []interface{}) {
+	var buf bytes.Buffer
+	args = append(args, feedID)
+
+	buf.WriteString(`
+			with new_items as (
+				insert into items(feed_id, url, title, publication_time)
+				select $1, url, title, publication_time
+				from (values
+		`)
+
+	for i, item := range items {
+		if i > 0 {
+			buf.WriteString(",")
+		}
+
+		buf.WriteString("($")
+
+		args = append(args, item.url)
+		buf.WriteString(strconv.FormatInt(int64(len(args)), 10))
+
+		buf.WriteString(",$")
+
+		args = append(args, item.title)
+		buf.WriteString(strconv.FormatInt(int64(len(args)), 10))
+
+		buf.WriteString(",$")
+
+		args = append(args, item.publicationTime)
+		buf.WriteString(strconv.FormatInt(int64(len(args)), 10))
+
+		buf.WriteString("::timestamptz)")
+	}
+
+	buf.WriteString(`
+			) t(url, title, publication_time)
+			where not exists(
+				select 1
+				from items
+				where digest=digest_item($1, t.publication_time, t.title, t.url)
+			)
+			returning id
+		)
+		insert into unread_items(user_id, feed_id, item_id)
+		select user_id, $1, new_items.id
+		from subscriptions
+		  cross join new_items
+		where subscriptions.feed_id=$1
+	`)
+
+	return buf.String(), args
 }
 
 type feedIndexFeed struct {
