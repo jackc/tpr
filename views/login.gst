@@ -20,7 +20,7 @@ parameters: f *form.Form
           <span class="error"><%= f.Fields["name"].Error.Error() %></span>
         <% } %>
       </dt>
-      <dd><input type="text" id="name" name="name" value="<%= f.Fields["name"].Unparsed %>" /></dd>
+      <dd><input type="text" id="name" name="name" autofocus value="<%= f.Fields["name"].Unparsed %>" /></dd>
 
       <dt>
         <label for="password">Password</label>
