@@ -2,3 +2,4 @@ config.yml
 config.test.yml
 reader
 tmp
+views.go
