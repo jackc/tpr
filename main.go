@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"code.google.com/p/go.crypto/scrypt"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -166,7 +167,13 @@ func (env *environment) CurrentAccount() *currentAccount {
 			return nil
 		}
 
-		if session, present = getSession(cookie.Value); !present {
+		var sessionID []byte
+		sessionID, err = hex.DecodeString(cookie.Value)
+		if err != nil {
+			logger.Warning(fmt.Sprintf(`Unable to decode cookie sessionId "%s": %v`, cookie.Value, err))
+			return nil
+		}
+		if session, present = getSession(sessionID); !present {
 			return nil
 		}
 
@@ -289,8 +296,8 @@ func LogoutHandler(w http.ResponseWriter, req *http.Request) {
 	http.Redirect(w, req, "/login", http.StatusSeeOther)
 }
 
-func createSessionCookie(sessionId string) *http.Cookie {
-	return &http.Cookie{Name: "sessionId", Value: sessionId}
+func createSessionCookie(sessionId []byte) *http.Cookie {
+	return &http.Cookie{Name: "sessionId", Value: hex.EncodeToString(sessionId)}
 }
 
 func FeedsIndexHandler(w http.ResponseWriter, req *http.Request, env *environment) {

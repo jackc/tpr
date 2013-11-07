@@ -111,5 +111,13 @@ func migrate(connectionParameters pgx.ConnectionParameters) (err error) {
     );
   `)
 
+	m.AppendMigration("Create sessions", `
+    create unlogged table sessions(
+      id bytea primary key,
+      user_id integer not null references users on delete cascade,
+      start_time timestamp with time zone not null default now()
+    );
+  `)
+
 	return m.Migrate()
 }
