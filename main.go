@@ -309,6 +309,16 @@ func FeedsIndexHandler(w http.ResponseWriter, req *http.Request, env *environmen
 	RenderFeedsIndex(w, env, feeds)
 }
 
+func NoDirListing(handler http.Handler) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/") {
+			http.NotFound(w, r)
+			return
+		}
+		handler.ServeHTTP(w, r)
+	})
+}
+
 func main() {
 	initialize()
 	router := qv.NewRouter()
@@ -321,7 +331,10 @@ func main() {
 	router.Get("/register", http.HandlerFunc(RegistrationFormHandler))
 	router.Post("/register", http.HandlerFunc(RegisterHandler))
 	router.Get("/feeds", SecureHandlerFunc(FeedsIndexHandler))
+
 	http.Handle("/", router)
+	http.Handle("/css/", NoDirListing(http.FileServer(http.Dir("./public/"))))
+	http.Handle("/js/", NoDirListing(http.FileServer(http.Dir("./public/"))))
 
 	listenAt := fmt.Sprintf("%s:%s", config.listenAddress, config.listenPort)
 	fmt.Printf("Starting to listen on: %s\n", listenAt)

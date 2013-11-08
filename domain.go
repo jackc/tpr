@@ -340,10 +340,10 @@ func GetUnreadItemsForUserID(userID int32) (items []homeUnreadItem, err error) {
 				items.url,
 				publication_time
 			from feeds
-				join subscriptions on feeds.id=subscriptions.feed_id
 				join items on feeds.id=items.feed_id
+				join unread_items on items.id=unread_items.item_id
 			where user_id=$1
-			order by name`,
+			order by publication_time asc`,
 		func(r *pgx.DataRowReader) (err error) {
 			var item homeUnreadItem
 			item.id = r.ReadValue().(int32)
