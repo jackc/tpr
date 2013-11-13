@@ -2,7 +2,7 @@ require 'spec_helper'
 
 feature 'Registration' do
   scenario 'Registering a new user' do
-    visit '/login'
+    visit '/#login'
 
     click_on 'Create an account'
 
@@ -12,7 +12,7 @@ feature 'Registration' do
 
     click_on 'Register'
 
-    expect(page).to have_content 'Welcome joe'
+    expect(page).to have_content 'Logout'
     expect(DB[:users].count).to eq 1
   end
 end

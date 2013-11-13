@@ -302,63 +302,6 @@ func buildNewItemsSQL(feedID int32, items []parsedItem) (sql string, args []inte
 	return buf.String(), args
 }
 
-type feedIndexFeed struct {
-	id   int32
-	name string
-	url  string
-}
-
-func GetFeedsForUserID(userID int32) (feeds []feedIndexFeed, err error) {
-	err = pool.SelectFunc("select id, name, url from feeds join subscriptions on feeds.id=subscriptions.feed_id where user_id=$1 order by name", func(r *pgx.DataRowReader) (err error) {
-		var feed feedIndexFeed
-		feed.id = r.ReadValue().(int32)
-		feed.name = r.ReadValue().(string)
-		feed.url = r.ReadValue().(string)
-		feeds = append(feeds, feed)
-		return
-	}, userID)
-
-	return
-}
-
-type homeUnreadItem struct {
-	id              int32
-	feedID          int32
-	feedName        string
-	title           string
-	url             string
-	publicationTime time.Time
-}
-
-func GetUnreadItemsForUserID(userID int32) (items []homeUnreadItem, err error) {
-	err = pool.SelectFunc(`
-			select
-				items.id,
-				feeds.id,
-				feeds.name,
-				items.title,
-				items.url,
-				publication_time
-			from feeds
-				join items on feeds.id=items.feed_id
-				join unread_items on items.id=unread_items.item_id
-			where user_id=$1
-			order by publication_time asc`,
-		func(r *pgx.DataRowReader) (err error) {
-			var item homeUnreadItem
-			item.id = r.ReadValue().(int32)
-			item.feedID = r.ReadValue().(int32)
-			item.feedName = r.ReadValue().(string)
-			item.title = r.ReadValue().(string)
-			item.url = r.ReadValue().(string)
-			item.publicationTime = r.ReadValue().(time.Time)
-			items = append(items, item)
-			return
-		}, userID)
-
-	return
-}
-
 // func fetchFeed(url string, etag string) (body string, err error) {
 // 	var req *http.Request
 // 	var resp *http.Response

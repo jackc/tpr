@@ -1,0 +1,92 @@
+<html>
+<head>
+  <script id="login_page_template" type="underscore/template">
+    <div>
+      <div>Login</div>
+      <form>
+        <dl>
+          <dt>
+            <label for="name">User name</label>
+          </dt>
+          <dd><input type="text" id="name" name="name" autofocus /></dd>
+
+          <dt>
+            <label for="password">Password</label>
+          </dt>
+          <dd><input type="password" id="password" name="password" /></dd>
+        </dl>
+
+        <input type="submit" value="Login" />
+      </form>
+      <a href="#" class="register">Create an account</a>
+    </div>
+  </script>
+
+  <script id="register_page_template" type="underscore/template">
+    <form>
+      <dl>
+        <dt>
+          <label for="name">User name</label>
+        </dt>
+        <dd><input type="text" id="name" name="name" /></dd>
+
+        <dt>
+          <label for="password">Password</label>
+        </dt>
+        <dd><input type="password" id="password" name="password" /></dd>
+
+        <dt>
+          <label for="passwordConfirmation">Password Confirmation</label>
+        </dt>
+        <dd><input type="password" id="passwordConfirmation" name="passwordConfirmation" /></dd>
+      </dl>
+      <input type="submit" value="Register" />
+    </form>
+  </script>
+
+  <script id="home_page_template" type="underscore/template">
+    <div>
+      <div>Home</div>
+      <a href="#" class="logout">Logout</a>
+    </div>
+  </script>
+
+  <script id="item_template" type="underscore/template">
+    <li>
+      <div class="feedName"><%= item.feed_name %></div>
+      <div class="title">
+        <a href="<%= item.url %>"><%= item.title %></a>
+      </div>
+      <div class="publicationTime"><%= item.publication_time %></div>
+    </li>
+  </script>
+
+  <script id="subscribe_page_template" type="underscore/template">
+    <h1>New Subscription</h1>
+    <form>
+      <dl>
+        <dt>
+          <label for="url">Feed URL</label>
+        </dt>
+        <dd><input type="text" name="url" /></dd>
+      </dl>
+      <input type="submit" value="Subscribe" />
+    </form>
+  </script>
+
+  <script id="feeds_page_template" type="underscore/template">
+    <h1>Feeds</h1>
+  </script>
+
+  <link type="text/css" rel="stylesheet" href="/css/application.css">
+  <script src="/js/application.js"></script>
+</head>
+<body>
+
+<header>
+  <h1>Reader</h1>
+</header>
+
+<div id="view"></div>
+</body>
+</html>

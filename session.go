@@ -35,5 +35,5 @@ func getSession(id []byte) (session Session, present bool) {
 }
 
 func deleteSession(id []byte) {
-	pool.Execute("delete from sessions where id=$1", id)
+	pool.Execute("deleteSession", id)
 }

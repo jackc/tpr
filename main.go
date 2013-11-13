@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"code.google.com/p/go.crypto/scrypt"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -26,9 +27,7 @@ var config struct {
 	listenPort    string
 }
 
-var loginFormTemplate *form.FormTemplate
 var registrationFormTemplate *form.FormTemplate
-var subscriptionFormTemplate *form.FormTemplate
 
 func initialize() {
 	var err error
@@ -78,7 +77,7 @@ func initialize() {
 		os.Exit(1)
 	}
 
-	poolOptions := pgx.ConnectionPoolOptions{MaxConnections: 5, AfterConnect: afterConnect, Logger: logger}
+	poolOptions := pgx.ConnectionPoolOptions{MaxConnections: 10, AfterConnect: afterConnect, Logger: logger}
 	pool, err = pgx.NewConnectionPool(connectionParameters, poolOptions)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to create database connection pool: %v\n", err)
@@ -96,13 +95,6 @@ func initialize() {
 			confirmation.Error = errors.New("does not match password")
 		}
 	}
-
-	subscriptionFormTemplate = form.NewFormTemplate()
-	subscriptionFormTemplate.AddField(&form.StringTemplate{Name: "url", Required: true, MaxLength: 8192})
-
-	loginFormTemplate = form.NewFormTemplate()
-	loginFormTemplate.AddField(&form.StringTemplate{Name: "name", Required: true, MaxLength: 30})
-	loginFormTemplate.AddField(&form.StringTemplate{Name: "password", Required: true, MaxLength: 50})
 }
 
 func extractConnectionOptions(config *yaml.File) (connectionOptions pgx.ConnectionParameters, err error) {
@@ -128,15 +120,54 @@ func extractConnectionOptions(config *yaml.File) (connectionOptions pgx.Connecti
 
 // afterConnect creates the prepared statements that this application uses
 func afterConnect(conn *pgx.Connection) (err error) {
+	err = conn.Prepare("getUnreadItems", `
+		select coalesce(json_agg(row_to_json(t)), '[]'::json)
+		from (
+			select
+				items.id,
+				feeds.id as feed_id,
+				feeds.name,
+				items.title,
+				items.url,
+				publication_time
+			from feeds
+				join items on feeds.id=items.feed_id
+				join unread_items on items.id=unread_items.item_id
+			where user_id=$1
+			order by publication_time asc
+		) t`)
+	if err != nil {
+		return
+	}
+
+	err = conn.Prepare("deleteSession", `delete from sessions where id=$1`)
+	if err != nil {
+		return
+	}
+
+	err = conn.Prepare("getFeedsForUser", `
+		select json_agg(row_to_json(t))
+		from (
+			select feeds.name, feeds.url, feeds.last_fetch_time
+			from feeds
+			  join subscriptions on feeds.id=subscriptions.feed_id
+			where user_id=$1
+			order by name
+		) t`)
+	if err != nil {
+		return
+	}
+
 	return
 }
 
-type SecureHandlerFunc func(w http.ResponseWriter, req *http.Request, env *environment)
+type ApiSecureHandlerFunc func(w http.ResponseWriter, req *http.Request, env *environment)
 
-func (f SecureHandlerFunc) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (f ApiSecureHandlerFunc) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	env := CreateEnvironment(req)
 	if env.CurrentAccount() == nil {
-		http.Redirect(w, req, "/login", http.StatusSeeOther)
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprint(w, "Bad or missing sessionID")
 		return
 	}
 	f(w, req, env)
@@ -158,19 +189,14 @@ func CreateEnvironment(req *http.Request) *environment {
 
 func (env *environment) CurrentAccount() *currentAccount {
 	if env.currentAccount == nil {
-		var cookie *http.Cookie
 		var session Session
 		var err error
 		var present bool
 
-		if cookie, err = env.request.Cookie("sessionId"); err != nil {
-			return nil
-		}
-
 		var sessionID []byte
-		sessionID, err = hex.DecodeString(cookie.Value)
+		sessionID, err = hex.DecodeString(env.request.FormValue("sessionID"))
 		if err != nil {
-			logger.Warning(fmt.Sprintf(`Unable to decode cookie sessionId "%s": %v`, cookie.Value, err))
+			logger.Warning(fmt.Sprintf(`Bad or missing to sessionID "%s": %v`, env.request.FormValue("sessionID"), err))
 			return nil
 		}
 		if session, present = getSession(sessionID); !present {
@@ -187,50 +213,94 @@ func (env *environment) CurrentAccount() *currentAccount {
 	return env.currentAccount
 }
 
-func RegistrationFormHandler(w http.ResponseWriter, req *http.Request) {
-	RenderRegister(w, registrationFormTemplate.New())
-}
-
 func RegisterHandler(w http.ResponseWriter, req *http.Request) {
-	req.ParseForm()
-	f := registrationFormTemplate.Parse(req.Form)
-	registrationFormTemplate.Validate(f)
-	if f.IsValid() {
-		if userID, err := CreateUser(f.Fields["name"].Parsed.(string), f.Fields["password"].Parsed.(string)); err == nil {
-			sessionId := createSession(userID)
-			cookie := createSessionCookie(sessionId)
-			http.SetCookie(w, cookie)
-			http.Redirect(w, req, "/subscribe", http.StatusSeeOther)
-		} else {
-			if strings.Contains(err.Error(), "users_name_unq") {
-				f.Fields["name"].Error = errors.New("User name is already taken")
-			} else {
-				panic(err.Error())
-			}
-			RenderRegister(w, f)
-		}
-	} else {
-		RenderRegister(w, f)
+	var registration struct {
+		Name                 string `json:"name"`
+		Password             string `json:"password"`
+		PasswordConfirmation string `json:"passwordConfirmation"`
 	}
-}
 
-func SubscriptionFormHandler(w http.ResponseWriter, req *http.Request, env *environment) {
-	RenderSubscribe(w, env, subscriptionFormTemplate.New())
-}
+	decoder := json.NewDecoder(req.Body)
+	if err := decoder.Decode(&registration); err != nil {
+		w.WriteHeader(422)
+		fmt.Fprintf(w, "Error decoding request: %v", err)
+		return
+	}
 
-func SubscribeHandler(w http.ResponseWriter, req *http.Request, env *environment) {
-	req.ParseForm()
-	f := subscriptionFormTemplate.Parse(req.Form)
-	subscriptionFormTemplate.Validate(f)
-	if f.IsValid() {
-		if err := Subscribe(env.CurrentAccount().id, f.Fields["url"].Parsed.(string)); err == nil {
-			http.Redirect(w, req, "/feeds", http.StatusSeeOther)
+	if registration.Name == "" {
+		w.WriteHeader(422)
+		fmt.Fprintln(w, `Request must include the attribute "name"`)
+		return
+	}
+
+	if len(registration.Name) > 30 {
+		w.WriteHeader(422)
+		fmt.Fprintln(w, `"name" must be less than 30 characters`)
+		return
+	}
+
+	if len(registration.Password) < 8 {
+		w.WriteHeader(422)
+		fmt.Fprintln(w, `"password" must be at least than 8 characters`)
+		return
+	}
+
+	if registration.Password != registration.PasswordConfirmation {
+		w.WriteHeader(422)
+		fmt.Fprintln(w, `"passwordConfirmation" must equal "password"`)
+		return
+	}
+
+	if userID, err := CreateUser(registration.Name, registration.Password); err == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+
+		var response struct {
+			Name      string `json:"name"`
+			SessionID string `json:"sessionID"`
+		}
+
+		response.Name = registration.Name
+		response.SessionID = hex.EncodeToString(createSession(userID))
+
+		encoder := json.NewEncoder(w)
+		encoder.Encode(response)
+	} else {
+		if strings.Contains(err.Error(), "users_name_unq") {
+			w.WriteHeader(422)
+			fmt.Fprintln(w, `"name" is already taken`)
+			return
 		} else {
 			panic(err.Error())
 		}
-	} else {
-		RenderSubscribe(w, env, f)
 	}
+}
+
+func CreateSubscriptionHandler(w http.ResponseWriter, req *http.Request, env *environment) {
+	var subscription struct {
+		URL string `json:"url"`
+	}
+
+	decoder := json.NewDecoder(req.Body)
+	if err := decoder.Decode(&subscription); err != nil {
+		w.WriteHeader(422)
+		fmt.Fprintf(w, "Error decoding request: %v", err)
+		return
+	}
+
+	if subscription.URL == "" {
+		w.WriteHeader(422)
+		fmt.Fprintln(w, `Request must include the attribute "url"`)
+		return
+	}
+
+	if err := Subscribe(env.CurrentAccount().id, subscription.URL); err != nil {
+		w.WriteHeader(422)
+		fmt.Fprintln(w, `Bad user name or password`)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
 }
 
 func AuthenticateUser(name, password string) (userID int32, err error) {
@@ -257,56 +327,75 @@ func AuthenticateUser(name, password string) (userID int32, err error) {
 	return
 }
 
-func HomeHandler(w http.ResponseWriter, req *http.Request, env *environment) {
-	items, err := GetUnreadItemsForUserID(env.CurrentAccount().id)
-	if err != nil {
-		panic("unable to find unread items")
+func CreateSessionHandler(w http.ResponseWriter, req *http.Request) {
+	var credentials struct {
+		Name     string `json:"name"`
+		Password string `json:"password"`
 	}
 
-	RenderHome(w, env, items)
-}
-
-func LoginFormHandler(w http.ResponseWriter, req *http.Request) {
-	RenderLogin(w, loginFormTemplate.New())
-}
-
-func LoginHandler(w http.ResponseWriter, req *http.Request) {
-	req.ParseForm()
-	f := loginFormTemplate.Parse(req.Form)
-	loginFormTemplate.Validate(f)
-
-	if !f.IsValid() {
-		RenderLogin(w, f)
+	decoder := json.NewDecoder(req.Body)
+	if err := decoder.Decode(&credentials); err != nil {
+		w.WriteHeader(422)
+		fmt.Fprintf(w, "Error decoding request: %v", err)
 		return
 	}
 
-	if userID, err := AuthenticateUser(f.Fields["name"].Parsed.(string), f.Fields["password"].Parsed.(string)); err == nil {
-		sessionId := createSession(userID)
-		cookie := createSessionCookie(sessionId)
-		http.SetCookie(w, cookie)
-		http.Redirect(w, req, "/", http.StatusSeeOther)
+	if credentials.Name == "" {
+		w.WriteHeader(422)
+		fmt.Fprintln(w, `Request must include the attribute "name"`)
+		return
+	}
+
+	if credentials.Password == "" {
+		w.WriteHeader(422)
+		fmt.Fprintln(w, `Request must include the attribute "password"`)
+		return
+	}
+
+	if userID, err := AuthenticateUser(credentials.Name, credentials.Password); err == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+
+		var response struct {
+			Name      string `json:"name"`
+			SessionID string `json:"sessionID"`
+		}
+
+		response.Name = credentials.Name
+		response.SessionID = hex.EncodeToString(createSession(userID))
+
+		encoder := json.NewEncoder(w)
+		encoder.Encode(response)
 	} else {
-		RenderLogin(w, f)
+		w.WriteHeader(422)
+		fmt.Fprintln(w, `Bad user name or password`)
+		return
 	}
 }
 
-func LogoutHandler(w http.ResponseWriter, req *http.Request) {
+func DeleteSessionHandler(w http.ResponseWriter, req *http.Request) {
 	cookie := &http.Cookie{Name: "sessionId", Value: "logged out", Expires: time.Unix(0, 0)}
 	http.SetCookie(w, cookie)
 	http.Redirect(w, req, "/login", http.StatusSeeOther)
+}
+
+func GetUnreadItemsHandler(w http.ResponseWriter, req *http.Request, env *environment) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := pool.SelectValueTo(w, "getUnreadItems", env.CurrentAccount().id); err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+	}
 }
 
 func createSessionCookie(sessionId []byte) *http.Cookie {
 	return &http.Cookie{Name: "sessionId", Value: hex.EncodeToString(sessionId)}
 }
 
-func FeedsIndexHandler(w http.ResponseWriter, req *http.Request, env *environment) {
-	feeds, err := GetFeedsForUserID(env.CurrentAccount().id)
-	if err != nil {
-		panic("unable to find feeds")
+func GetFeedsHandler(w http.ResponseWriter, req *http.Request, env *environment) {
+	fmt.Println("foo")
+	w.Header().Set("Content-Type", "application/json")
+	if err := pool.SelectValueTo(w, "getFeedsForUser", env.CurrentAccount().id); err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
-
-	RenderFeedsIndex(w, env, feeds)
 }
 
 func NoDirListing(handler http.Handler) http.HandlerFunc {
@@ -319,20 +408,23 @@ func NoDirListing(handler http.Handler) http.HandlerFunc {
 	})
 }
 
+func IndexHtmlHandler(w http.ResponseWriter, req *http.Request) {
+	http.ServeFile(w, req, "public/index.html")
+}
+
 func main() {
 	initialize()
 	router := qv.NewRouter()
-	router.Get("/", SecureHandlerFunc(HomeHandler))
-	router.Get("/login", http.HandlerFunc(LoginFormHandler))
-	router.Post("/login", http.HandlerFunc(LoginHandler))
-	router.Post("/logout", http.HandlerFunc(LogoutHandler))
-	router.Get("/subscribe", SecureHandlerFunc(SubscriptionFormHandler))
-	router.Post("/subscribe", SecureHandlerFunc(SubscribeHandler))
-	router.Get("/register", http.HandlerFunc(RegistrationFormHandler))
-	router.Post("/register", http.HandlerFunc(RegisterHandler))
-	router.Get("/feeds", SecureHandlerFunc(FeedsIndexHandler))
 
-	http.Handle("/", router)
+	router.Post("/register", http.HandlerFunc(RegisterHandler))
+	router.Post("/sessions", http.HandlerFunc(CreateSessionHandler))
+	router.Delete("/sessions/:id", http.HandlerFunc(DeleteSessionHandler))
+	router.Post("/subscriptions", ApiSecureHandlerFunc(CreateSubscriptionHandler))
+	router.Get("/feeds", ApiSecureHandlerFunc(GetFeedsHandler))
+	router.Get("/items/unread", ApiSecureHandlerFunc(GetUnreadItemsHandler))
+	http.Handle("/api/", http.StripPrefix("/api", router))
+
+	http.Handle("/", http.HandlerFunc(IndexHtmlHandler))
 	http.Handle("/css/", NoDirListing(http.FileServer(http.Dir("./public/"))))
 	http.Handle("/js/", NoDirListing(http.FileServer(http.Dir("./public/"))))
 
