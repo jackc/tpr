@@ -2,12 +2,14 @@ class App.Views.FeedsPage extends Backbone.View
   template: _.template($("#feeds_page_template").html())
 
   initialize: ->
+    @header = new App.Views.LoggedInHeader
     @feeds = new App.Collections.Feeds()
     @feedsListView = new App.Views.FeedsList collection: @feeds
     @feeds.fetch()
 
   render: ->
-    @$el.html @template()
+    @$el.html @header.render().$el
+    @$el.append @template()
     @$el.append @feedsListView.render().$el
     @
 

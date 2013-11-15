@@ -4,8 +4,12 @@ class App.Views.SubscribePage extends Backbone.View
   events:
     'submit form' : 'subscribe'
 
+  initialize: ->
+    @header = new App.Views.LoggedInHeader
+
   render: ->
-    @$el.html @template()
+    @$el.html @header.render().$el
+    @$el.append @template()
     @
 
   subscribe: (e)->

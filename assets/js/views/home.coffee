@@ -1,25 +1,17 @@
 class App.Views.HomePage extends Backbone.View
   template: _.template($("#home_page_template").html())
 
-  events:
-    'click a.logout' : 'logout'
-
   initialize: ->
+    @header = new App.Views.LoggedInHeader
     @unreadItems = new App.Collections.UnreadItems()
     @unreadItemsView = new App.Views.UnreadItemsList collection: @unreadItems
     @unreadItems.fetch()
 
   render: ->
-    @$el.html @template()
+    @$el.html @header.render().$el
+    @$el.append @template()
     @$el.append @unreadItemsView.render().$el
     @
-
-  logout: (e)->
-    e.preventDefault()
-    authenticationService = new App.Services.Authentication
-    authenticationService.logout().success ->
-      Backbone.history.navigate('login', true)
-
 
 class App.Views.UnreadItemsList extends Backbone.View
   tagName: 'ul'

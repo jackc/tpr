@@ -45,10 +45,7 @@
   </script>
 
   <script id="home_page_template" type="underscore/template">
-    <div>
-      <div>Home</div>
-      <a href="#" class="logout">Logout</a>
-    </div>
+    <div>Home</div>
   </script>
 
   <script id="item_template" type="underscore/template">
@@ -78,15 +75,18 @@
     <h1>Feeds</h1>
   </script>
 
+  <script id="logged_in_header_template" type="underscore/template">
+    <h1>Jaguar</h1>
+    <a href="#home">Home</a>
+    <a href="#subscribe">Subscribe</a>
+    <a href="#feeds">Feeds</a>
+    <a href="#" class="logout">Logout</a>
+  </script>
+
   <link type="text/css" rel="stylesheet" href="/css/application.css">
   <script src="/js/application.js"></script>
 </head>
 <body>
-
-<header>
-  <h1>Reader</h1>
-</header>
-
 <div id="view"></div>
 </body>
 </html>
