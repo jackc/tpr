@@ -391,7 +391,6 @@ func createSessionCookie(sessionId []byte) *http.Cookie {
 }
 
 func GetFeedsHandler(w http.ResponseWriter, req *http.Request, env *environment) {
-	fmt.Println("foo")
 	w.Header().Set("Content-Type", "application/json")
 	if err := pool.SelectValueTo(w, "getFeedsForUser", env.CurrentAccount().id); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
