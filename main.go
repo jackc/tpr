@@ -5,6 +5,7 @@ import (
 	"code.google.com/p/go.crypto/scrypt"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"flag"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -126,7 +128,7 @@ func afterConnect(conn *pgx.Connection) (err error) {
 			select
 				items.id,
 				feeds.id as feed_id,
-				feeds.name,
+				feeds.name as feed_name,
 				items.title,
 				items.url,
 				publication_time
@@ -154,6 +156,20 @@ func afterConnect(conn *pgx.Connection) (err error) {
 			where user_id=$1
 			order by name
 		) t`)
+	if err != nil {
+		return
+	}
+
+	err = conn.Prepare("markItemRead", `
+		delete from unread_items
+		where user_id=$1
+		  and item_id=$2
+		returning item_id`)
+	if err != nil {
+		return
+	}
+
+	err = conn.Prepare("markAllItemsRead", `delete from unread_items where user_id=$1`)
 	if err != nil {
 		return
 	}
@@ -386,8 +402,69 @@ func GetUnreadItemsHandler(w http.ResponseWriter, req *http.Request, env *enviro
 	}
 }
 
+func MarkItemReadHandler(w http.ResponseWriter, req *http.Request, env *environment) {
+	itemID, err := strconv.ParseInt(req.FormValue("id"), 10, 32)
+	if err != nil {
+		// If not an integer it clearly can't be found
+		http.NotFound(w, req)
+		return
+	}
+
+	_, err = pool.SelectValue("markItemRead", env.CurrentAccount().id, int32(itemID))
+	if _, ok := err.(pgx.NotSingleRowError); ok {
+		http.NotFound(w, req)
+		return
+	}
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+	}
+}
+
+func MarkAllItemsReadHandler(w http.ResponseWriter, req *http.Request, env *environment) {
+	_, err := pool.Execute("markAllItemsRead", env.CurrentAccount().id)
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+	}
+}
+
 func createSessionCookie(sessionId []byte) *http.Cookie {
 	return &http.Cookie{Name: "sessionId", Value: hex.EncodeToString(sessionId)}
+}
+
+func ImportFeedsHandler(w http.ResponseWriter, req *http.Request, env *environment) {
+	file, _, err := req.FormFile("file")
+	if err != nil {
+		w.WriteHeader(422)
+		fmt.Fprintln(w, `No uploaded file found`)
+		return
+	}
+	defer file.Close()
+
+	var doc OpmlDocument
+	err = xml.NewDecoder(file).Decode(&doc)
+	if err != nil {
+		w.WriteHeader(422)
+		fmt.Fprintln(w, "Error parsing OPML upload")
+		return
+	}
+
+	type subscriptionResult struct {
+		Title   string `json:"title"`
+		URL     string `json:"url"`
+		Success bool   `json:"success"`
+	}
+
+	results := make([]subscriptionResult, 0)
+
+	for _, outline := range doc.Body.Outlines {
+		r := subscriptionResult{Title: outline.Title, URL: outline.URL}
+		err := Subscribe(env.CurrentAccount().id, outline.URL)
+		r.Success = err == nil
+		results = append(results, r)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(results)
 }
 
 func GetFeedsHandler(w http.ResponseWriter, req *http.Request, env *environment) {
@@ -420,7 +497,10 @@ func main() {
 	router.Delete("/sessions/:id", http.HandlerFunc(DeleteSessionHandler))
 	router.Post("/subscriptions", ApiSecureHandlerFunc(CreateSubscriptionHandler))
 	router.Get("/feeds", ApiSecureHandlerFunc(GetFeedsHandler))
+	router.Post("/feeds/import", ApiSecureHandlerFunc(ImportFeedsHandler))
 	router.Get("/items/unread", ApiSecureHandlerFunc(GetUnreadItemsHandler))
+	router.Delete("/items/unread", ApiSecureHandlerFunc(MarkAllItemsReadHandler))
+	router.Delete("/items/unread/:id", ApiSecureHandlerFunc(MarkItemReadHandler))
 	http.Handle("/api/", http.StripPrefix("/api", router))
 
 	http.Handle("/", http.HandlerFunc(IndexHtmlHandler))

@@ -5,6 +5,7 @@ class App.Router extends Backbone.Router
     "register"  : "register"
     "subscribe"  : "subscribe"
     "feeds"  : "feeds"
+    "import"  : "import"
     "*path" : "login"
 
   login: ->
@@ -24,6 +25,13 @@ class App.Router extends Backbone.Router
       return
 
     @renderPage App.Views.SubscribePage
+
+  import: ->
+    unless State.Session.isAuthenticated()
+      Backbone.history.navigate('login', true)
+      return
+
+    @renderPage App.Views.ImportPage
 
   register: ->
     registrationService = new App.Services.Registration

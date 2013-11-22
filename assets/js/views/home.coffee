@@ -1,6 +1,9 @@
 class App.Views.HomePage extends Backbone.View
   template: _.template($("#home_page_template").html())
 
+  events:
+    'click a.markAllRead' : 'markAllRead'
+
   initialize: ->
     @header = new App.Views.LoggedInHeader
     @unreadItems = new App.Collections.UnreadItems()
@@ -12,6 +15,11 @@ class App.Views.HomePage extends Backbone.View
     @$el.append @template()
     @$el.append @unreadItemsView.render().$el
     @
+
+  markAllRead: (e)->
+    e.preventDefault()
+    $.ajax(url: "/api/items/unread?sessionID=#{State.Session.id}", method: "DELETE")
+      .success => @unreadItems.fetch()
 
 class App.Views.UnreadItemsList extends Backbone.View
   tagName: 'ul'
@@ -31,7 +39,14 @@ class App.Views.UnreadItemsList extends Backbone.View
 
 class App.Views.UnreadItem extends Backbone.View
   tagName: 'li'
+  template: _.template($("#item_template").html())
+
+  events:
+    'click a' : 'view'
 
   render: ->
-    @$el.html(@model.get("title"))
+    @$el.html @template(@model.toJSON())
     @
+
+  view: (e)->
+    $.ajax(url: "/api/items/unread/#{@model.get("id")}?sessionID=#{State.Session.id}", method: "DELETE")
