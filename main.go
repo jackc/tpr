@@ -439,7 +439,7 @@ func ImportFeedsHandler(w http.ResponseWriter, req *http.Request, env *environme
 		Success bool   `json:"success"`
 	}
 
-	results := make([]subscriptionResult, 0)
+	results := make([]subscriptionResult, 0, len(doc.Body.Outlines))
 
 	for _, outline := range doc.Body.Outlines {
 		r := subscriptionResult{Title: outline.Title, URL: outline.URL}
