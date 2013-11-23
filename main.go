@@ -440,11 +440,19 @@ func ImportFeedsHandler(w http.ResponseWriter, req *http.Request, env *environme
 	}
 
 	results := make([]subscriptionResult, 0, len(doc.Body.Outlines))
+	resultsChan := make(chan subscriptionResult)
 
 	for _, outline := range doc.Body.Outlines {
-		r := subscriptionResult{Title: outline.Title, URL: outline.URL}
-		err := Subscribe(env.CurrentAccount().id, outline.URL)
-		r.Success = err == nil
+		go func(outline OpmlOutline) {
+			r := subscriptionResult{Title: outline.Title, URL: outline.URL}
+			err := Subscribe(env.CurrentAccount().id, outline.URL)
+			r.Success = err == nil
+			resultsChan <- r
+		}(outline)
+	}
+
+	for _ = range doc.Body.Outlines {
+		r := <-resultsChan
 		results = append(results, r)
 	}
 
