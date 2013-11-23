@@ -12,7 +12,7 @@ require 'coffee_script'
 require 'erb'
 
 CLEAN.include("views.go", "tmp/js")
-CLOBBER.include("reader")
+CLOBBER.include("tpr")
 
 SRC = FileList["*.go"]
 
@@ -75,19 +75,19 @@ file 'public/index.html' => 'assets/html/index.html.erb' do
   File.write('public/index.html', File.read('assets/html/index.html.erb'))
 end
 
-file 'reader' => SRC do |t|
+file 'tpr' => SRC do |t|
   sh 'go build'
 end
 
-desc 'Build reader'
-task build: ['reader', 'public/index.html', 'public/js/application.js', 'public/css/application.css']
+desc 'Build tpr'
+task build: ['tpr', 'public/index.html', 'public/js/application.js', 'public/css/application.css']
 
-desc 'Run reader server'
+desc 'Run tpr server'
 task server: :build do
-  exec './reader'
+  exec './tpr'
 end
 
-desc "Run reader server and restart when source change"
+desc "Run tpr server and restart when source change"
 task :rerun do
   exec "rerun --dir='.,assets' --pattern='*.{go,manifest,css,js,coffee,erb}' rake server"
 end
@@ -96,7 +96,7 @@ task spec_server: :build do
   FileUtils.mkdir_p 'tmp/spec/server'
   FileUtils.touch 'tmp/spec/server/stdout.log'
   FileUtils.touch 'tmp/spec/server/stderr.log'
-  pid = Process.spawn './reader -config=config.test.yml',
+  pid = Process.spawn './tpr -config=config.test.yml',
     out: 'tmp/spec/server/stdout.log',
     err: 'tmp/spec/server/stderr.log'
   at_exit { Process.kill 'TERM', pid }
