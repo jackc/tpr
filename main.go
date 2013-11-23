@@ -9,7 +9,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/JackC/form"
 	"github.com/JackC/pgx"
 	qv "github.com/JackC/quo_vadis"
 	"github.com/kylelemons/go-gypsy/yaml"
@@ -28,8 +27,6 @@ var config struct {
 	listenAddress string
 	listenPort    string
 }
-
-var registrationFormTemplate *form.FormTemplate
 
 func initialize() {
 	var err error
@@ -84,18 +81,6 @@ func initialize() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to create database connection pool: %v\n", err)
 		os.Exit(1)
-	}
-
-	registrationFormTemplate = form.NewFormTemplate()
-	registrationFormTemplate.AddField(&form.StringTemplate{Name: "name", Required: true, MaxLength: 30})
-	registrationFormTemplate.AddField(&form.StringTemplate{Name: "password", Required: true, MinLength: 8, MaxLength: 50})
-	registrationFormTemplate.AddField(&form.StringTemplate{Name: "passwordConfirmation", Required: true, MaxLength: 50})
-	registrationFormTemplate.CustomValidate = func(f *form.Form) {
-		password := f.Fields["password"]
-		confirmation := f.Fields["passwordConfirmation"]
-		if password.Error == nil && confirmation.Error == nil && password.Parsed != confirmation.Parsed {
-			confirmation.Error = errors.New("does not match password")
-		}
 	}
 }
 
