@@ -12,6 +12,7 @@ import (
 	"github.com/JackC/pgx"
 	qv "github.com/JackC/quo_vadis"
 	"github.com/kylelemons/go-gypsy/yaml"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -477,8 +478,27 @@ func NoDirListing(handler http.Handler) http.HandlerFunc {
 	})
 }
 
+func PreGzipped(handler http.Handler) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if strings.Contains(req.Header.Get("Accept-Encoding"), "gzip") {
+			contentType := mime.TypeByExtension(filepath.Ext(req.URL.Path))
+			if contentType != "" {
+				w.Header().Set("Content-Type", contentType)
+			}
+
+			req.URL.Path = req.URL.Path + ".gz"
+			w.Header().Set("Content-Encoding", "gzip")
+		}
+		handler.ServeHTTP(w, req)
+	})
+}
+
 func IndexHtmlHandler(w http.ResponseWriter, req *http.Request) {
 	http.ServeFile(w, req, "public/index.html")
+}
+
+func AssetFileServer(root http.FileSystem) http.HandlerFunc {
+	return NoDirListing(PreGzipped(http.FileServer(root)))
 }
 
 func main() {
@@ -497,8 +517,8 @@ func main() {
 	http.Handle("/api/", http.StripPrefix("/api", router))
 
 	http.Handle("/", http.HandlerFunc(IndexHtmlHandler))
-	http.Handle("/css/", NoDirListing(http.FileServer(http.Dir("./public/"))))
-	http.Handle("/js/", NoDirListing(http.FileServer(http.Dir("./public/"))))
+	http.Handle("/css/", AssetFileServer(http.Dir("./public/")))
+	http.Handle("/js/", AssetFileServer(http.Dir("./public/")))
 
 	listenAt := fmt.Sprintf("%s:%s", config.listenAddress, config.listenPort)
 	fmt.Printf("Starting to listen on: %s\n", listenAt)

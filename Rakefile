@@ -75,12 +75,23 @@ file 'public/index.html' => 'assets/html/index.html.erb' do
   File.write('public/index.html', File.read('assets/html/index.html.erb'))
 end
 
+[
+  'public/js/application.js',
+  'public/css/application.css',
+].each do |uncompressed|
+  compressed = uncompressed + '.gz'
+
+  file compressed => uncompressed do
+    sh 'gzip', '--keep', '--best', '--force', uncompressed
+  end
+end
+
 file 'tpr' => SRC do |t|
   sh 'go build'
 end
 
 desc 'Build tpr'
-task build: ['tpr', 'public/index.html', 'public/js/application.js', 'public/css/application.css']
+task build: ['tpr', 'public/index.html', 'public/js/application.js', 'public/css/application.css', 'public/js/application.js.gz', 'public/css/application.css.gz']
 
 desc 'Run tpr server'
 task server: :build do
