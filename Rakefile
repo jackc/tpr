@@ -10,6 +10,7 @@ require 'fileutils'
 require 'rspec/core/rake_task'
 require 'coffee_script'
 require 'erb'
+require 'zlib'
 
 CLEAN.include("views.go", "tmp/js")
 CLOBBER.include("tpr")
@@ -82,7 +83,9 @@ end
   compressed = uncompressed + '.gz'
 
   file compressed => uncompressed do
-    sh 'gzip', '--keep', '--best', '--force', uncompressed
+    Zlib::GzipWriter.open(compressed, Zlib::BEST_COMPRESSION) do |gz|
+      gz.write File.read(uncompressed)
+    end
   end
 end
 
