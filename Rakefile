@@ -12,8 +12,8 @@ require 'coffee_script'
 require 'erb'
 require 'zlib'
 
-CLEAN.include("views.go", "tmp/js")
-CLOBBER.include("tpr")
+CLEAN.include("tmp/js")
+CLOBBER.include("public", "tpr")
 
 SRC = FileList["*.go"]
 
