@@ -9,6 +9,7 @@ require 'rake/clean'
 require 'fileutils'
 require 'rspec/core/rake_task'
 require 'coffee_script'
+require 'sass'
 require 'erb'
 require 'zlib'
 
@@ -17,6 +18,7 @@ CLOBBER.include("public", "tpr")
 
 SRC = FileList["*.go"]
 
+directory 'tmp/css'
 directory 'tmp/js'
 directory 'tmp/js/collections'
 directory 'tmp/js/models'
@@ -57,8 +59,24 @@ file 'public/js/application.js' => js_files do
   end
 end
 
+FileList['assets/**/*.scss'].each do |scss_path|
+  compiled_css_path = scss_path.sub(/^assets/, 'tmp').sub(/\.scss$/, '.css')
+
+  file compiled_css_path => File.dirname(compiled_css_path)
+  file compiled_css_path => scss_path do
+    compiled_css = Sass::Engine.for_file(scss_path, {}).render
+    File.write compiled_css_path, compiled_css
+  end
+end
+
 css_files = File.readlines('assets/css/application.css.manifest').map(&:strip).map do |path|
-  "assets/css/#{path}"
+  if path =~ /\.scss$/
+    "tmp/css/" + path.sub(/\.scss$/, '.css')
+  elsif path =~ /\.css$/
+    "assets/css/#{path}"
+  else
+    raise "Unknown asset type: #{path}"
+  end
 end
 
 file 'public/css/application.css' => 'public/css'
