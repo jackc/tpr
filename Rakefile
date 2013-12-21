@@ -121,7 +121,7 @@ end
 
 desc "Run tpr server and restart when source change"
 task :rerun do
-  exec "rerun --dir='.,assets' --pattern='*.{go,manifest,css,js,coffee,erb}' rake server"
+  exec "rerun --dir='.,assets' --pattern='*.{go,manifest,scss,css,js,coffee,erb}' rake server"
 end
 
 task spec_server: :build do
