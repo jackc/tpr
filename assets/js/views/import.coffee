@@ -1,11 +1,12 @@
-class App.Views.ImportPage extends Backbone.View
+class App.Views.ImportPage extends App.Views.Base
   template: _.template($("#import_page_template").html())
 
   events:
     "submit form" : "upload"
 
   initialize: ->
-    @header = new App.Views.LoggedInHeader
+    super()
+    @header = @createChild App.Views.LoggedInHeader
 
   render: ->
     @$el.html @header.render().$el

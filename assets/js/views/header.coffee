@@ -1,4 +1,4 @@
-class App.Views.LoggedInHeader extends Backbone.View
+class App.Views.LoggedInHeader extends App.Views.Base
   template: _.template($("#logged_in_header_template").html())
   tagName: 'header'
 

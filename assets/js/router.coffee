@@ -10,41 +10,42 @@ class App.Router extends Backbone.Router
 
   login: ->
     authenticationService = new App.Services.Authentication
-    @renderPage App.Views.LoginPage, authenticationService: authenticationService
+    @changePage App.Views.LoginPage, authenticationService: authenticationService
 
   home: ->
     unless State.Session.isAuthenticated()
       Backbone.history.navigate('login', true)
       return
 
-    @renderPage App.Views.HomePage
+    @changePage App.Views.HomePage
 
   subscribe: ->
     unless State.Session.isAuthenticated()
       Backbone.history.navigate('login', true)
       return
 
-    @renderPage App.Views.SubscribePage
+    @changePage App.Views.SubscribePage
 
   import: ->
     unless State.Session.isAuthenticated()
       Backbone.history.navigate('login', true)
       return
 
-    @renderPage App.Views.ImportPage
+    @changePage App.Views.ImportPage
 
   register: ->
     registrationService = new App.Services.Registration
-    @renderPage App.Views.RegisterPage, registrationService: registrationService
+    @changePage App.Views.RegisterPage, registrationService: registrationService
 
   feeds: ->
     unless State.Session.isAuthenticated()
       Backbone.history.navigate('login', true)
       return
 
-    @renderPage App.Views.FeedsPage
+    @changePage App.Views.FeedsPage
 
-  renderPage: (pageClass, options)->
-    page = new pageClass(options)
-    $("#view").empty().append(page.render().$el)
+  changePage: (pageClass, options)->
+    @currentPage.remove() if @currentPage
+    @currentPage = new pageClass(options)
+    $("#view").empty().append(@currentPage.render().$el)
 

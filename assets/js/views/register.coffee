@@ -1,7 +1,8 @@
-class App.Views.RegisterPage extends Backbone.View
+class App.Views.RegisterPage extends App.Views.Base
   template: _.template($("#register_page_template").html())
 
   initialize: (options)->
+    super()
     @registrationService = options.registrationService
 
   events:

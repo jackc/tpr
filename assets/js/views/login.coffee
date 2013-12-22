@@ -1,7 +1,8 @@
-class App.Views.LoginPage extends Backbone.View
+class App.Views.LoginPage extends App.Views.Base
   template: _.template($("#login_page_template").html())
 
   initialize: (options)->
+    super()
     @authenticationService = options.authenticationService
 
   events:

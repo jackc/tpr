@@ -1,11 +1,12 @@
-class App.Views.SubscribePage extends Backbone.View
+class App.Views.SubscribePage extends App.Views.Base
   template: _.template($("#subscribe_page_template").html())
 
   events:
     'submit form' : 'subscribe'
 
   initialize: ->
-    @header = new App.Views.LoggedInHeader
+    super()
+    @header = @createChild App.Views.LoggedInHeader
 
   render: ->
     @$el.html @header.render().$el

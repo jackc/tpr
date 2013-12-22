@@ -9,6 +9,7 @@ collections/unread_items.coffee
 collections/feeds.coffee
 services/authentication.coffee
 services/registration.coffee
+views/base.coffee
 views/header.coffee
 views/feeds.coffee
 views/import.coffee

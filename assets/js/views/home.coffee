@@ -1,13 +1,14 @@
-class App.Views.HomePage extends Backbone.View
+class App.Views.HomePage extends App.Views.Base
   template: _.template($("#home_page_template").html())
 
   events:
     'click a.markAllRead' : 'markAllRead'
 
   initialize: ->
-    @header = new App.Views.LoggedInHeader
-    @unreadItems = new App.Collections.UnreadItems()
-    @unreadItemsView = new App.Views.UnreadItemsList collection: @unreadItems
+    super()
+    @header = @createChild App.Views.LoggedInHeader
+    @unreadItems = @createChild App.Collections.UnreadItems
+    @unreadItemsView = @createChild App.Views.UnreadItemsList, collection: @unreadItems
     @unreadItems.fetch()
 
   render: ->
@@ -21,11 +22,12 @@ class App.Views.HomePage extends Backbone.View
     $.ajax(url: "/api/items/unread?sessionID=#{State.Session.id}", method: "DELETE")
       .success => @unreadItems.fetch()
 
-class App.Views.UnreadItemsList extends Backbone.View
+class App.Views.UnreadItemsList extends App.Views.Base
   tagName: 'ul'
   className: 'unreadItems'
 
   initialize: ->
+    super()
     @listenTo @collection, 'sync', @render
     $(document).on 'keydown', (e)=> @keyDown(e)
 
@@ -33,7 +35,7 @@ class App.Views.UnreadItemsList extends Backbone.View
     @$el.empty()
 
     @itemViews = for model in @collection.models
-      new App.Views.UnreadItem model: model
+      @createChild App.Views.UnreadItem, model: model
     if @itemViews.length > 0
       @selected = @itemViews[0]
       @selected.select()
@@ -83,7 +85,11 @@ class App.Views.UnreadItemsList extends Backbone.View
     return unless @selected
     @selected.view()
 
-class App.Views.UnreadItem extends Backbone.View
+  remove: ->
+    $(document).off 'keydown'
+    super()
+
+class App.Views.UnreadItem extends App.Views.Base
   tagName: 'li'
   template: _.template($("#item_template").html())
 

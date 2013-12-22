@@ -1,10 +1,11 @@
-class App.Views.FeedsPage extends Backbone.View
+class App.Views.FeedsPage extends App.Views.Base
   template: _.template($("#feeds_page_template").html())
 
   initialize: ->
-    @header = new App.Views.LoggedInHeader
-    @feeds = new App.Collections.Feeds()
-    @feedsListView = new App.Views.FeedsList collection: @feeds
+    super()
+    @header = @createChild App.Views.LoggedInHeader
+    @feeds = @createChild App.Collections.Feeds
+    @feedsListView = @createChild App.Views.FeedsList, collection: @feeds
     @feeds.fetch()
 
   render: ->
@@ -13,23 +14,23 @@ class App.Views.FeedsPage extends Backbone.View
     @$el.append @feedsListView.render().$el
     @
 
-class App.Views.FeedsList extends Backbone.View
-  tagName: 'ul'
+class App.Views.FeedsList extends App.Views.Base
   className: 'feeds'
 
   initialize: ->
+    super()
     @listenTo @collection, 'sync', @render
 
   render: ->
     @$el.empty()
 
     @feedViews = for model in @collection.models
-      new App.Views.Feed model: model
+      @createChild App.Views.Feed, model: model
     for feedView in @feedViews
       @$el.append feedView.render().$el
     @
 
-class App.Views.Feed extends Backbone.View
+class App.Views.Feed extends App.Views.Base
   tagName: 'li'
 
   render: ->
