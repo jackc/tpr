@@ -66,6 +66,7 @@ class App.Views.UnreadItemsList extends App.Views.Base
 
     @selected.select()
     @selected.render()
+    @selected.ensureVisible()
 
   selectPrevious: ->
     return if @itemViews.length == 0
@@ -80,6 +81,7 @@ class App.Views.UnreadItemsList extends App.Views.Base
 
     @selected.select()
     @selected.render()
+    @selected.ensureVisible()
 
   viewSelected: ->
     return unless @selected
@@ -115,3 +117,10 @@ class App.Views.UnreadItem extends App.Views.Base
   deselect: ->
     @model.markRead()
     @isSelected = false
+
+  ensureVisible: ->
+    @el.scrollIntoView() unless @isEntirelyVisible()
+
+  isEntirelyVisible: ->
+    rect = @el.getBoundingClientRect()
+    rect.top >= 0 and rect.left >= 0 and rect.bottom <= window.innerHeight and rect.right <= window.innerWidth
