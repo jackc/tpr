@@ -57,7 +57,7 @@ func migrate(connectionParameters pgx.ConnectionParameters) (err error) {
   `)
 
 	m.AppendMigration("Create items", `
-    create extension pgcrypto;
+    create extension if not exists pgcrypto;
 
     create table items(
       id serial primary key,
