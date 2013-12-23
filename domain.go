@@ -30,14 +30,7 @@ func CreateUser(name string, password string) (userID int32, err error) {
 		return
 	}
 
-	var v interface{}
-	v, err = pool.SelectValue("insert into users(name, password_digest, password_salt) values($1, $2, $3) returning id", name, digest, salt)
-	if err != nil {
-		return
-	}
-	userID = v.(int32)
-
-	return
+	return repo.createUser(name, digest, salt)
 }
 
 func Subscribe(userID int32, feedURL string) (err error) {

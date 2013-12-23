@@ -22,6 +22,7 @@ import (
 )
 
 var pool *pgx.ConnectionPool
+var repo repository
 
 var config struct {
 	configPath    string
@@ -78,11 +79,15 @@ func initialize() {
 	}
 
 	poolOptions := pgx.ConnectionPoolOptions{MaxConnections: 10, AfterConnect: afterConnect, Logger: logger}
-	pool, err = pgx.NewConnectionPool(connectionParameters, poolOptions)
+
+	repo, err = NewPgxRepository(connectionParameters, poolOptions)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to create database connection pool: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Unable to create pgx repository: %v\n", err)
 		os.Exit(1)
 	}
+
+	// temp until all data access is moved into repo
+	pool = repo.(*pgxRepository).pool
 }
 
 func extractConnectionOptions(config *yaml.File) (connectionOptions pgx.ConnectionParameters, err error) {
@@ -103,63 +108,6 @@ func extractConnectionOptions(config *yaml.File) (connectionOptions pgx.Connecti
 		return
 	}
 	connectionOptions.Password, _ = config.Get("database.password")
-	return
-}
-
-// afterConnect creates the prepared statements that this application uses
-func afterConnect(conn *pgx.Connection) (err error) {
-	err = conn.Prepare("getUnreadItems", `
-		select coalesce(json_agg(row_to_json(t)), '[]'::json)
-		from (
-			select
-				items.id,
-				feeds.id as feed_id,
-				feeds.name as feed_name,
-				items.title,
-				items.url,
-				publication_time
-			from feeds
-				join items on feeds.id=items.feed_id
-				join unread_items on items.id=unread_items.item_id
-			where user_id=$1
-			order by publication_time asc
-		) t`)
-	if err != nil {
-		return
-	}
-
-	err = conn.Prepare("deleteSession", `delete from sessions where id=$1`)
-	if err != nil {
-		return
-	}
-
-	err = conn.Prepare("getFeedsForUser", `
-		select json_agg(row_to_json(t))
-		from (
-			select feeds.name, feeds.url, feeds.last_fetch_time
-			from feeds
-			  join subscriptions on feeds.id=subscriptions.feed_id
-			where user_id=$1
-			order by name
-		) t`)
-	if err != nil {
-		return
-	}
-
-	err = conn.Prepare("markItemRead", `
-		delete from unread_items
-		where user_id=$1
-		  and item_id=$2
-		returning item_id`)
-	if err != nil {
-		return
-	}
-
-	err = conn.Prepare("markAllItemsRead", `delete from unread_items where user_id=$1`)
-	if err != nil {
-		return
-	}
-
 	return
 }
 
@@ -306,16 +254,7 @@ func CreateSubscriptionHandler(w http.ResponseWriter, req *http.Request, env *en
 }
 
 func AuthenticateUser(name, password string) (userID int32, err error) {
-	var passwordDigest []byte
-	var passwordSalt []byte
-
-	err = pool.SelectFunc("select id, password_digest, password_salt from users where name=$1", func(r *pgx.DataRowReader) (err error) {
-		userID = r.ReadValue().(int32)
-		passwordDigest = r.ReadValue().([]byte)
-		passwordSalt = r.ReadValue().([]byte)
-		return
-	}, name)
-
+	userID, passwordDigest, passwordSalt, err := repo.getUserAuthenticationByName(name)
 	if err != nil {
 		return
 	}
