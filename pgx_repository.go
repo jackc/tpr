@@ -1,8 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/JackC/pgx"
+	"io"
+	"strconv"
+	"time"
 )
 
 type pgxRepository struct {
@@ -40,6 +44,101 @@ func (repo *pgxRepository) getUserAuthenticationByName(name string) (userID int3
 	return
 }
 
+func (repo *pgxRepository) createFeed(name, url string) (int32, error) {
+	feedID, err := repo.pool.SelectValue("insert into feeds(name, url) values($1, $2) returning id", name, url)
+	if err != nil {
+		return 0, err
+	}
+
+	return feedID.(int32), err
+}
+
+func (repo *pgxRepository) getFeedIDByURL(url string) (feedID int32, err error) {
+	var id interface{}
+	id, err = repo.pool.SelectValue("select id from feeds where url=$1", url)
+	if _, ok := err.(pgx.NotSingleRowError); ok {
+		return 0, notFound
+	}
+	if err != nil {
+		return 0, err
+	}
+
+	return id.(int32), nil
+}
+
+func (repo *pgxRepository) getFeedsUncheckedSince(since time.Time) (feeds []staleFeed, err error) {
+	err = repo.pool.SelectFunc("select id, url from feeds where greatest(last_fetch_time, last_failure_time, '-Infinity'::timestamptz) < $1", func(r *pgx.DataRowReader) (err error) {
+		var feed staleFeed
+		feed.id = r.ReadValue().(int32)
+		feed.url = r.ReadValue().(string)
+		feeds = append(feeds, feed)
+		return
+	}, since)
+
+	return
+}
+
+func (repo *pgxRepository) updateFeedWithFetchSuccess(feedID int32, update *parsedFeed, etag string, fetchTime time.Time) (err error) {
+	var conn *pgx.Connection
+
+	conn, err = repo.pool.Acquire()
+	if err != nil {
+		return
+	}
+	defer repo.pool.Release(conn)
+
+	conn.Transaction(func() bool {
+		_, err = conn.Execute(`
+      update feeds
+      set name=$1,
+        last_fetch_time=$2,
+        etag=$3,
+        last_failure=null,
+        last_failure_time=null,
+        failure_count=0
+      where id=$4`,
+			update.name,
+			fetchTime,
+			etag,
+			feedID)
+		if err != nil {
+			return false
+		}
+
+		if len(update.items) > 0 {
+			insertSQL, insertArgs := repo.buildNewItemsSQL(feedID, update.items)
+			_, err = conn.Execute(insertSQL, insertArgs...)
+			if err != nil {
+				return false
+			}
+		}
+
+		return true
+	})
+
+	return
+}
+
+func (repo *pgxRepository) updateFeedWithFetchFailure(feedID int32, failure string, fetchTime time.Time) (err error) {
+	_, err = repo.pool.Execute(`
+    update feeds
+    set last_failure=$1,
+      last_failure_time=$2,
+      failure_count=failure_count+1
+    where id=$3`,
+		failure, fetchTime, feedID)
+	return err
+}
+
+func (repo *pgxRepository) copyFeedsAsJSONBySubscribedUserID(w io.Writer, userID int32) error {
+	return repo.pool.SelectValueTo(w, "getFeedsForUser", userID)
+}
+
+func (repo *pgxRepository) createSubscription(userID, feedID int32) error {
+	_, err := repo.pool.Execute("insert into subscriptions(user_id, feed_id) values($1, $2)", userID, feedID)
+	return err
+}
+
 // Empty all data in the entire repository
 func (repo *pgxRepository) empty() error {
 	tables := []string{"feeds", "items", "sessions", "subscriptions", "unread_items", "users"}
@@ -50,6 +149,59 @@ func (repo *pgxRepository) empty() error {
 		}
 	}
 	return nil
+}
+
+func (repo *pgxRepository) buildNewItemsSQL(feedID int32, items []parsedItem) (sql string, args []interface{}) {
+	var buf bytes.Buffer
+	args = append(args, feedID)
+
+	buf.WriteString(`
+      with new_items as (
+        insert into items(feed_id, url, title, publication_time)
+        select $1, url, title, publication_time
+        from (values
+    `)
+
+	for i, item := range items {
+		if i > 0 {
+			buf.WriteString(",")
+		}
+
+		buf.WriteString("($")
+
+		args = append(args, item.url)
+		buf.WriteString(strconv.FormatInt(int64(len(args)), 10))
+
+		buf.WriteString(",$")
+
+		args = append(args, item.title)
+		buf.WriteString(strconv.FormatInt(int64(len(args)), 10))
+
+		buf.WriteString(",$")
+
+		args = append(args, item.publicationTime)
+		buf.WriteString(strconv.FormatInt(int64(len(args)), 10))
+
+		buf.WriteString("::timestamptz)")
+	}
+
+	buf.WriteString(`
+      ) t(url, title, publication_time)
+      where not exists(
+        select 1
+        from items
+        where digest=digest_item($1, t.publication_time, t.title, t.url)
+      )
+      returning id
+    )
+    insert into unread_items(user_id, feed_id, item_id)
+    select user_id, $1, new_items.id
+    from subscriptions
+      cross join new_items
+    where subscriptions.feed_id=$1
+  `)
+
+	return buf.String(), args
 }
 
 // afterConnect creates the prepared statements that this application uses

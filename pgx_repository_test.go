@@ -43,3 +43,13 @@ func TestPgxRepositoryUsers(t *testing.T) {
 	repo = getFreshPgxRepository(t)
 	testRepositoryUsers(t, repo)
 }
+
+func TestPgxRepositoryFeeds(t *testing.T) {
+	repo = getFreshPgxRepository(t)
+	testRepositoryFeeds(t, repo)
+}
+
+func TestPgxRepositorySubscriptions(t *testing.T) {
+	repo = getFreshPgxRepository(t)
+	testRepositorySubscriptions(t, repo)
+}

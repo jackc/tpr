@@ -402,7 +402,7 @@ func ImportFeedsHandler(w http.ResponseWriter, req *http.Request, env *environme
 
 func GetFeedsHandler(w http.ResponseWriter, req *http.Request, env *environment) {
 	w.Header().Set("Content-Type", "application/json")
-	if err := pool.SelectValueTo(w, "getFeedsForUser", env.CurrentAccount().id); err != nil {
+	if err := repo.copyFeedsAsJSONBySubscribedUserID(w, env.CurrentAccount().id); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
