@@ -64,34 +64,44 @@ type rawFeed struct {
 	etag string
 }
 
-func fetchFeed(url string) (feed *rawFeed, err error) {
+func fetchFeed(url, etag string) (feed *rawFeed, err error) {
+	client := &http.Client{}
+
 	feed = &rawFeed{url: url}
 
-	var resp *http.Response
-	resp, err = http.Get(url)
-	if err != nil {
-		return nil, err
+	req, err := http.NewRequest("GET", feed.url, nil)
+	if etag != "" {
+		req.Header.Add("If-None-Match", etag)
 	}
+	resp, err := client.Do(req)
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	switch resp.StatusCode {
+	case 200:
+		feed.body, err = ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("Unable to read response body: %v", err)
+		}
+
+		feed.etag = resp.Header.Get("Etag")
+
+		return feed, nil
+	case 304:
+		return nil, nil
+	default:
 		return nil, fmt.Errorf("Bad HTTP response: %s", resp.Status)
 	}
-
-	feed.body, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("Unable to read response body: %v", err)
-	}
-
-	feed.etag = resp.Header.Get("Etag")
-
-	return feed, nil
 }
 
 func RefreshFeed(staleFeed staleFeed) {
-	rawFeed, err := fetchFeed(staleFeed.url)
+	rawFeed, err := fetchFeed(staleFeed.url, staleFeed.etag)
 	if err != nil {
 		repo.updateFeedWithFetchFailure(staleFeed.id, err.Error(), time.Now())
+		return
+	}
+	// 304 unchanged
+	if rawFeed == nil {
+		repo.updateFeedWithFetchUnchanged(staleFeed.id, time.Now())
 		return
 	}
 

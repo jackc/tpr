@@ -67,10 +67,12 @@ func (repo *pgxRepository) getFeedIDByURL(url string) (feedID int32, err error) 
 }
 
 func (repo *pgxRepository) getFeedsUncheckedSince(since time.Time) (feeds []staleFeed, err error) {
-	err = repo.pool.SelectFunc("select id, url from feeds where greatest(last_fetch_time, last_failure_time, '-Infinity'::timestamptz) < $1", func(r *pgx.DataRowReader) (err error) {
+	err = repo.pool.SelectFunc("select id, url, etag from feeds where greatest(last_fetch_time, last_failure_time, '-Infinity'::timestamptz) < $1", func(r *pgx.DataRowReader) (err error) {
 		var feed staleFeed
 		feed.id = r.ReadValue().(int32)
 		feed.url = r.ReadValue().(string)
+		etag := r.ReadValue()
+		feed.etag, _ = etag.(string) // ignore if null
 		feeds = append(feeds, feed)
 		return
 	}, since)
@@ -116,6 +118,19 @@ func (repo *pgxRepository) updateFeedWithFetchSuccess(feedID int32, update *pars
 		return true
 	})
 
+	return
+}
+
+func (repo *pgxRepository) updateFeedWithFetchUnchanged(feedID int32, fetchTime time.Time) (err error) {
+	_, err = repo.pool.Execute(`
+    update feeds
+    set last_fetch_time=$1,
+      last_failure=null,
+      last_failure_time=null,
+      failure_count=0
+    where id=$2`,
+		fetchTime,
+		feedID)
 	return
 }
 
