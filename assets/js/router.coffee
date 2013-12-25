@@ -14,21 +14,21 @@ class App.Router extends Backbone.Router
 
   home: ->
     unless State.Session.isAuthenticated()
-      Backbone.history.navigate('login', true)
+      @navigate 'login'
       return
 
     @changePage App.Views.HomePage
 
   subscribe: ->
     unless State.Session.isAuthenticated()
-      Backbone.history.navigate('login', true)
+      @navigate 'login'
       return
 
     @changePage App.Views.SubscribePage
 
   import: ->
     unless State.Session.isAuthenticated()
-      Backbone.history.navigate('login', true)
+      @navigate 'login'
       return
 
     @changePage App.Views.ImportPage
@@ -39,7 +39,7 @@ class App.Router extends Backbone.Router
 
   feeds: ->
     unless State.Session.isAuthenticated()
-      Backbone.history.navigate('login', true)
+      @navigate 'login'
       return
 
     @changePage App.Views.FeedsPage
