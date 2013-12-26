@@ -24,7 +24,7 @@ func NewPgxRepository(parameters pgx.ConnectionParameters, options pgx.Connectio
 }
 
 func (repo *pgxRepository) createUser(name string, passwordDigest, passwordSalt []byte) (int32, error) {
-	v, err := repo.pool.SelectValue("insert into users(name, password_digest, password_salt) values($1, $2, $3) returning id", name, passwordDigest, passwordSalt)
+	v, err := repo.pool.SelectValue("insertUser", name, passwordDigest, passwordSalt)
 	if err != nil {
 		return 0, err
 	}
@@ -34,7 +34,7 @@ func (repo *pgxRepository) createUser(name string, passwordDigest, passwordSalt 
 }
 
 func (repo *pgxRepository) getUserAuthenticationByName(name string) (userID int32, passwordDigest, passwordSalt []byte, err error) {
-	err = repo.pool.SelectFunc("select id, password_digest, password_salt from users where name=$1", func(r *pgx.DataRowReader) (err error) {
+	err = repo.pool.SelectFunc("getUserAuthenticationByName", func(r *pgx.DataRowReader) (err error) {
 		userID = r.ReadValue().(int32)
 		passwordDigest = r.ReadValue().([]byte)
 		passwordSalt = r.ReadValue().([]byte)
@@ -45,7 +45,7 @@ func (repo *pgxRepository) getUserAuthenticationByName(name string) (userID int3
 }
 
 func (repo *pgxRepository) createFeed(name, url string) (int32, error) {
-	feedID, err := repo.pool.SelectValue("insert into feeds(name, url) values($1, $2) returning id", name, url)
+	feedID, err := repo.pool.SelectValue("insertFeed", name, url)
 	if err != nil {
 		return 0, err
 	}
@@ -55,7 +55,7 @@ func (repo *pgxRepository) createFeed(name, url string) (int32, error) {
 
 func (repo *pgxRepository) getFeedIDByURL(url string) (feedID int32, err error) {
 	var id interface{}
-	id, err = repo.pool.SelectValue("select id from feeds where url=$1", url)
+	id, err = repo.pool.SelectValue("getFeedIDByURL", url)
 	if _, ok := err.(pgx.NotSingleRowError); ok {
 		return 0, notFound
 	}
@@ -67,7 +67,7 @@ func (repo *pgxRepository) getFeedIDByURL(url string) (feedID int32, err error) 
 }
 
 func (repo *pgxRepository) getFeedsUncheckedSince(since time.Time) (feeds []staleFeed, err error) {
-	err = repo.pool.SelectFunc("select id, url, etag from feeds where greatest(last_fetch_time, last_failure_time, '-Infinity'::timestamptz) < $1", func(r *pgx.DataRowReader) (err error) {
+	err = repo.pool.SelectFunc("getFeedsUncheckedSince", func(r *pgx.DataRowReader) (err error) {
 		var feed staleFeed
 		feed.id = r.ReadValue().(int32)
 		feed.url = r.ReadValue().(string)
@@ -90,15 +90,7 @@ func (repo *pgxRepository) updateFeedWithFetchSuccess(feedID int32, update *pars
 	defer repo.pool.Release(conn)
 
 	conn.Transaction(func() bool {
-		_, err = conn.Execute(`
-      update feeds
-      set name=$1,
-        last_fetch_time=$2,
-        etag=$3,
-        last_failure=null,
-        last_failure_time=null,
-        failure_count=0
-      where id=$4`,
+		_, err = conn.Execute("updateFeedWithFetchSuccess",
 			update.name,
 			fetchTime,
 			etag,
@@ -122,26 +114,12 @@ func (repo *pgxRepository) updateFeedWithFetchSuccess(feedID int32, update *pars
 }
 
 func (repo *pgxRepository) updateFeedWithFetchUnchanged(feedID int32, fetchTime time.Time) (err error) {
-	_, err = repo.pool.Execute(`
-    update feeds
-    set last_fetch_time=$1,
-      last_failure=null,
-      last_failure_time=null,
-      failure_count=0
-    where id=$2`,
-		fetchTime,
-		feedID)
+	_, err = repo.pool.Execute("updateFeedWithFetchUnchanged", fetchTime, feedID)
 	return
 }
 
 func (repo *pgxRepository) updateFeedWithFetchFailure(feedID int32, failure string, fetchTime time.Time) (err error) {
-	_, err = repo.pool.Execute(`
-    update feeds
-    set last_failure=$1,
-      last_failure_time=$2,
-      failure_count=failure_count+1
-    where id=$3`,
-		failure, fetchTime, feedID)
+	_, err = repo.pool.Execute("updateFeedWithFetchFailure", failure, fetchTime, feedID)
 	return err
 }
 
@@ -150,17 +128,17 @@ func (repo *pgxRepository) copyFeedsAsJSONBySubscribedUserID(w io.Writer, userID
 }
 
 func (repo *pgxRepository) createSubscription(userID, feedID int32) error {
-	_, err := repo.pool.Execute("insert into subscriptions(user_id, feed_id) values($1, $2)", userID, feedID)
+	_, err := repo.pool.Execute("insertSubscription", userID, feedID)
 	return err
 }
 
 func (repo *pgxRepository) createSession(id []byte, userID int32) (err error) {
-	_, err = repo.pool.Execute("insert into sessions(id, user_id) values($1, $2)", id, userID)
+	_, err = repo.pool.Execute("insertSession", id, userID)
 	return err
 }
 
 func (repo *pgxRepository) getUserIDBySessionID(id []byte) (userID int32, err error) {
-	v, err := repo.pool.SelectValue("select user_id from sessions where id=$1", id)
+	v, err := repo.pool.SelectValue("getUserIDBySessionID", id)
 	if _, ok := err.(pgx.NotSingleRowError); ok {
 		return 0, notFound
 	}
@@ -290,6 +268,88 @@ func afterConnect(conn *pgx.Connection) (err error) {
 	}
 
 	err = conn.Prepare("markAllItemsRead", `delete from unread_items where user_id=$1`)
+	if err != nil {
+		return
+	}
+
+	err = conn.Prepare("insertUser", `
+    insert into users(name, password_digest, password_salt)
+    values($1, $2, $3)
+    returning id`)
+	if err != nil {
+		return
+	}
+
+	err = conn.Prepare("getUserAuthenticationByName", `
+    select id, password_digest, password_salt from users where name=$1`)
+	if err != nil {
+		return
+	}
+
+	err = conn.Prepare("insertFeed", `
+    insert into feeds(name, url) values($1, $2) returning id`)
+	if err != nil {
+		return
+	}
+
+	err = conn.Prepare("getFeedIDByURL", `select id from feeds where url=$1`)
+	if err != nil {
+		return
+	}
+
+	err = conn.Prepare("getFeedsUncheckedSince", `
+    select id, url, etag
+    from feeds
+    where greatest(last_fetch_time, last_failure_time, '-Infinity'::timestamptz) < $1`)
+	if err != nil {
+		return
+	}
+
+	err = conn.Prepare("updateFeedWithFetchSuccess", `
+      update feeds
+      set name=$1,
+        last_fetch_time=$2,
+        etag=$3,
+        last_failure=null,
+        last_failure_time=null,
+        failure_count=0
+      where id=$4`)
+	if err != nil {
+		return
+	}
+
+	err = conn.Prepare("updateFeedWithFetchUnchanged", `
+    update feeds
+    set last_fetch_time=$1,
+      last_failure=null,
+      last_failure_time=null,
+      failure_count=0
+    where id=$2`)
+	if err != nil {
+		return
+	}
+
+	err = conn.Prepare("updateFeedWithFetchFailure", `
+    update feeds
+    set last_failure=$1,
+      last_failure_time=$2,
+      failure_count=failure_count+1
+    where id=$3`)
+	if err != nil {
+		return
+	}
+
+	err = conn.Prepare("insertSubscription", `insert into subscriptions(user_id, feed_id) values($1, $2)`)
+	if err != nil {
+		return
+	}
+
+	err = conn.Prepare("insertSession", `insert into sessions(id, user_id) values($1, $2)`)
+	if err != nil {
+		return
+	}
+
+	err = conn.Prepare("getUserIDBySessionID", `select user_id from sessions where id=$1`)
 	if err != nil {
 		return
 	}
