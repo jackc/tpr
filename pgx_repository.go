@@ -148,9 +148,16 @@ func (repo *pgxRepository) getUserIDBySessionID(id []byte) (userID int32, err er
 	return v.(int32), err
 }
 
-func (repo *pgxRepository) deleteSession(id []byte) (err error) {
-	_, err = repo.pool.Execute("deleteSession", id)
-	return
+func (repo *pgxRepository) deleteSession(id []byte) error {
+	commandTag, err := repo.pool.Execute("deleteSession", id)
+	if err != nil {
+		return err
+	}
+	if commandTag != "DELETE 1" {
+		return notFound
+	}
+
+	return nil
 }
 
 // Empty all data in the entire repository

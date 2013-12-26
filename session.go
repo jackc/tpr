@@ -38,9 +38,10 @@ func getSession(id []byte) (session Session, present bool) {
 	return
 }
 
-func deleteSession(id []byte) {
+func deleteSession(id []byte) error {
 	err := repo.deleteSession(id)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Unable to delete session: %v", err))
 	}
+	return err
 }

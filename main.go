@@ -315,6 +315,17 @@ func CreateSessionHandler(w http.ResponseWriter, req *http.Request) {
 }
 
 func DeleteSessionHandler(w http.ResponseWriter, req *http.Request) {
+	sessionID, err := hex.DecodeString(req.FormValue("id"))
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	err = deleteSession(sessionID)
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
 	cookie := &http.Cookie{Name: "sessionId", Value: "logged out", Expires: time.Unix(0, 0)}
 	http.SetCookie(w, cookie)
 }

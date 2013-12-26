@@ -169,4 +169,9 @@ func testRepositorySessions(t *testing.T, repo repository) {
 	if err != notFound {
 		t.Fatalf("Should have returned notFound error instead got: %v", err)
 	}
+
+	err = repo.deleteSession(sessionID)
+	if err != notFound {
+		t.Fatalf("deleteSession should return notFound when deleting non-existent id but it returned: %v", err)
+	}
 }
