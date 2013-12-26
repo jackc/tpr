@@ -22,6 +22,10 @@ type repository interface {
 	copyFeedsAsJSONBySubscribedUserID(w io.Writer, userID int32) error
 
 	createSubscription(userID, feedID int32) (err error)
+
+	createSession(id []byte, userID int32) (err error)
+	getUserIDBySessionID(id []byte) (userID int32, err error)
+	deleteSession(id []byte) (err error)
 }
 
 type staleFeed struct {

@@ -154,6 +154,27 @@ func (repo *pgxRepository) createSubscription(userID, feedID int32) error {
 	return err
 }
 
+func (repo *pgxRepository) createSession(id []byte, userID int32) (err error) {
+	_, err = repo.pool.Execute("insert into sessions(id, user_id) values($1, $2)", id, userID)
+	return err
+}
+
+func (repo *pgxRepository) getUserIDBySessionID(id []byte) (userID int32, err error) {
+	v, err := repo.pool.SelectValue("select user_id from sessions where id=$1", id)
+	if _, ok := err.(pgx.NotSingleRowError); ok {
+		return 0, notFound
+	}
+	if err != nil {
+		return 0, err
+	}
+	return v.(int32), err
+}
+
+func (repo *pgxRepository) deleteSession(id []byte) (err error) {
+	_, err = repo.pool.Execute("deleteSession", id)
+	return
+}
+
 // Empty all data in the entire repository
 func (repo *pgxRepository) empty() error {
 	tables := []string{"feeds", "items", "sessions", "subscriptions", "unread_items", "users"}

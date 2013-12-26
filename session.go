@@ -19,15 +19,19 @@ func createSession(userID int32) (id []byte) {
 		panic("Unable to read random bytes")
 	}
 
-	_, err = pool.Execute("insert into sessions(id, user_id) values($1, $2)", randBytes, userID)
+	err = repo.createSession(randBytes, userID)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Unable to create session: %v", err))
+	}
 
 	return randBytes
 }
 
 func getSession(id []byte) (session Session, present bool) {
+	var err error
 	session.id = id
-	if userID, err := pool.SelectValue("select user_id from sessions where id=$1", id); err == nil {
-		session.userID = userID.(int32)
+	session.userID, err = repo.getUserIDBySessionID(id)
+	if err == nil {
 		present = true
 	}
 
@@ -35,5 +39,8 @@ func getSession(id []byte) (session Session, present bool) {
 }
 
 func deleteSession(id []byte) {
-	pool.Execute("deleteSession", id)
+	err := repo.deleteSession(id)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Unable to delete session: %v", err))
+	}
 }

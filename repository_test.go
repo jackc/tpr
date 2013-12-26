@@ -138,3 +138,35 @@ func testRepositorySubscriptions(t *testing.T, repo repository) {
 		t.Errorf("copyFeedsAsJSONBySubscribedUserID should have included: %v", "foo")
 	}
 }
+
+func testRepositorySessions(t *testing.T, repo repository) {
+	userID, err := repo.createUser("test", []byte("digest"), []byte("salt"))
+	if err != nil {
+		t.Fatalf("createUser failed: %v", err)
+	}
+
+	sessionID := []byte("deadbeef")
+
+	err = repo.createSession(sessionID, userID)
+	if err != nil {
+		t.Fatalf("createSession failed: %v", err)
+	}
+
+	userID2, err := repo.getUserIDBySessionID(sessionID)
+	if err != nil {
+		t.Fatalf("getUserIDBySessionID failed: %v", err)
+	}
+	if userID != userID2 {
+		t.Errorf("getUserIDBySessionID returned wrong userID: %d instead of %d", userID2, userID)
+	}
+
+	err = repo.deleteSession(sessionID)
+	if err != nil {
+		t.Fatalf("deleteSession failed: %v", err)
+	}
+
+	_, err = repo.getUserIDBySessionID(sessionID)
+	if err != notFound {
+		t.Fatalf("Should have returned notFound error instead got: %v", err)
+	}
+}
