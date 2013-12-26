@@ -56,12 +56,12 @@ class App.Views.UnreadItemsList extends App.Views.Base
   selectNext: ->
     return if @itemViews.length == 0
 
+    idx = @itemViews.indexOf(@selected) + 1
+    return if idx >= @itemViews.length
+
     @selected.deselect()
     @selected.render()
 
-    idx = @itemViews.indexOf(@selected) + 1
-    if idx >= @itemViews.length
-      idx = 0
     @selected = @itemViews[idx]
 
     @selected.select()
@@ -71,12 +71,12 @@ class App.Views.UnreadItemsList extends App.Views.Base
   selectPrevious: ->
     return if @itemViews.length == 0
 
+    idx = @itemViews.indexOf(@selected) - 1
+    return if idx < 0
+
     @selected.deselect()
     @selected.render()
 
-    idx = @itemViews.indexOf(@selected) - 1
-    if idx < 0
-      idx = @itemViews.length - 1
     @selected = @itemViews[idx]
 
     @selected.select()
