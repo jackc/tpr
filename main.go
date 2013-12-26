@@ -317,7 +317,6 @@ func CreateSessionHandler(w http.ResponseWriter, req *http.Request) {
 func DeleteSessionHandler(w http.ResponseWriter, req *http.Request) {
 	cookie := &http.Cookie{Name: "sessionId", Value: "logged out", Expires: time.Unix(0, 0)}
 	http.SetCookie(w, cookie)
-	http.Redirect(w, req, "/login", http.StatusSeeOther)
 }
 
 func GetUnreadItemsHandler(w http.ResponseWriter, req *http.Request, env *environment) {
