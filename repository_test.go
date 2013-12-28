@@ -26,6 +26,14 @@ func testRepositoryUsers(t *testing.T, repo repository) {
 	if bytes.Compare(passwordSalt, passwordSalt2) != 0 {
 		t.Errorf("getUserAuthenticationByName returned wrong passwordSalt: %v instead of %v", passwordSalt2, passwordSalt)
 	}
+
+	name2, err := repo.getUserName(userID)
+	if err != nil {
+		t.Fatalf("getUserName failed: %v", err)
+	}
+	if name != name2 {
+		t.Errorf("getUserName returned wrong name: %s instead of %s", name2, name)
+	}
 }
 
 // TODO -- this really needs to be refactored

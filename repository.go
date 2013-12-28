@@ -11,6 +11,7 @@ var notFound = errors.New("not found")
 type repository interface {
 	createUser(name string, passwordDigest, passwordSalt []byte) (userID int32, err error)
 	getUserAuthenticationByName(name string) (userID int32, passwordDigest, passwordSalt []byte, err error)
+	getUserName(userID int32) (name string, err error)
 
 	createFeed(name, url string) (feedID int32, err error)
 	getFeedIDByURL(url string) (feedID int32, err error)
@@ -19,7 +20,11 @@ type repository interface {
 	updateFeedWithFetchUnchanged(feedID int32, fetchTime time.Time) error
 	updateFeedWithFetchFailure(feedID int32, failure string, fetchTime time.Time) (err error)
 
+	copyUnreadItemsAsJSONByUserID(w io.Writer, userID int32) error
 	copyFeedsAsJSONBySubscribedUserID(w io.Writer, userID int32) error
+
+	markItemRead(userID, itemID int32) error
+	markAllItemsRead(userID int32) error
 
 	createSubscription(userID, feedID int32) (err error)
 

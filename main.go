@@ -21,7 +21,6 @@ import (
 	"time"
 )
 
-var pool *pgx.ConnectionPool
 var repo repository
 
 var config struct {
@@ -85,9 +84,6 @@ func initialize() {
 		fmt.Fprintf(os.Stderr, "Unable to create pgx repository: %v\n", err)
 		os.Exit(1)
 	}
-
-	// temp until all data access is moved into repo
-	pool = repo.(*pgxRepository).pool
 }
 
 func extractConnectionOptions(config *yaml.File) (connectionOptions pgx.ConnectionParameters, err error) {
@@ -155,7 +151,7 @@ func (env *environment) CurrentAccount() *currentAccount {
 
 		var name interface{}
 		// TODO - this could be an error from no records found -- or the connection could be dead or we could have a syntax error...
-		name, err = pool.SelectValue("select name from users where id=$1", session.userID)
+		name, err = repo.getUserName(session.userID)
 		if err == nil {
 			env.currentAccount = &currentAccount{id: session.userID, name: name.(string)}
 		}
@@ -332,7 +328,7 @@ func DeleteSessionHandler(w http.ResponseWriter, req *http.Request) {
 
 func GetUnreadItemsHandler(w http.ResponseWriter, req *http.Request, env *environment) {
 	w.Header().Set("Content-Type", "application/json")
-	if err := pool.SelectValueTo(w, "getUnreadItems", env.CurrentAccount().id); err != nil {
+	if err := repo.copyUnreadItemsAsJSONByUserID(w, env.CurrentAccount().id); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
@@ -345,8 +341,8 @@ func MarkItemReadHandler(w http.ResponseWriter, req *http.Request, env *environm
 		return
 	}
 
-	_, err = pool.SelectValue("markItemRead", env.CurrentAccount().id, int32(itemID))
-	if _, ok := err.(pgx.NotSingleRowError); ok {
+	err = repo.markItemRead(env.CurrentAccount().id, int32(itemID))
+	if err == notFound {
 		http.NotFound(w, req)
 		return
 	}
@@ -356,7 +352,7 @@ func MarkItemReadHandler(w http.ResponseWriter, req *http.Request, env *environm
 }
 
 func MarkAllItemsReadHandler(w http.ResponseWriter, req *http.Request, env *environment) {
-	_, err := pool.Execute("markAllItemsRead", env.CurrentAccount().id)
+	err := repo.markAllItemsRead(env.CurrentAccount().id)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}

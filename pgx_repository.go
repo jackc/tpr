@@ -44,6 +44,12 @@ func (repo *pgxRepository) getUserAuthenticationByName(name string) (userID int3
 	return
 }
 
+func (repo *pgxRepository) getUserName(userID int32) (name string, err error) {
+	v, err := repo.pool.SelectValue("getUserName", userID)
+	name = v.(string)
+	return
+}
+
 func (repo *pgxRepository) createFeed(name, url string) (int32, error) {
 	feedID, err := repo.pool.SelectValue("insertFeed", name, url)
 	if err != nil {
@@ -125,6 +131,28 @@ func (repo *pgxRepository) updateFeedWithFetchFailure(feedID int32, failure stri
 
 func (repo *pgxRepository) copyFeedsAsJSONBySubscribedUserID(w io.Writer, userID int32) error {
 	return repo.pool.SelectValueTo(w, "getFeedsForUser", userID)
+}
+
+func (repo *pgxRepository) copyUnreadItemsAsJSONByUserID(w io.Writer, userID int32) error {
+	return repo.pool.SelectValueTo(w, "getUnreadItems", userID)
+}
+
+func (repo *pgxRepository) markItemRead(userID, itemID int32) error {
+	commandTag, err := repo.pool.Execute("markItemRead", userID, itemID)
+	if err != nil {
+		return err
+	}
+	if commandTag != "DELETE 1" {
+		return notFound
+	}
+
+	return nil
+}
+
+// TODO - change interface to only mark items read that are visible to user when they issue command
+func (repo *pgxRepository) markAllItemsRead(userID int32) error {
+	_, err := repo.pool.Execute("markAllItemsRead", userID)
+	return err
 }
 
 func (repo *pgxRepository) createSubscription(userID, feedID int32) error {
@@ -268,8 +296,7 @@ func afterConnect(conn *pgx.Connection) (err error) {
 	err = conn.Prepare("markItemRead", `
     delete from unread_items
     where user_id=$1
-      and item_id=$2
-    returning item_id`)
+      and item_id=$2`)
 	if err != nil {
 		return
 	}
@@ -357,6 +384,11 @@ func afterConnect(conn *pgx.Connection) (err error) {
 	}
 
 	err = conn.Prepare("getUserIDBySessionID", `select user_id from sessions where id=$1`)
+	if err != nil {
+		return
+	}
+
+	err = conn.Prepare("getUserName", `select name from users where id=$1`)
 	if err != nil {
 		return
 	}
