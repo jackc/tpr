@@ -17,7 +17,7 @@ CLEAN.include("tmp/js")
 CLOBBER.include("public", "tpr")
 
 SRC = FileList["*.go"]
-VERSION = File.read('VERSION')
+VERSION = File.readlines('main.go').grep(/const version = ".+"/).first[/\d+\.\d+\.\d+/]
 
 directory 'tmp/css'
 directory 'tmp/js'

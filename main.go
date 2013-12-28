@@ -21,6 +21,8 @@ import (
 	"time"
 )
 
+const version = "0.0.1"
+
 var repo repository
 
 var config struct {
@@ -36,7 +38,15 @@ func initialize() {
 	flag.StringVar(&config.listenAddress, "address", "127.0.0.1", "address to listen on")
 	flag.StringVar(&config.listenPort, "port", "8080", "port to listen on")
 	flag.StringVar(&config.configPath, "config", "config.yml", "path to config file")
+
+	var printVersion bool
+	flag.BoolVar(&printVersion, "version", false, "Print version and exit")
 	flag.Parse()
+
+	if printVersion {
+		fmt.Printf("tpr v%s\n", version)
+		os.Exit(0)
+	}
 
 	givenCliArgs := make(map[string]bool)
 	flag.Visit(func(f *flag.Flag) {
