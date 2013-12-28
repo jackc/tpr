@@ -17,6 +17,7 @@ CLEAN.include("tmp/js")
 CLOBBER.include("public", "tpr")
 
 SRC = FileList["*.go"]
+VERSION = File.read('VERSION')
 
 directory 'tmp/css'
 directory 'tmp/js'
@@ -138,3 +139,32 @@ RSpec::Core::RakeTask.new(:spec)
 task spec: :spec_server
 
 task :default => :spec
+
+file "tpr_#{VERSION}.deb" => :build do
+  raise 'Must run as root' unless Process.uid == 0
+
+  pkg_dir = "tpr_#{VERSION}"
+  FileUtils.rm_rf pkg_dir
+
+  FileUtils.mkdir_p "#{pkg_dir}/DEBIAN"
+  File.write "#{pkg_dir}/DEBIAN/control", "Package: tpr
+Architecture: all
+Maintainer: Jack Christensen <jack@jackchristensen.com>
+Depends: debconf (>= 0.5.00)
+Priority: optional
+Version: #{VERSION}
+Description: The Pithy Reader
+ Simple RSS reader
+"
+
+  FileUtils.mkdir_p "#{pkg_dir}/usr/bin"
+  FileUtils.cp 'tpr', "#{pkg_dir}/usr/bin"
+
+  FileUtils.mkdir_p "#{pkg_dir}/usr/share"
+  FileUtils.cp_r 'public', "#{pkg_dir}/usr/share/tpr"
+
+  sh "dpkg --build #{pkg_dir}"
+  sh "lintian #{pkg_dir}.deb"
+end
+
+task deb: "tpr_#{VERSION}.deb"
