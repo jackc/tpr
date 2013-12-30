@@ -53,7 +53,7 @@
     <span class="meta">
       <span class="feedName"><%= feed_name %></span>
       at
-      <span class="publicationTime"><%= publication_time %></span>
+      <time datetime="<%= publication_time %>" class="publication"><%= moment(publication_time).format("MMMM Do, YYYY [at] h:mm a") %></time>
     </span>
   </script>
 

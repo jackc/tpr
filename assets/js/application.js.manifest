@@ -1,6 +1,7 @@
 vendor/jquery-2.0.3.js
 vendor/underscore.js
 vendor/backbone.js
+vendor/moment.min.js
 namespace.js
 models/feed.coffee
 models/item.coffee
