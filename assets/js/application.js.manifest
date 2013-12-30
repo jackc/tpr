@@ -1,6 +1,6 @@
-vendor/jquery-2.0.3.js
-vendor/underscore.js
-vendor/backbone.js
+vendor/jquery-2.0.3.min.js
+vendor/underscore-min.js
+vendor/backbone-min.js
 vendor/moment.min.js
 namespace.js
 models/feed.coffee
