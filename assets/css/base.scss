@@ -1,16 +1,98 @@
-body > header h1 {
-  float: left;
-  font-size: 16px;
-  font-weight: bold;
+$primary-color: #7ab0b2;
+$light-contrast-color: #e6feff;
+$dark-contrast-color: #b27954;
+
+body {
   margin: 0;
+  font-family: Verdana, sans-serif;
+  background-color: white;
+  font-size: 16px;
+}
+
+#view > div > header {
+  background-color: $primary-color;
+
+  h1 {
+    font-size: 1.5em;
+    font-weight: bold;
+    margin: 0;
+    padding: 4px 0 4px 0;
+    color: $light-contrast-color;
+    text-align: center;
+  }
 }
 
 body > header .user {
   float: right;
 }
 
-.unreadItems {
-  li.selected {
-    border: 1px dashed black;
+a {
+  color: $dark-contrast-color;
+  text-decoration: none;
+  &:hover {
+    color: $primary-color;
+  }
+}
+
+#view > .login form {
+  margin: 1em auto 0 auto;
+  width: 400px;
+  padding: 1em;
+  background-color: $light-contrast-color;
+  border-radius: 8px;
+  border: 2px solid $primary-color;
+
+  dl, dd {
+    margin: 0;
+  }
+
+  label {
+    color: $primary-color;
+  }
+
+  input[type=text], input[type=password] {
+    width: 100%;
+    font-size: 1.5em;
+    margin-bottom: 0.5em;
+  }
+
+  input[type=submit] {
+    background-color: $primary-color;
+    color: $light-contrast-color;
+    border-radius: 4px;
+    font-size: 1.5em;
+    font-weight: bold;
+    padding: 4px 8px 4px 8px;
+    border: none;
+  }
+
+  a.register {
+    font-size: 0.75em;
+  }
+}
+
+#view > .home {
+  ul.unreadItems {
+    padding: 0 1em 0 1em;
+    li {
+      list-style-type: none;
+      margin-bottom: 1em;
+
+      &.selected {
+        border: 1px dashed black;
+      }
+
+      a.title {
+        display: block;
+        font-weight: bold;
+        font-size: 1.25em;
+        margin-bottom: -4px;
+      }
+
+      .meta {
+        font-size: 0.75em;
+        color: $primary-color
+      }
+    }
   }
 }

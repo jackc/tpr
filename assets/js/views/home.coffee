@@ -1,5 +1,6 @@
 class App.Views.HomePage extends App.Views.Base
   template: _.template($("#home_page_template").html())
+  className: 'home'
 
   events:
     'click a.markAllRead' : 'markAllRead'

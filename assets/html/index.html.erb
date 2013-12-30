@@ -1,25 +1,25 @@
 <html>
 <head>
   <script id="login_page_template" type="underscore/template">
-    <div>
-      <div>Login</div>
-      <form>
-        <dl>
-          <dt>
-            <label for="name">User name</label>
-          </dt>
-          <dd><input type="text" id="name" name="name" autofocus /></dd>
+    <header>
+      <h1>The Pithy Reader</h1>
+    </header>
+    <form>
+      <dl>
+        <dt>
+          <label for="name">User name</label>
+        </dt>
+        <dd><input type="text" id="name" name="name" autofocus /></dd>
 
-          <dt>
-            <label for="password">Password</label>
-          </dt>
-          <dd><input type="password" id="password" name="password" /></dd>
-        </dl>
+        <dt>
+          <label for="password">Password</label>
+        </dt>
+        <dd><input type="password" id="password" name="password" /></dd>
+      </dl>
 
-        <input type="submit" value="Login" />
-      </form>
+      <input type="submit" value="Login" />
       <a href="#" class="register">Create an account</a>
-    </div>
+    </form>
   </script>
 
   <script id="register_page_template" type="underscore/template">
@@ -45,18 +45,16 @@
   </script>
 
   <script id="home_page_template" type="underscore/template">
-    <div>Home</div>
     <a href="#" class="markAllRead">Mark All Read</a>
   </script>
 
   <script id="item_template" type="underscore/template">
-    <li>
-      <div class="title">
-        <a href="<%= url %>"><%= title %></a>
-      </div>
-      <div class="feedName"><%= feed_name %></div>
-      <div class="publicationTime"><%= publication_time %></div>
-    </li>
+    <a class="title" href="<%= url %>"><%= title %></a>
+    <span class="meta">
+      <span class="feedName"><%= feed_name %></span>
+      at
+      <span class="publicationTime"><%= publication_time %></span>
+    </span>
   </script>
 
   <script id="subscribe_page_template" type="underscore/template">
