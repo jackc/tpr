@@ -46,7 +46,9 @@
   </script>
 
   <script id="home_page_template" type="underscore/template">
-    <a href="#" class="markAllRead">Mark All Read</a>
+    <div class="pageActions">
+      <a href="#" class="markAllRead button">Mark All Read</a>
+    </div>
   </script>
 
   <script id="item_template" type="underscore/template">
@@ -100,9 +102,11 @@
 
   <script id="logged_in_header_template" type="underscore/template">
     <h1>The Pithy Reader</h1>
-    <a href="#home">Home</a>
-    <a href="#feeds">Feeds</a>
-    <a href="#" class="logout">Logout</a>
+    <nav>
+      <a href="#home">Home</a>
+      <a href="#feeds">Feeds</a>
+      <a href="#" class="logout">Logout</a>
+    </nav>
   </script>
 
   <link type="text/css" rel="stylesheet" href="/css/application.css">

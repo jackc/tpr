@@ -12,19 +12,32 @@ body {
 
 #view > div > header {
   background-color: $primary-color;
+  margin-bottom: 24px;
 
   h1 {
     font-size: 1.5em;
     font-weight: bold;
     margin: 0;
-    padding: 4px 0 4px 0;
+    padding: 4px 0 4px 16px;
     color: $light-contrast-color;
-    text-align: center;
+  }
+
+  > nav {
+    font-size: 0.75em;
+    padding: 0 0 4px 16px;
+
+    a {
+      color: $light-contrast-color;
+      padding-right: 0.5em;
+      &:hover {
+        color: $dark-contrast-color;
+      }
+    }
   }
 }
 
-body > header .user {
-  float: right;
+#view .pageActions {
+  margin-left: 16px;
 }
 
 a {
@@ -33,6 +46,15 @@ a {
   &:hover {
     color: $primary-color;
   }
+}
+
+a.button {
+  background-color: $primary-color;
+  color: $light-contrast-color;
+  border-radius: 4px;
+  font-weight: bold;
+  padding: 4px 8px 4px 8px;
+  border: none;
 }
 
 #view > .login form {
@@ -74,9 +96,10 @@ a {
 
 #view > .home {
   ul.unreadItems {
-    padding: 0 1em 0 1em;
+    padding: 0;
     li {
       list-style-type: none;
+      padding: 0 16px 0 16px;
       margin-bottom: 1em;
 
       &.selected {
