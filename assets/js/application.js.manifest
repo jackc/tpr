@@ -13,10 +13,8 @@ services/registration.coffee
 views/base.coffee
 views/header.coffee
 views/feeds.coffee
-views/import.coffee
 views/login.coffee
 views/home.coffee
 views/register.coffee
-views/subscribe.coffee
 router.coffee
 initialize.coffee

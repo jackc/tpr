@@ -3,9 +3,7 @@ class App.Router extends Backbone.Router
     "login" : "login"
     "home"  : "home"
     "register"  : "register"
-    "subscribe"  : "subscribe"
     "feeds"  : "feeds"
-    "import"  : "import"
     "*path" : "login"
 
   login: ->
@@ -18,20 +16,6 @@ class App.Router extends Backbone.Router
       return
 
     @changePage App.Views.HomePage
-
-  subscribe: ->
-    unless State.Session.isAuthenticated()
-      @navigate 'login'
-      return
-
-    @changePage App.Views.SubscribePage
-
-  import: ->
-    unless State.Session.isAuthenticated()
-      @navigate 'login'
-      return
-
-    @changePage App.Views.ImportPage
 
   register: ->
     registrationService = new App.Services.Registration

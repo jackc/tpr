@@ -2,6 +2,10 @@ class App.Views.FeedsPage extends App.Views.Base
   template: _.template($("#feeds_page_template").html())
   className: 'feeds'
 
+  events:
+    'submit form.subscribe' : 'subscribe'
+    'submit form.import' : 'import'
+
   initialize: ->
     super()
     @header = @createChild App.Views.LoggedInHeader
@@ -14,6 +18,35 @@ class App.Views.FeedsPage extends App.Views.Base
     @$el.append @template()
     @$el.append @feedsListView.render().$el
     @
+
+  subscribe: (e)->
+    e.preventDefault()
+
+    data =
+      url: @$("input[name=url]").val()
+
+    $.ajax(
+      url: "/api/subscriptions?sessionID=#{State.Session.id}",
+      type: "POST",
+      data: JSON.stringify(data)
+      contentType: "application/json"
+    ).success =>
+      @$("input[name=url]").val("")
+      @feeds.fetch()
+
+  import: (e)->
+    e.preventDefault()
+    fd = new FormData(e.target)
+
+    $.ajax({
+      url: "/api/feeds/import?sessionID=#{State.Session.id}",
+      type: "POST",
+      data: fd,
+      processData: false,
+      contentType: false
+    }).success =>
+      @feeds.fetch()
+      alert 'import success'
 
 class App.Views.FeedsList extends App.Views.Base
   tagName: 'ul'

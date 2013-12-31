@@ -58,9 +58,8 @@
     </span>
   </script>
 
-  <script id="subscribe_page_template" type="underscore/template">
-    <h1>New Subscription</h1>
-    <form>
+  <script id="feeds_page_template" type="underscore/template">
+    <form class="subscribe">
       <dl>
         <dt>
           <label for="url">Feed URL</label>
@@ -69,10 +68,16 @@
       </dl>
       <input type="submit" value="Subscribe" />
     </form>
-  </script>
 
-  <script id="feeds_page_template" type="underscore/template">
-    <h1>Feeds</h1>
+    <form class="import">
+      <dl>
+        <dt>
+          <label for="file">OPML File</label>
+        </dt>
+        <dd><input type="file" name="file" /></dd>
+      </dl>
+      <input type="submit" value="Import" />
+    </form>
   </script>
 
   <script id="feeds_page_feed" type="underscore/template">
@@ -96,23 +101,8 @@
   <script id="logged_in_header_template" type="underscore/template">
     <h1>The Pithy Reader</h1>
     <a href="#home">Home</a>
-    <a href="#subscribe">Subscribe</a>
     <a href="#feeds">Feeds</a>
-    <a href="#import">Import</a>
     <a href="#" class="logout">Logout</a>
-  </script>
-
-  <script id="import_page_template" type="underscore/template">
-    <h1>Import Subscriptions from OPML</h1>
-    <form>
-      <dl>
-        <dt>
-          <label for="file">OPML File</label>
-        </dt>
-        <dd><input type="file" name="file" /></dd>
-      </dl>
-      <input type="submit" value="Import" />
-    </form>
   </script>
 
   <link type="text/css" rel="stylesheet" href="/css/application.css">
