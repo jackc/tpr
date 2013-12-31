@@ -80,7 +80,10 @@ a {
       margin-bottom: 1em;
 
       &.selected {
-        border: 1px dashed black;
+        border-top: 4px solid $primary-color;
+        border-bottom: 4px solid $primary-color;
+        padding: 1em;
+        background-color: $light-contrast-color;
       }
 
       a.title {
