@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"code.google.com/p/go.crypto/scrypt"
 	"crypto/rand"
 	"encoding/xml"
@@ -202,7 +203,7 @@ func parseRSS(body []byte) (*parsedFeed, error) {
 		Channel Channel `xml:"channel"`
 	}
 
-	err := xml.Unmarshal(body, &rss)
+	err := parseXML(body, &rss)
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +246,7 @@ func parseAtom(body []byte) (*parsedFeed, error) {
 		Entry []Entry `xml:"entry"`
 	}
 
-	err := xml.Unmarshal(body, &atom)
+	err := parseXML(body, &atom)
 	if err != nil {
 		return nil, err
 	}
@@ -269,6 +270,18 @@ func parseAtom(body []byte) (*parsedFeed, error) {
 	}
 
 	return &feed, nil
+}
+
+// Parse XML laxly
+func parseXML(body []byte, doc interface{}) error {
+	buf := bytes.NewBuffer(body)
+	decoder := xml.NewDecoder(buf)
+
+	decoder.Strict = false
+	decoder.AutoClose = xml.HTMLAutoClose
+	decoder.Entity = xml.HTMLEntity
+
+	return decoder.Decode(doc)
 }
 
 // Try multiple time formats one after another until one works or all fail
