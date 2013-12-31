@@ -160,6 +160,11 @@ func (repo *pgxRepository) createSubscription(userID, feedID int32) error {
 	return err
 }
 
+func (repo *pgxRepository) deleteSubscription(userID, feedID int32) error {
+	_, err := repo.pool.Execute("deleteSubscription", userID, feedID)
+	return err
+}
+
 func (repo *pgxRepository) createSession(id []byte, userID int32) (err error) {
 	_, err = repo.pool.Execute("insertSession", id, userID)
 	return err
@@ -384,6 +389,11 @@ func afterConnect(conn *pgx.Connection) (err error) {
 	}
 
 	err = conn.Prepare("insertSubscription", `insert into subscriptions(user_id, feed_id) values($1, $2)`)
+	if err != nil {
+		return
+	}
+
+	err = conn.Prepare("deleteSubscription", `delete from subscriptions where user_id=$1 and feed_id=$2`)
 	if err != nil {
 		return
 	}

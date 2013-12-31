@@ -27,6 +27,7 @@ type repository interface {
 	markAllItemsRead(userID int32) error
 
 	createSubscription(userID, feedID int32) (err error)
+	deleteSubscription(userID, feedID int32) (err error)
 
 	createSession(id []byte, userID int32) (err error)
 	getUserIDBySessionID(id []byte) (userID int32, err error)

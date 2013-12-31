@@ -35,6 +35,15 @@ class App.Views.Feed extends App.Views.Base
   template: _.template($("#feeds_page_feed").html())
   tagName: 'li'
 
+  events:
+    'click a.unsubscribe' : 'unsubscribe'
+
   render: ->
     @$el.html(@template(@model.toJSON()))
     @
+
+  unsubscribe: (e)->
+    e.preventDefault()
+    if confirm "Are you sure you want to unsubscribe from #{@model.get('name')}?"
+      @model.destroy()
+      @remove()

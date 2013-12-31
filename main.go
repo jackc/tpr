@@ -259,6 +259,23 @@ func CreateSubscriptionHandler(w http.ResponseWriter, req *http.Request, env *en
 	w.WriteHeader(http.StatusCreated)
 }
 
+func DeleteSubscriptionHandler(w http.ResponseWriter, req *http.Request, env *environment) {
+	feedID, err := strconv.ParseInt(req.FormValue("id"), 10, 32)
+	if err != nil {
+		// If not an integer it clearly can't be found
+		http.NotFound(w, req)
+		return
+	}
+
+	if err := repo.deleteSubscription(env.CurrentAccount().id, int32(feedID)); err != nil {
+		w.WriteHeader(422)
+		fmt.Fprintf(w, "Error deleting subscription: %v", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
 func AuthenticateUser(name, password string) (userID int32, err error) {
 	userID, passwordDigest, passwordSalt, err := repo.getUserAuthenticationByName(name)
 	if err != nil {
@@ -464,6 +481,7 @@ func main() {
 	router.Post("/sessions", http.HandlerFunc(CreateSessionHandler))
 	router.Delete("/sessions/:id", http.HandlerFunc(DeleteSessionHandler))
 	router.Post("/subscriptions", ApiSecureHandlerFunc(CreateSubscriptionHandler))
+	router.Delete("/subscriptions/:id", ApiSecureHandlerFunc(DeleteSubscriptionHandler))
 	router.Get("/feeds", ApiSecureHandlerFunc(GetFeedsHandler))
 	router.Post("/feeds/import", ApiSecureHandlerFunc(ImportFeedsHandler))
 	router.Get("/items/unread", ApiSecureHandlerFunc(GetUnreadItemsHandler))
