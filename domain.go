@@ -75,6 +75,9 @@ func fetchFeed(url, etag string) (feed *rawFeed, err error) {
 		req.Header.Add("If-None-Match", etag)
 	}
 	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("HTTP error: %v", err)
+	}
 	defer resp.Body.Close()
 
 	switch resp.StatusCode {
