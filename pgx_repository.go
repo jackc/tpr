@@ -283,10 +283,20 @@ func afterConnect(conn *pgx.Connection) (err error) {
 	err = conn.Prepare("getFeedsForUser", `
     select json_agg(row_to_json(t))
     from (
-      select feeds.name, feeds.url, feeds.last_fetch_time
+      select feeds.id,
+        name,
+        feeds.url,
+        last_fetch_time,
+        last_failure,
+        last_failure_time,
+        failure_count,
+        count(items.id) as item_count,
+        max(items.publication_time) as last_publication_time
       from feeds
         join subscriptions on feeds.id=subscriptions.feed_id
+        left join items on feeds.id=items.feed_id
       where user_id=$1
+      group by feeds.id
       order by name
     ) t`)
 	if err != nil {

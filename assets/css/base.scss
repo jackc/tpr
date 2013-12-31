@@ -1,6 +1,7 @@
 $primary-color: #7ab0b2;
 $light-contrast-color: #e6feff;
 $dark-contrast-color: #b27954;
+$error-color: #e22;
 
 body {
   margin: 0;
@@ -92,6 +93,32 @@ a {
       .meta {
         font-size: 0.75em;
         color: $primary-color
+      }
+    }
+  }
+}
+
+#view > .feeds {
+  ul {
+    padding: 0 1em 0 1em;
+    li {
+      list-style-type: none;
+      margin-bottom: 1em;
+
+      a.name {
+        display: block;
+        font-weight: bold;
+        font-size: 1.25em;
+        margin-bottom: -4px;
+      }
+
+      .meta {
+        font-size: 0.75em;
+        color: $primary-color
+      }
+
+      .error {
+        color: $error-color;
       }
     }
   }

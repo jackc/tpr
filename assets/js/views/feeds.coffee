@@ -1,5 +1,6 @@
 class App.Views.FeedsPage extends App.Views.Base
   template: _.template($("#feeds_page_template").html())
+  className: 'feeds'
 
   initialize: ->
     super()
@@ -15,7 +16,7 @@ class App.Views.FeedsPage extends App.Views.Base
     @
 
 class App.Views.FeedsList extends App.Views.Base
-  className: 'feeds'
+  tagName: 'ul'
 
   initialize: ->
     super()
@@ -31,8 +32,9 @@ class App.Views.FeedsList extends App.Views.Base
     @
 
 class App.Views.Feed extends App.Views.Base
+  template: _.template($("#feeds_page_feed").html())
   tagName: 'li'
 
   render: ->
-    @$el.html(@model.get("name"))
+    @$el.html(@template(@model.toJSON()))
     @

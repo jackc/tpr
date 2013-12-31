@@ -74,6 +74,21 @@
     <h1>Feeds</h1>
   </script>
 
+  <script id="feeds_page_feed" type="underscore/template">
+    <a class="name" href="<%= url %>"><%= name %></a>
+    <div class="meta">
+      <% if(last_publication_time) { %>
+        Last published
+        <time datetime="<%= last_publication_time %>"><%= moment(last_publication_time).format("MMMM Do, YYYY [at] h:mm a") %></time>
+      <% } %>
+    </div>
+    <% if(failure_count > 0) { %>
+      <div class="error">
+        <%= last_failure %>
+      </div>
+    <% } %>
+  </script>
+
   <script id="logged_in_header_template" type="underscore/template">
     <h1>The Pithy Reader</h1>
     <a href="#home">Home</a>
