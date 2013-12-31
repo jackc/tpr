@@ -57,40 +57,42 @@ a.button {
   border: none;
 }
 
-#view > .login form {
-  margin: 1em auto 0 auto;
-  width: 400px;
-  padding: 1em;
-  background-color: $light-contrast-color;
-  border-radius: 8px;
-  border: 2px solid $primary-color;
+#view > .login, #view > .register {
+  form {
+    margin: 1em auto 0 auto;
+    width: 400px;
+    padding: 1em;
+    background-color: $light-contrast-color;
+    border-radius: 8px;
+    border: 2px solid $primary-color;
 
-  dl, dd {
-    margin: 0;
-  }
+    dl, dd {
+      margin: 0;
+    }
 
-  label {
-    color: $primary-color;
-  }
+    label {
+      color: $primary-color;
+    }
 
-  input[type=text], input[type=password] {
-    width: 100%;
-    font-size: 1.5em;
-    margin-bottom: 0.5em;
-  }
+    input[type=text], input[type=password] {
+      width: 100%;
+      font-size: 1.5em;
+      margin-bottom: 0.5em;
+    }
 
-  input[type=submit] {
-    background-color: $primary-color;
-    color: $light-contrast-color;
-    border-radius: 4px;
-    font-size: 1.5em;
-    font-weight: bold;
-    padding: 4px 8px 4px 8px;
-    border: none;
-  }
+    input[type=submit] {
+      background-color: $primary-color;
+      color: $light-contrast-color;
+      border-radius: 4px;
+      font-size: 1.5em;
+      font-weight: bold;
+      padding: 4px 8px 4px 8px;
+      border: none;
+    }
 
-  a.register {
-    font-size: 0.75em;
+    a {
+      font-size: 0.75em;
+    }
   }
 }
 

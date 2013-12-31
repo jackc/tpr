@@ -1,6 +1,5 @@
 class App.Views.LoginPage extends App.Views.Base
   template: _.template($("#login_page_template").html())
-
   className: 'login'
 
   initialize: (options)->

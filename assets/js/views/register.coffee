@@ -1,5 +1,6 @@
 class App.Views.RegisterPage extends App.Views.Base
   template: _.template($("#register_page_template").html())
+  className: 'register'
 
   initialize: (options)->
     super()
@@ -7,6 +8,7 @@ class App.Views.RegisterPage extends App.Views.Base
 
   events:
     "submit form" : "register"
+    "click a.login" : "login"
 
   register: (e)->
     e.preventDefault()
@@ -24,6 +26,10 @@ class App.Views.RegisterPage extends App.Views.Base
 
   onRegistrationFailure: (response)->
     alert response.responseText
+
+  login: (e)->
+    e.preventDefault()
+    Backbone.history.navigate('login', true)
 
   render: ->
     @$el.html @template()
