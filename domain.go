@@ -118,37 +118,6 @@ func RefreshFeed(staleFeed staleFeed) {
 	repo.updateFeedWithFetchSuccess(staleFeed.id, feed, rawFeed.etag, time.Now())
 }
 
-// func fetchFeed(url string, etag string) (body string, err error) {
-// 	var req *http.Request
-// 	var resp *http.Response
-
-// 	req, err = http.NewRequest("GET", url, nil)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	if etag != "" {
-// 		req.Header.Add("If-None-Match", "etag")
-// 	}
-
-// 	resp, err = client.Do(req)
-// 	defer resp.Body.Close()
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	return
-// }
-
-// type fetchedFeed struct {
-//         name string
-//       url string
-//       time time.Time
-//       etag string
-//       last_failure varchar,
-//       last_failure_time timestamp with time zone,
-// }
-
 type parsedItem struct {
 	url             string
 	title           string
