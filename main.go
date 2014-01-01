@@ -80,14 +80,15 @@ func initialize() {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
-	connectionParameters.Logger = logger
+	pgxLogger := &PackageLogger{logger: logger, pkg: "pgx"}
+	connectionParameters.Logger = pgxLogger
 
 	if err = migrate(connectionParameters); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 
-	poolOptions := pgx.ConnectionPoolOptions{MaxConnections: 10, AfterConnect: afterConnect, Logger: logger}
+	poolOptions := pgx.ConnectionPoolOptions{MaxConnections: 10, AfterConnect: afterConnect, Logger: pgxLogger}
 
 	repo, err = NewPgxRepository(connectionParameters, poolOptions)
 	if err != nil {
@@ -152,7 +153,7 @@ func (env *environment) CurrentAccount() *currentAccount {
 		var sessionID []byte
 		sessionID, err = hex.DecodeString(env.request.FormValue("sessionID"))
 		if err != nil {
-			logger.Warning(fmt.Sprintf(`Bad or missing to sessionID "%s": %v`, env.request.FormValue("sessionID"), err))
+			logger.Warning("tpr", fmt.Sprintf(`Bad or missing to sessionID "%s": %v`, env.request.FormValue("sessionID"), err))
 			return nil
 		}
 		if session, present = getSession(sessionID); !present {

@@ -51,6 +51,7 @@ func KeepFeedsFresh() {
 	for {
 		t := time.Now().Add(-10 * time.Minute)
 		if staleFeeds, err := repo.getFeedsUncheckedSince(t); err == nil {
+			logger.Info("tpr", fmt.Sprintf("Found %d stale feeds", len(staleFeeds)))
 			for _, sf := range staleFeeds {
 				RefreshFeed(sf)
 			}
@@ -100,21 +101,25 @@ func fetchFeed(url, etag string) (feed *rawFeed, err error) {
 func RefreshFeed(staleFeed staleFeed) {
 	rawFeed, err := fetchFeed(staleFeed.url, staleFeed.etag)
 	if err != nil {
+		logger.Error("tpr", fmt.Sprintf("fetchFeed %s failed: %v", staleFeed.url, err))
 		repo.updateFeedWithFetchFailure(staleFeed.id, err.Error(), time.Now())
 		return
 	}
 	// 304 unchanged
 	if rawFeed == nil {
+		logger.Info("tpr", fmt.Sprintf("fetchFeed %s 304 unchanged", staleFeed.url))
 		repo.updateFeedWithFetchUnchanged(staleFeed.id, time.Now())
 		return
 	}
 
 	feed, err := parseFeed(rawFeed.body)
 	if err != nil {
+		logger.Error("tpr", fmt.Sprintf("parseFeed %s failed: %v", staleFeed.url, err))
 		repo.updateFeedWithFetchFailure(staleFeed.id, fmt.Sprintf("Unable to parse feed: %v", err), time.Now())
 		return
 	}
 
+	logger.Info("tpr", fmt.Sprintf("refreshFeed %s (%d) succeeded", staleFeed.url, staleFeed.id))
 	repo.updateFeedWithFetchSuccess(staleFeed.id, feed, rawFeed.etag, time.Now())
 }
 
