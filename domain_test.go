@@ -45,6 +45,29 @@ var feedParsingTests = []struct {
 			}},
 		"",
 	},
+	{"RSS - Without item dates",
+		[]byte(`<?xml version='1.0' encoding='UTF-8'?>
+<rss>
+  <channel>
+    <title>News</title>
+    <item>
+      <title>Snow Storm</title>
+      <link>http://example.org/snow-storm</link>
+    </item>
+  </channel>
+</rss>
+</xml>`),
+		&parsedFeed{
+			name: "News",
+			items: []parsedItem{
+				{
+					title: "Snow Storm",
+					url:   "http://example.org/snow-storm",
+				},
+			}},
+		"",
+	},
+
 	{"Atom - Minimal",
 		[]byte(`<?xml version='1.0' encoding='UTF-8'?>
 <feed>

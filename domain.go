@@ -118,6 +118,15 @@ func RefreshFeed(staleFeed staleFeed) {
 		return
 	}
 
+	// If any items did not have publication times, then default to now
+	var zeroTime time.Time
+	now := time.Now()
+	for _, item := range feed.items {
+		if item.publicationTime == zeroTime {
+			item.publicationTime = now
+		}
+	}
+
 	logger.Info("tpr", fmt.Sprintf("refreshFeed %s (%d) succeeded", staleFeed.url, staleFeed.id))
 	repo.updateFeedWithFetchSuccess(staleFeed.id, feed, rawFeed.etag, time.Now())
 }
@@ -129,9 +138,7 @@ type parsedItem struct {
 }
 
 func (i *parsedItem) isValid() bool {
-	var zeroTime time.Time
-
-	return i.url != "" && i.title != "" && i.publicationTime != zeroTime
+	return i.url != "" && i.title != ""
 }
 
 type parsedFeed struct {
