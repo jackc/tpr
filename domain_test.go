@@ -128,6 +128,7 @@ var timeParsingTests = []struct {
 	{"03 Jan 2014 22:45 GMT", time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC), ""},
 	{"03 Jan 2014 22:45 GMT", time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC), ""},
 	{"Fri, 3 Jan 2014 16:35:05 -0800", time.Date(2014, 1, 4, 0, 35, 5, 0, time.UTC), ""},
+	{"Sat, 04 Jan 2014", time.Date(2014, 1, 4, 0, 0, 0, 0, time.UTC), ""},
 }
 
 func TestParseTime(t *testing.T) {
