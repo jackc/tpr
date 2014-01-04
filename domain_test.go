@@ -116,3 +116,29 @@ func TestParseFeed(t *testing.T) {
 		}
 	}
 }
+
+var timeParsingTests = []struct {
+	unparsed string
+	expected time.Time
+	errMsg   string
+}{
+	{"2010-07-13T14:15:32-07:00", time.Date(2010, 7, 13, 21, 15, 32, 0, time.UTC), ""},
+	{"2010-07-13T14:15:32Z", time.Date(2010, 7, 13, 14, 15, 32, 0, time.UTC), ""},
+	{"Fri, 03 Jan 2014 22:45:00 GMT", time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC), ""},
+	{"03 Jan 2014 22:45 GMT", time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC), ""},
+	{"03 Jan 2014 22:45 GMT", time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC), ""},
+	{"Fri, 3 Jan 2014 16:35:05 -0800", time.Date(2014, 1, 4, 0, 35, 5, 0, time.UTC), ""},
+}
+
+func TestParseTime(t *testing.T) {
+	for i, tt := range timeParsingTests {
+		actual, err := parseTime(tt.unparsed)
+		if err != nil && err.Error() != tt.errMsg {
+			t.Errorf("%d. %s: Unexpected error: %v", i, tt.unparsed, err)
+			continue
+		}
+		if !tt.expected.Equal(actual) {
+			t.Errorf("%d. %s: expected to parse to %s, but instead was %s", i, tt.unparsed, tt.expected, actual)
+		}
+	}
+}

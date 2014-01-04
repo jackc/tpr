@@ -254,10 +254,10 @@ func parseTime(value string) (t time.Time, err error) {
 		"2006-01-02T15:04:05-07:00",
 		"2006-01-02T15:04:05Z",
 		time.RFC822,
-		"02 Jan 2006 15:04 MST",    // RFC822 with 4 digit year
-		"02 Jan 2006 15:04:05 MST", // RFC822 with 4 digit year and seconds
-		time.RFC1123,
-		time.RFC1123Z,
+		"02 Jan 2006 15:04 MST",           // RFC822 with 4 digit year
+		"02 Jan 2006 15:04:05 MST",        // RFC822 with 4 digit year and seconds
+		"Mon, _2 Jan 2006 15:04:05 MST",   // RFC1123 with 1-2 digit days
+		"Mon, _2 Jan 2006 15:04:05 -0700", // RFC1123 with numeric time zone and with 1-2 digit days
 	}
 	for _, f := range formats {
 		t, err = time.Parse(f, value)
