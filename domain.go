@@ -259,6 +259,7 @@ func parseTime(value string) (t time.Time, err error) {
 		"Mon, _2 Jan 2006 15:04:05 MST",   // RFC1123 with 1-2 digit days
 		"Mon, _2 Jan 2006 15:04:05 -0700", // RFC1123 with numeric time zone and with 1-2 digit days
 		"Mon, _2 Jan 2006",
+		"2006-01-02",
 	}
 	for _, f := range formats {
 		t, err = time.Parse(f, value)
