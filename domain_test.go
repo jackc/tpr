@@ -45,6 +45,54 @@ var feedParsingTests = []struct {
 			}},
 		"",
 	},
+	{"RSS - Valid entities converted to UTF-8",
+		[]byte(`<?xml version='1.0' encoding='UTF-8'?>
+<rss>
+  <channel>
+    <title>Joe&#160;Blogger&#039;s Site</title>
+    <item>
+      <title>Snow Storm</title>
+      <link>http://example.org/snow-storm</link>
+      <pubDate>Fri, 03 Jan 2014 22:45:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>
+</xml>`),
+		&parsedFeed{
+			name: "Joe\u00a0Blogger's Site",
+			items: []parsedItem{
+				{
+					title:           "Snow Storm",
+					url:             "http://example.org/snow-storm",
+					publicationTime: time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC),
+				},
+			}},
+		"",
+	},
+	{"RSS - Invalid entities...",
+		[]byte(`<?xml version='1.0' encoding='UTF-8'?>
+<rss>
+  <channel>
+    <title>Joe&nbsp;Blogger</title>
+    <item>
+      <title>Snow Storm</title>
+      <link>http://example.org/snow-storm</link>
+      <pubDate>Fri, 03 Jan 2014 22:45:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>
+</xml>`),
+		&parsedFeed{
+			name: "Joe\u00a0Blogger",
+			items: []parsedItem{
+				{
+					title:           "Snow Storm",
+					url:             "http://example.org/snow-storm",
+					publicationTime: time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC),
+				},
+			}},
+		"",
+	},
 	{"RSS - Without item dates",
 		[]byte(`<?xml version='1.0' encoding='UTF-8'?>
 <rss>
