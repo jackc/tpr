@@ -23,7 +23,7 @@ func NewPgxRepository(parameters pgx.ConnectionParameters, options pgx.Connectio
 	return repo, nil
 }
 
-func (repo *pgxRepository) createUser(name string, passwordDigest, passwordSalt []byte) (int32, error) {
+func (repo *pgxRepository) CreateUser(name string, passwordDigest, passwordSalt []byte) (int32, error) {
 	v, err := repo.pool.SelectValue("insertUser", name, passwordDigest, passwordSalt)
 	if err != nil {
 		return 0, err
@@ -33,7 +33,7 @@ func (repo *pgxRepository) createUser(name string, passwordDigest, passwordSalt 
 	return userID, err
 }
 
-func (repo *pgxRepository) getUserAuthenticationByName(name string) (userID int32, passwordDigest, passwordSalt []byte, err error) {
+func (repo *pgxRepository) GetUserAuthenticationByName(name string) (userID int32, passwordDigest, passwordSalt []byte, err error) {
 	err = repo.pool.SelectFunc("getUserAuthenticationByName", func(r *pgx.DataRowReader) (err error) {
 		userID = r.ReadValue().(int32)
 		passwordDigest = r.ReadValue().([]byte)
@@ -44,13 +44,13 @@ func (repo *pgxRepository) getUserAuthenticationByName(name string) (userID int3
 	return
 }
 
-func (repo *pgxRepository) getUserName(userID int32) (name string, err error) {
+func (repo *pgxRepository) GetUserName(userID int32) (name string, err error) {
 	v, err := repo.pool.SelectValue("getUserName", userID)
 	name = v.(string)
 	return
 }
 
-func (repo *pgxRepository) getFeedsUncheckedSince(since time.Time) (feeds []staleFeed, err error) {
+func (repo *pgxRepository) GetFeedsUncheckedSince(since time.Time) (feeds []staleFeed, err error) {
 	err = repo.pool.SelectFunc("getFeedsUncheckedSince", func(r *pgx.DataRowReader) (err error) {
 		var feed staleFeed
 		feed.id = r.ReadValue().(int32)
@@ -64,7 +64,7 @@ func (repo *pgxRepository) getFeedsUncheckedSince(since time.Time) (feeds []stal
 	return
 }
 
-func (repo *pgxRepository) updateFeedWithFetchSuccess(feedID int32, update *parsedFeed, etag string, fetchTime time.Time) (err error) {
+func (repo *pgxRepository) UpdateFeedWithFetchSuccess(feedID int32, update *parsedFeed, etag string, fetchTime time.Time) (err error) {
 	var conn *pgx.Connection
 
 	conn, err = repo.pool.Acquire()
@@ -97,25 +97,25 @@ func (repo *pgxRepository) updateFeedWithFetchSuccess(feedID int32, update *pars
 	return
 }
 
-func (repo *pgxRepository) updateFeedWithFetchUnchanged(feedID int32, fetchTime time.Time) (err error) {
+func (repo *pgxRepository) UpdateFeedWithFetchUnchanged(feedID int32, fetchTime time.Time) (err error) {
 	_, err = repo.pool.Execute("updateFeedWithFetchUnchanged", fetchTime, feedID)
 	return
 }
 
-func (repo *pgxRepository) updateFeedWithFetchFailure(feedID int32, failure string, fetchTime time.Time) (err error) {
+func (repo *pgxRepository) UpdateFeedWithFetchFailure(feedID int32, failure string, fetchTime time.Time) (err error) {
 	_, err = repo.pool.Execute("updateFeedWithFetchFailure", failure, fetchTime, feedID)
 	return err
 }
 
-func (repo *pgxRepository) copyFeedsAsJSONBySubscribedUserID(w io.Writer, userID int32) error {
+func (repo *pgxRepository) CopyFeedsAsJSONBySubscribedUserID(w io.Writer, userID int32) error {
 	return repo.pool.SelectValueTo(w, "getFeedsForUser", userID)
 }
 
-func (repo *pgxRepository) copyUnreadItemsAsJSONByUserID(w io.Writer, userID int32) error {
+func (repo *pgxRepository) CopyUnreadItemsAsJSONByUserID(w io.Writer, userID int32) error {
 	return repo.pool.SelectValueTo(w, "getUnreadItems", userID)
 }
 
-func (repo *pgxRepository) markItemRead(userID, itemID int32) error {
+func (repo *pgxRepository) MarkItemRead(userID, itemID int32) error {
 	commandTag, err := repo.pool.Execute("markItemRead", userID, itemID)
 	if err != nil {
 		return err
@@ -128,27 +128,27 @@ func (repo *pgxRepository) markItemRead(userID, itemID int32) error {
 }
 
 // TODO - change interface to only mark items read that are visible to user when they issue command
-func (repo *pgxRepository) markAllItemsRead(userID int32) error {
+func (repo *pgxRepository) MarkAllItemsRead(userID int32) error {
 	_, err := repo.pool.Execute("markAllItemsRead", userID)
 	return err
 }
 
-func (repo *pgxRepository) createSubscription(userID int32, feedURL string) error {
+func (repo *pgxRepository) CreateSubscription(userID int32, feedURL string) error {
 	_, err := repo.pool.Execute("createSubscription", userID, feedURL)
 	return err
 }
 
-func (repo *pgxRepository) deleteSubscription(userID, feedID int32) error {
+func (repo *pgxRepository) DeleteSubscription(userID, feedID int32) error {
 	_, err := repo.pool.Execute("deleteSubscription", userID, feedID)
 	return err
 }
 
-func (repo *pgxRepository) createSession(id []byte, userID int32) (err error) {
+func (repo *pgxRepository) CreateSession(id []byte, userID int32) (err error) {
 	_, err = repo.pool.Execute("insertSession", id, userID)
 	return err
 }
 
-func (repo *pgxRepository) getUserIDBySessionID(id []byte) (userID int32, err error) {
+func (repo *pgxRepository) GetUserIDBySessionID(id []byte) (userID int32, err error) {
 	v, err := repo.pool.SelectValue("getUserIDBySessionID", id)
 	if _, ok := err.(pgx.NotSingleRowError); ok {
 		return 0, notFound
@@ -159,7 +159,7 @@ func (repo *pgxRepository) getUserIDBySessionID(id []byte) (userID int32, err er
 	return v.(int32), err
 }
 
-func (repo *pgxRepository) deleteSession(id []byte) error {
+func (repo *pgxRepository) DeleteSession(id []byte) error {
 	commandTag, err := repo.pool.Execute("deleteSession", id)
 	if err != nil {
 		return err

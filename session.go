@@ -19,7 +19,7 @@ func createSession(userID int32) (id []byte) {
 		panic("Unable to read random bytes")
 	}
 
-	err = repo.createSession(randBytes, userID)
+	err = repo.CreateSession(randBytes, userID)
 	if err != nil {
 		logger.Error("tpr", fmt.Sprintf("Unable to create session: %v", err))
 	}
@@ -30,7 +30,7 @@ func createSession(userID int32) (id []byte) {
 func getSession(id []byte) (session Session, present bool) {
 	var err error
 	session.id = id
-	session.userID, err = repo.getUserIDBySessionID(id)
+	session.userID, err = repo.GetUserIDBySessionID(id)
 	if err == nil {
 		present = true
 	}
@@ -39,7 +39,7 @@ func getSession(id []byte) (session Session, present bool) {
 }
 
 func deleteSession(id []byte) error {
-	err := repo.deleteSession(id)
+	err := repo.DeleteSession(id)
 	if err != nil {
 		logger.Error("tpr", fmt.Sprintf("Unable to delete session: %v", err))
 	}

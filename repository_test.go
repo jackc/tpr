@@ -8,40 +8,40 @@ import (
 
 func mustCreateUser(t *testing.T, repo repository, userName string) (userID int32) {
 	var err error
-	userID, err = repo.createUser(userName, []byte("digest"), []byte("salt"))
+	userID, err = repo.CreateUser(userName, []byte("digest"), []byte("salt"))
 	if err != nil {
-		t.Fatalf("createUser failed: %v", err)
+		t.Fatalf("CreateUser failed: %v", err)
 	}
 	return userID
 }
 
 func testRepositoryUsers(t *testing.T, repo repository) {
 	name, passwordDigest, passwordSalt := "test", []byte("digest"), []byte("salt")
-	userID, err := repo.createUser(name, passwordDigest, passwordSalt)
+	userID, err := repo.CreateUser(name, passwordDigest, passwordSalt)
 	if err != nil {
 		t.Fatalf("createUser failed: %v", err)
 	}
 
-	userID2, passwordDigest2, passwordSalt2, err := repo.getUserAuthenticationByName(name)
+	userID2, passwordDigest2, passwordSalt2, err := repo.GetUserAuthenticationByName(name)
 	if err != nil {
-		t.Fatalf("getUserAuthenticationByName failed: %v", err)
+		t.Fatalf("GetUserAuthenticationByName failed: %v", err)
 	}
 	if userID != userID2 {
-		t.Errorf("getUserAuthenticationByName returned wrong userID: %d instead of %d", userID2, userID)
+		t.Errorf("GetUserAuthenticationByName returned wrong userID: %d instead of %d", userID2, userID)
 	}
 	if bytes.Compare(passwordDigest, passwordDigest2) != 0 {
-		t.Errorf("getUserAuthenticationByName returned wrong passwordDigest: %v instead of %v", passwordDigest2, passwordDigest)
+		t.Errorf("GetUserAuthenticationByName returned wrong passwordDigest: %v instead of %v", passwordDigest2, passwordDigest)
 	}
 	if bytes.Compare(passwordSalt, passwordSalt2) != 0 {
-		t.Errorf("getUserAuthenticationByName returned wrong passwordSalt: %v instead of %v", passwordSalt2, passwordSalt)
+		t.Errorf("GetUserAuthenticationByName returned wrong passwordSalt: %v instead of %v", passwordSalt2, passwordSalt)
 	}
 
-	name2, err := repo.getUserName(userID)
+	name2, err := repo.GetUserName(userID)
 	if err != nil {
-		t.Fatalf("getUserName failed: %v", err)
+		t.Fatalf("GetUserName failed: %v", err)
 	}
 	if name != name2 {
-		t.Errorf("getUserName returned wrong name: %s instead of %s", name2, name)
+		t.Errorf("GetUserName returned wrong name: %s instead of %s", name2, name)
 	}
 }
 
@@ -56,70 +56,70 @@ func testRepositoryFeeds(t *testing.T, repo repository) {
 
 	// Create a feed
 	url := "http://bar"
-	if err := repo.createSubscription(userID, url); err != nil {
-		t.Fatalf("createSubscription failed: %v", err)
+	if err := repo.CreateSubscription(userID, url); err != nil {
+		t.Fatalf("CreateSubscription failed: %v", err)
 	}
 
 	// A new feed has never been fetched -- it should need fetching
-	staleFeeds, err := repo.getFeedsUncheckedSince(tenMinutesAgo)
+	staleFeeds, err := repo.GetFeedsUncheckedSince(tenMinutesAgo)
 	if err != nil {
-		t.Fatalf("getFeedsUncheckedSince failed: %v", err)
+		t.Fatalf("GetFeedsUncheckedSince failed: %v", err)
 	}
 	if len(staleFeeds) != 1 {
-		t.Fatalf("getFeedsUncheckedSince returned wrong number of feeds: %d instead of %d", len(staleFeeds), 1)
+		t.Fatalf("GetFeedsUncheckedSince returned wrong number of feeds: %d instead of %d", len(staleFeeds), 1)
 	}
 	if staleFeeds[0].url != url {
-		t.Errorf("getFeedsUncheckedSince returned wrong feed: %s instead of %s", staleFeeds[0].url, url)
+		t.Errorf("GetFeedsUncheckedSince returned wrong feed: %s instead of %s", staleFeeds[0].url, url)
 	}
 
 	feedID := staleFeeds[0].id
 
 	// Update feed as of now
-	err = repo.updateFeedWithFetchSuccess(feedID, update, "", now)
+	err = repo.UpdateFeedWithFetchSuccess(feedID, update, "", now)
 	if err != nil {
-		t.Fatalf("updateFeedWithFetchSuccess failed: %v", err)
+		t.Fatalf("UpdateFeedWithFetchSuccess failed: %v", err)
 	}
 
 	// feed should no longer be stale
-	staleFeeds, err = repo.getFeedsUncheckedSince(tenMinutesAgo)
+	staleFeeds, err = repo.GetFeedsUncheckedSince(tenMinutesAgo)
 	if err != nil {
-		t.Fatalf("getFeedsUncheckedSince failed: %v", err)
+		t.Fatalf("GetFeedsUncheckedSince failed: %v", err)
 	}
 	if len(staleFeeds) != 0 {
-		t.Fatalf("getFeedsUncheckedSince returned wrong number of feeds: %d instead of %d", len(staleFeeds), 0)
+		t.Fatalf("GetFeedsUncheckedSince returned wrong number of feeds: %d instead of %d", len(staleFeeds), 0)
 	}
 
 	// Update feed to be old enough to need refresh
-	err = repo.updateFeedWithFetchSuccess(feedID, update, "", fifteenMinutesAgo)
+	err = repo.UpdateFeedWithFetchSuccess(feedID, update, "", fifteenMinutesAgo)
 	if err != nil {
-		t.Fatalf("updateFeedWithFetchSuccess failed: %v", err)
+		t.Fatalf("UpdateFeedWithFetchSuccess failed: %v", err)
 	}
 
 	// It should now need fetching
-	staleFeeds, err = repo.getFeedsUncheckedSince(tenMinutesAgo)
+	staleFeeds, err = repo.GetFeedsUncheckedSince(tenMinutesAgo)
 	if err != nil {
-		t.Fatalf("getFeedsUncheckedSince failed: %v", err)
+		t.Fatalf("GetFeedsUncheckedSince failed: %v", err)
 	}
 	if len(staleFeeds) != 1 {
-		t.Fatalf("getFeedsUncheckedSince returned wrong number of feeds: %d instead of %d", len(staleFeeds), 1)
+		t.Fatalf("GetFeedsUncheckedSince returned wrong number of feeds: %d instead of %d", len(staleFeeds), 1)
 	}
 	if staleFeeds[0].id != feedID {
-		t.Errorf("getFeedsUncheckedSince returned wrong feed: %d instead of %d", staleFeeds[0].id, feedID)
+		t.Errorf("GetFeedsUncheckedSince returned wrong feed: %d instead of %d", staleFeeds[0].id, feedID)
 	}
 
 	// But update feed with a recent failed fetch
-	err = repo.updateFeedWithFetchFailure(feedID, "something went wrong", fiveMinutesAgo)
+	err = repo.UpdateFeedWithFetchFailure(feedID, "something went wrong", fiveMinutesAgo)
 	if err != nil {
-		t.Fatalf("updateFeedWithFetchSuccess failed: %v", err)
+		t.Fatalf("UpdateFeedWithFetchSuccess failed: %v", err)
 	}
 
 	// feed should no longer be stale
-	staleFeeds, err = repo.getFeedsUncheckedSince(tenMinutesAgo)
+	staleFeeds, err = repo.GetFeedsUncheckedSince(tenMinutesAgo)
 	if err != nil {
-		t.Fatalf("getFeedsUncheckedSince failed: %v", err)
+		t.Fatalf("GetFeedsUncheckedSince failed: %v", err)
 	}
 	if len(staleFeeds) != 0 {
-		t.Fatalf("getFeedsUncheckedSince returned wrong number of feeds: %d instead of %d", len(staleFeeds), 0)
+		t.Fatalf("GetFeedsUncheckedSince returned wrong number of feeds: %d instead of %d", len(staleFeeds), 0)
 	}
 }
 
@@ -127,51 +127,51 @@ func testRepositorySubscriptions(t *testing.T, repo repository) {
 	userID := mustCreateUser(t, repo, "test")
 	url := "http://foo"
 
-	if err := repo.createSubscription(userID, url); err != nil {
-		t.Fatalf("createSubscription failed: %v", err)
+	if err := repo.CreateSubscription(userID, url); err != nil {
+		t.Fatalf("CreateSubscription failed: %v", err)
 	}
 
 	buffer := &bytes.Buffer{}
-	if err := repo.copyFeedsAsJSONBySubscribedUserID(buffer, userID); err != nil {
-		t.Fatalf("copyFeedsAsJSONBySubscribedUserID failed: %v", err)
+	if err := repo.CopyFeedsAsJSONBySubscribedUserID(buffer, userID); err != nil {
+		t.Fatalf("CopyFeedsAsJSONBySubscribedUserID failed: %v", err)
 	}
 	if !bytes.Contains(buffer.Bytes(), []byte("foo")) {
-		t.Errorf("copyFeedsAsJSONBySubscribedUserID should have included: %v", "foo")
+		t.Errorf("CopyFeedsAsJSONBySubscribedUserID should have included: %v", "foo")
 	}
 }
 
 func testRepositorySessions(t *testing.T, repo repository) {
-	userID, err := repo.createUser("test", []byte("digest"), []byte("salt"))
+	userID, err := repo.CreateUser("test", []byte("digest"), []byte("salt"))
 	if err != nil {
-		t.Fatalf("createUser failed: %v", err)
+		t.Fatalf("CreateUser failed: %v", err)
 	}
 
 	sessionID := []byte("deadbeef")
 
-	err = repo.createSession(sessionID, userID)
+	err = repo.CreateSession(sessionID, userID)
 	if err != nil {
-		t.Fatalf("createSession failed: %v", err)
+		t.Fatalf("CreateSession failed: %v", err)
 	}
 
-	userID2, err := repo.getUserIDBySessionID(sessionID)
+	userID2, err := repo.GetUserIDBySessionID(sessionID)
 	if err != nil {
-		t.Fatalf("getUserIDBySessionID failed: %v", err)
+		t.Fatalf("GetUserIDBySessionID failed: %v", err)
 	}
 	if userID != userID2 {
-		t.Errorf("getUserIDBySessionID returned wrong userID: %d instead of %d", userID2, userID)
+		t.Errorf("GetUserIDBySessionID returned wrong userID: %d instead of %d", userID2, userID)
 	}
 
-	err = repo.deleteSession(sessionID)
+	err = repo.DeleteSession(sessionID)
 	if err != nil {
-		t.Fatalf("deleteSession failed: %v", err)
+		t.Fatalf("DeleteSession failed: %v", err)
 	}
 
-	_, err = repo.getUserIDBySessionID(sessionID)
+	_, err = repo.GetUserIDBySessionID(sessionID)
 	if err != notFound {
 		t.Fatalf("Should have returned notFound error instead got: %v", err)
 	}
 
-	err = repo.deleteSession(sessionID)
+	err = repo.DeleteSession(sessionID)
 	if err != notFound {
 		t.Fatalf("deleteSession should return notFound when deleting non-existent id but it returned: %v", err)
 	}

@@ -162,7 +162,7 @@ func (env *environment) CurrentAccount() *currentAccount {
 
 		var name interface{}
 		// TODO - this could be an error from no records found -- or the connection could be dead or we could have a syntax error...
-		name, err = repo.getUserName(session.userID)
+		name, err = repo.GetUserName(session.userID)
 		if err == nil {
 			env.currentAccount = &currentAccount{id: session.userID, name: name.(string)}
 		}
@@ -268,7 +268,7 @@ func DeleteSubscriptionHandler(w http.ResponseWriter, req *http.Request, env *en
 		return
 	}
 
-	if err := repo.deleteSubscription(env.CurrentAccount().id, int32(feedID)); err != nil {
+	if err := repo.DeleteSubscription(env.CurrentAccount().id, int32(feedID)); err != nil {
 		w.WriteHeader(422)
 		fmt.Fprintf(w, "Error deleting subscription: %v", err)
 		return
@@ -278,7 +278,7 @@ func DeleteSubscriptionHandler(w http.ResponseWriter, req *http.Request, env *en
 }
 
 func AuthenticateUser(name, password string) (userID int32, err error) {
-	userID, passwordDigest, passwordSalt, err := repo.getUserAuthenticationByName(name)
+	userID, passwordDigest, passwordSalt, err := repo.GetUserAuthenticationByName(name)
 	if err != nil {
 		return
 	}
@@ -356,7 +356,7 @@ func DeleteSessionHandler(w http.ResponseWriter, req *http.Request) {
 
 func GetUnreadItemsHandler(w http.ResponseWriter, req *http.Request, env *environment) {
 	w.Header().Set("Content-Type", "application/json")
-	if err := repo.copyUnreadItemsAsJSONByUserID(w, env.CurrentAccount().id); err != nil {
+	if err := repo.CopyUnreadItemsAsJSONByUserID(w, env.CurrentAccount().id); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
@@ -369,7 +369,7 @@ func MarkItemReadHandler(w http.ResponseWriter, req *http.Request, env *environm
 		return
 	}
 
-	err = repo.markItemRead(env.CurrentAccount().id, int32(itemID))
+	err = repo.MarkItemRead(env.CurrentAccount().id, int32(itemID))
 	if err == notFound {
 		http.NotFound(w, req)
 		return
@@ -380,7 +380,7 @@ func MarkItemReadHandler(w http.ResponseWriter, req *http.Request, env *environm
 }
 
 func MarkAllItemsReadHandler(w http.ResponseWriter, req *http.Request, env *environment) {
-	err := repo.markAllItemsRead(env.CurrentAccount().id)
+	err := repo.MarkAllItemsRead(env.CurrentAccount().id)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
@@ -436,7 +436,7 @@ func ImportFeedsHandler(w http.ResponseWriter, req *http.Request, env *environme
 
 func GetFeedsHandler(w http.ResponseWriter, req *http.Request, env *environment) {
 	w.Header().Set("Content-Type", "application/json")
-	if err := repo.copyFeedsAsJSONBySubscribedUserID(w, env.CurrentAccount().id); err != nil {
+	if err := repo.CopyFeedsAsJSONBySubscribedUserID(w, env.CurrentAccount().id); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }

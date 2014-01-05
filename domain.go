@@ -28,17 +28,17 @@ func CreateUser(name string, password string) (userID int32, err error) {
 		return
 	}
 
-	return repo.createUser(name, digest, salt)
+	return repo.CreateUser(name, digest, salt)
 }
 
 func Subscribe(userID int32, feedURL string) (err error) {
-	return repo.createSubscription(userID, feedURL)
+	return repo.CreateSubscription(userID, feedURL)
 }
 
 func KeepFeedsFresh() {
 	for {
 		t := time.Now().Add(-10 * time.Minute)
-		if staleFeeds, err := repo.getFeedsUncheckedSince(t); err == nil {
+		if staleFeeds, err := repo.GetFeedsUncheckedSince(t); err == nil {
 			logger.Info("tpr", fmt.Sprintf("Found %d stale feeds", len(staleFeeds)))
 			for _, sf := range staleFeeds {
 				RefreshFeed(sf)
@@ -90,20 +90,20 @@ func RefreshFeed(staleFeed staleFeed) {
 	rawFeed, err := fetchFeed(staleFeed.url, staleFeed.etag)
 	if err != nil {
 		logger.Error("tpr", fmt.Sprintf("fetchFeed %s failed: %v", staleFeed.url, err))
-		repo.updateFeedWithFetchFailure(staleFeed.id, err.Error(), time.Now())
+		repo.UpdateFeedWithFetchFailure(staleFeed.id, err.Error(), time.Now())
 		return
 	}
 	// 304 unchanged
 	if rawFeed == nil {
 		logger.Info("tpr", fmt.Sprintf("fetchFeed %s 304 unchanged", staleFeed.url))
-		repo.updateFeedWithFetchUnchanged(staleFeed.id, time.Now())
+		repo.UpdateFeedWithFetchUnchanged(staleFeed.id, time.Now())
 		return
 	}
 
 	feed, err := parseFeed(rawFeed.body)
 	if err != nil {
 		logger.Error("tpr", fmt.Sprintf("parseFeed %s failed: %v", staleFeed.url, err))
-		repo.updateFeedWithFetchFailure(staleFeed.id, fmt.Sprintf("Unable to parse feed: %v", err), time.Now())
+		repo.UpdateFeedWithFetchFailure(staleFeed.id, fmt.Sprintf("Unable to parse feed: %v", err), time.Now())
 		return
 	}
 
@@ -117,7 +117,7 @@ func RefreshFeed(staleFeed staleFeed) {
 	}
 
 	logger.Info("tpr", fmt.Sprintf("refreshFeed %s (%d) succeeded", staleFeed.url, staleFeed.id))
-	repo.updateFeedWithFetchSuccess(staleFeed.id, feed, rawFeed.etag, time.Now())
+	repo.UpdateFeedWithFetchSuccess(staleFeed.id, feed, rawFeed.etag, time.Now())
 }
 
 type parsedItem struct {
