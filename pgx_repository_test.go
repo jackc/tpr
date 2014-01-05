@@ -54,6 +54,11 @@ func TestPgxRepositorySubscriptions(t *testing.T) {
 	testRepositorySubscriptions(t, repo)
 }
 
+func TestPgxRepositoryCopySubscriptionsForUserAsJSON(t *testing.T) {
+	repo = getFreshPgxRepository(t)
+	testRepositoryCopySubscriptionsForUserAsJSON(t, repo)
+}
+
 func TestPgxRepositorySessions(t *testing.T) {
 	repo = getFreshPgxRepository(t)
 	testRepositorySessions(t, repo)

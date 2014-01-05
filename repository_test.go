@@ -15,6 +15,12 @@ func mustCreateUser(t *testing.T, repo repository, userName string) (userID int3
 	return userID
 }
 
+func mustCreateSubscription(t *testing.T, repo repository, userID int32, url string) {
+	if err := repo.CreateSubscription(userID, url); err != nil {
+		t.Fatalf("CreateSubscription failed: %v", err)
+	}
+}
+
 func testRepositoryUsers(t *testing.T, repo repository) {
 	name, passwordDigest, passwordSalt := "test", []byte("digest"), []byte("salt")
 	userID, err := repo.CreateUser(name, passwordDigest, passwordSalt)
@@ -134,6 +140,24 @@ func testRepositorySubscriptions(t *testing.T, repo repository) {
 	buffer := &bytes.Buffer{}
 	if err := repo.CopySubscriptionsForUserAsJSON(buffer, userID); err != nil {
 		t.Fatalf("CopySubscriptionsForUserAsJSON failed: %v", err)
+	}
+	if !bytes.Contains(buffer.Bytes(), []byte("foo")) {
+		t.Errorf("CopySubscriptionsForUserAsJSON should have included: %v", "foo")
+	}
+}
+
+func testRepositoryCopySubscriptionsForUserAsJSON(t *testing.T, repo repository) {
+	userID := mustCreateUser(t, repo, "test")
+
+	buffer := &bytes.Buffer{}
+	if err := repo.CopySubscriptionsForUserAsJSON(buffer, userID); err != nil {
+		t.Errorf("CopySubscriptionsForUserAsJSON failed when no subscriptions: %v", err)
+	}
+
+	mustCreateSubscription(t, repo, userID, "http://foo")
+	buffer.Reset()
+	if err := repo.CopySubscriptionsForUserAsJSON(buffer, userID); err != nil {
+		t.Fatalf("CopySubscriptionsForUserAsJSON failed when one subscription: %v", err)
 	}
 	if !bytes.Contains(buffer.Bytes(), []byte("foo")) {
 		t.Errorf("CopySubscriptionsForUserAsJSON should have included: %v", "foo")

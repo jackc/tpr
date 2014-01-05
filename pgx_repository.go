@@ -264,7 +264,7 @@ func afterConnect(conn *pgx.Connection) (err error) {
 	}
 
 	err = conn.Prepare("getFeedsForUser", `
-    select json_agg(row_to_json(t))
+    select coalesce(json_agg(row_to_json(t)), '[]'::json)
     from (
       select feeds.id,
         name,
