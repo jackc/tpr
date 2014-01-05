@@ -19,7 +19,7 @@ type repository interface {
 	UpdateFeedWithFetchFailure(feedID int32, failure string, fetchTime time.Time) (err error)
 
 	CopyUnreadItemsAsJSONByUserID(w io.Writer, userID int32) error
-	CopyFeedsAsJSONBySubscribedUserID(w io.Writer, userID int32) error
+	CopySubscriptionsForUserAsJSON(w io.Writer, userID int32) error
 
 	MarkItemRead(userID, itemID int32) error
 	MarkAllItemsRead(userID int32) error

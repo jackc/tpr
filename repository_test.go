@@ -132,11 +132,11 @@ func testRepositorySubscriptions(t *testing.T, repo repository) {
 	}
 
 	buffer := &bytes.Buffer{}
-	if err := repo.CopyFeedsAsJSONBySubscribedUserID(buffer, userID); err != nil {
-		t.Fatalf("CopyFeedsAsJSONBySubscribedUserID failed: %v", err)
+	if err := repo.CopySubscriptionsForUserAsJSON(buffer, userID); err != nil {
+		t.Fatalf("CopySubscriptionsForUserAsJSON failed: %v", err)
 	}
 	if !bytes.Contains(buffer.Bytes(), []byte("foo")) {
-		t.Errorf("CopyFeedsAsJSONBySubscribedUserID should have included: %v", "foo")
+		t.Errorf("CopySubscriptionsForUserAsJSON should have included: %v", "foo")
 	}
 }
 

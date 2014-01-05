@@ -107,7 +107,7 @@ func (repo *pgxRepository) UpdateFeedWithFetchFailure(feedID int32, failure stri
 	return err
 }
 
-func (repo *pgxRepository) CopyFeedsAsJSONBySubscribedUserID(w io.Writer, userID int32) error {
+func (repo *pgxRepository) CopySubscriptionsForUserAsJSON(w io.Writer, userID int32) error {
 	return repo.pool.SelectValueTo(w, "getFeedsForUser", userID)
 }
 
