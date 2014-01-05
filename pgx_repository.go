@@ -50,28 +50,6 @@ func (repo *pgxRepository) getUserName(userID int32) (name string, err error) {
 	return
 }
 
-func (repo *pgxRepository) createFeed(name, url string) (int32, error) {
-	feedID, err := repo.pool.SelectValue("insertFeed", name, url)
-	if err != nil {
-		return 0, err
-	}
-
-	return feedID.(int32), err
-}
-
-func (repo *pgxRepository) getFeedIDByURL(url string) (feedID int32, err error) {
-	var id interface{}
-	id, err = repo.pool.SelectValue("getFeedIDByURL", url)
-	if _, ok := err.(pgx.NotSingleRowError); ok {
-		return 0, notFound
-	}
-	if err != nil {
-		return 0, err
-	}
-
-	return id.(int32), nil
-}
-
 func (repo *pgxRepository) getFeedsUncheckedSince(since time.Time) (feeds []staleFeed, err error) {
 	err = repo.pool.SelectFunc("getFeedsUncheckedSince", func(r *pgx.DataRowReader) (err error) {
 		var feed staleFeed
@@ -155,8 +133,8 @@ func (repo *pgxRepository) markAllItemsRead(userID int32) error {
 	return err
 }
 
-func (repo *pgxRepository) createSubscription(userID, feedID int32) error {
-	_, err := repo.pool.Execute("insertSubscription", userID, feedID)
+func (repo *pgxRepository) createSubscription(userID int32, feedURL string) error {
+	_, err := repo.pool.Execute("createSubscription", userID, feedURL)
 	return err
 }
 
@@ -335,17 +313,6 @@ func afterConnect(conn *pgx.Connection) (err error) {
 		return
 	}
 
-	err = conn.Prepare("insertFeed", `
-    insert into feeds(name, url) values($1, $2) returning id`)
-	if err != nil {
-		return
-	}
-
-	err = conn.Prepare("getFeedIDByURL", `select id from feeds where url=$1`)
-	if err != nil {
-		return
-	}
-
 	err = conn.Prepare("getFeedsUncheckedSince", `
     select id, url, etag
     from feeds
@@ -388,7 +355,7 @@ func afterConnect(conn *pgx.Connection) (err error) {
 		return
 	}
 
-	err = conn.Prepare("insertSubscription", `insert into subscriptions(user_id, feed_id) values($1, $2)`)
+	err = conn.Prepare("createSubscription", `select create_subscription($1::integer, $2::varchar)`)
 	if err != nil {
 		return
 	}

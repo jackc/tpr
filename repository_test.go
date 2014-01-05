@@ -6,6 +6,15 @@ import (
 	"time"
 )
 
+func mustCreateUser(t *testing.T, repo repository, userName string) (userID int32) {
+	var err error
+	userID, err = repo.createUser(userName, []byte("digest"), []byte("salt"))
+	if err != nil {
+		t.Fatalf("createUser failed: %v", err)
+	}
+	return userID
+}
+
 func testRepositoryUsers(t *testing.T, repo repository) {
 	name, passwordDigest, passwordSalt := "test", []byte("digest"), []byte("salt")
 	userID, err := repo.createUser(name, passwordDigest, passwordSalt)
@@ -38,6 +47,7 @@ func testRepositoryUsers(t *testing.T, repo repository) {
 
 // TODO -- this really needs to be refactored
 func testRepositoryFeeds(t *testing.T, repo repository) {
+	userID := mustCreateUser(t, repo, "test")
 	now := time.Now()
 	fiveMinutesAgo := now.Add(-5 * time.Minute)
 	tenMinutesAgo := now.Add(-10 * time.Minute)
@@ -45,19 +55,9 @@ func testRepositoryFeeds(t *testing.T, repo repository) {
 	update := &parsedFeed{name: "baz", items: make([]parsedItem, 0)}
 
 	// Create a feed
-	name, url := "foo", "http://bar"
-	feedID, err := repo.createFeed(name, url)
-	if err != nil {
-		t.Fatalf("createFeed failed: %v", err)
-	}
-
-	// Only way to know if it really worked is if we can retrieve it
-	feedID2, err := repo.getFeedIDByURL(url)
-	if err != nil {
-		t.Fatalf("getFeedIDbyURL failed: %v", err)
-	}
-	if feedID != feedID2 {
-		t.Errorf("getFeedIDbyURL returned wrong feedID: %d instead of %d", feedID2, feedID)
+	url := "http://bar"
+	if err := repo.createSubscription(userID, url); err != nil {
+		t.Fatalf("createSubscription failed: %v", err)
 	}
 
 	// A new feed has never been fetched -- it should need fetching
@@ -68,9 +68,11 @@ func testRepositoryFeeds(t *testing.T, repo repository) {
 	if len(staleFeeds) != 1 {
 		t.Fatalf("getFeedsUncheckedSince returned wrong number of feeds: %d instead of %d", len(staleFeeds), 1)
 	}
-	if staleFeeds[0].id != feedID {
-		t.Errorf("getFeedsUncheckedSince returned wrong feed: %d instead of %d", staleFeeds[0].id, feedID)
+	if staleFeeds[0].url != url {
+		t.Errorf("getFeedsUncheckedSince returned wrong feed: %s instead of %s", staleFeeds[0].url, url)
 	}
+
+	feedID := staleFeeds[0].id
 
 	// Update feed as of now
 	err = repo.updateFeedWithFetchSuccess(feedID, update, "", now)
@@ -122,24 +124,15 @@ func testRepositoryFeeds(t *testing.T, repo repository) {
 }
 
 func testRepositorySubscriptions(t *testing.T, repo repository) {
-	userID, err := repo.createUser("test", []byte("digest"), []byte("salt"))
-	if err != nil {
-		t.Fatalf("createUser failed: %v", err)
-	}
+	userID := mustCreateUser(t, repo, "test")
+	url := "http://foo"
 
-	feedID, err := repo.createFeed("foo", "http://bar")
-	if err != nil {
-		t.Fatalf("createFeed failed: %v", err)
-	}
-
-	err = repo.createSubscription(userID, feedID)
-	if err != nil {
+	if err := repo.createSubscription(userID, url); err != nil {
 		t.Fatalf("createSubscription failed: %v", err)
 	}
 
 	buffer := &bytes.Buffer{}
-	err = repo.copyFeedsAsJSONBySubscribedUserID(buffer, userID)
-	if err != nil {
+	if err := repo.copyFeedsAsJSONBySubscribedUserID(buffer, userID); err != nil {
 		t.Fatalf("copyFeedsAsJSONBySubscribedUserID failed: %v", err)
 	}
 	if !bytes.Contains(buffer.Bytes(), []byte("foo")) {

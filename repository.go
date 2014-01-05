@@ -13,8 +13,6 @@ type repository interface {
 	getUserAuthenticationByName(name string) (userID int32, passwordDigest, passwordSalt []byte, err error)
 	getUserName(userID int32) (name string, err error)
 
-	createFeed(name, url string) (feedID int32, err error)
-	getFeedIDByURL(url string) (feedID int32, err error)
 	getFeedsUncheckedSince(since time.Time) (feeds []staleFeed, err error)
 	updateFeedWithFetchSuccess(feedID int32, update *parsedFeed, etag string, fetchTime time.Time) error
 	updateFeedWithFetchUnchanged(feedID int32, fetchTime time.Time) error
@@ -26,7 +24,7 @@ type repository interface {
 	markItemRead(userID, itemID int32) error
 	markAllItemsRead(userID int32) error
 
-	createSubscription(userID, feedID int32) (err error)
+	createSubscription(userID int32, feedURL string) (err error)
 	deleteSubscription(userID, feedID int32) (err error)
 
 	createSession(id []byte, userID int32) (err error)

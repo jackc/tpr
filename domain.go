@@ -32,19 +32,7 @@ func CreateUser(name string, password string) (userID int32, err error) {
 }
 
 func Subscribe(userID int32, feedURL string) (err error) {
-	feedID, err := repo.getFeedIDByURL(feedURL)
-	if err == notFound {
-		feedID, err = repo.createFeed(feedURL, feedURL)
-		if err != nil {
-			return err
-		}
-	}
-	repo.createSubscription(userID, feedID)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return repo.createSubscription(userID, feedURL)
 }
 
 func KeepFeedsFresh() {
