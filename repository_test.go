@@ -2,9 +2,16 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"testing"
 	"time"
 )
+
+type SubscriptionFromJSON struct {
+	ID   int32  `json:id`
+	Name string `json:name`
+	URL  string `json:url`
+}
 
 func mustCreateUser(t *testing.T, repo repository, userName string) (userID int32) {
 	var err error
@@ -17,6 +24,12 @@ func mustCreateUser(t *testing.T, repo repository, userName string) (userID int3
 
 func mustCreateSubscription(t *testing.T, repo repository, userID int32, url string) {
 	if err := repo.CreateSubscription(userID, url); err != nil {
+		t.Fatalf("CreateSubscription failed: %v", err)
+	}
+}
+
+func mustUpdateFeedWithFetchSuccess(t *testing.T, repo repository, feedID int32, update *parsedFeed, etag string, fetchTime time.Time) {
+	if err := repo.UpdateFeedWithFetchSuccess(feedID, update, etag, fetchTime); err != nil {
 		t.Fatalf("CreateSubscription failed: %v", err)
 	}
 }
@@ -143,6 +156,47 @@ func testRepositorySubscriptions(t *testing.T, repo repository) {
 	}
 	if !bytes.Contains(buffer.Bytes(), []byte("foo")) {
 		t.Errorf("CopySubscriptionsForUserAsJSON should have included: %v", "foo")
+	}
+}
+
+func testRepositoryDeleteSubscription(t *testing.T, repo repository) {
+	userID := mustCreateUser(t, repo, "test")
+	mustCreateSubscription(t, repo, userID, "http://foo")
+
+	buffer := &bytes.Buffer{}
+	if err := repo.CopySubscriptionsForUserAsJSON(buffer, userID); err != nil {
+		t.Fatalf("CopySubscriptionsForUserAsJSON failed: %v", err)
+	}
+
+	var subscriptions []SubscriptionFromJSON
+	json.Unmarshal(buffer.Bytes(), &subscriptions)
+	feedID := subscriptions[0].ID
+
+	update := &parsedFeed{name: "baz", items: []parsedItem{
+		{url: "http://baz/bar", title: "Baz", publicationTime: time.Now()},
+	}}
+	mustUpdateFeedWithFetchSuccess(t, repo, feedID, update, "", time.Now().Add(-20*time.Minute))
+
+	if err := repo.DeleteSubscription(userID, feedID); err != nil {
+		t.Fatalf("DeleteSubscription failed: %v", err)
+	}
+
+	buffer.Reset()
+	if err := repo.CopySubscriptionsForUserAsJSON(buffer, userID); err != nil {
+		t.Fatalf("CopySubscriptionsForUserAsJSON failed: %v", err)
+	}
+	json.Unmarshal(buffer.Bytes(), &subscriptions)
+	if len(subscriptions) != 0 {
+		t.Fatalf("DeleteSubscription did not delete subscription")
+	}
+
+	// feed should have been deleted as it was the last user
+	staleFeeds, err := repo.GetFeedsUncheckedSince(time.Now())
+	if err != nil {
+		t.Fatalf("GetFeedsUncheckedSince failed: %v", err)
+	}
+	if len(staleFeeds) != 0 {
+		t.Fatalf("DeleteSubscription did not delete feed when it was last subscription")
 	}
 }
 

@@ -150,5 +150,17 @@ func migrate(connectionParameters pgx.ConnectionParameters) (err error) {
     language plpgsql;
   `)
 
+	m.AppendMigration("Create subscriptions foreign key constraints", `
+    alter table subscriptions
+      add constraint subscriptions_user_id_fkey foreign key (user_id) references users on delete cascade,
+      add constraint subscriptions_feed_id_fkey foreign key (feed_id) references feeds on delete cascade;
+  `)
+
+	m.AppendMigration("Alter items feed_id FK constraint to cascade delete", `
+    alter table items
+      drop constraint items_feed_id_fkey,
+      add constraint items_feed_id_fkey foreign key (feed_id) references feeds on delete cascade;
+  `)
+
 	return m.Migrate()
 }

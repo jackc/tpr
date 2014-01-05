@@ -139,7 +139,26 @@ func (repo *pgxRepository) CreateSubscription(userID int32, feedURL string) erro
 }
 
 func (repo *pgxRepository) DeleteSubscription(userID, feedID int32) error {
-	_, err := repo.pool.Execute("deleteSubscription", userID, feedID)
+	conn, err := repo.pool.Acquire()
+	if err != nil {
+		return err
+	}
+	defer repo.pool.Release(conn)
+
+	conn.TransactionIso("serializable", func() bool {
+		_, err := conn.Execute("deleteSubscription", userID, feedID)
+		if err != nil {
+			return false
+		}
+
+		_, err = conn.Execute("deleteFeedIfOrphaned", feedID)
+		if err != nil {
+			return false
+		}
+
+		return true
+	})
+
 	return err
 }
 
@@ -361,6 +380,14 @@ func afterConnect(conn *pgx.Connection) (err error) {
 	}
 
 	err = conn.Prepare("deleteSubscription", `delete from subscriptions where user_id=$1 and feed_id=$2`)
+	if err != nil {
+		return
+	}
+
+	err = conn.Prepare("deleteFeedIfOrphaned", `
+    delete from feeds
+    where id=$1
+      and not exists(select 1 from subscriptions where feed_id=id)`)
 	if err != nil {
 		return
 	}
