@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/JackC/box"
 	"testing"
 	"time"
 )
@@ -142,6 +143,120 @@ func testRepositoryFeeds(t *testing.T, repo repository) {
 	}
 }
 
+func testRepositoryUpdateFeedWithFetchSuccess(t *testing.T, repo repository) {
+	userID := mustCreateUser(t, repo, "test")
+	now := time.Now()
+
+	url := "http://bar"
+	mustCreateSubscription(t, repo, userID, url)
+
+	buffer := &bytes.Buffer{}
+	if err := repo.CopySubscriptionsForUserAsJSON(buffer, userID); err != nil {
+		t.Fatalf("CopySubscriptionsForUserAsJSON failed: %v", err)
+	}
+
+	var subscriptions []SubscriptionFromJSON
+	json.Unmarshal(buffer.Bytes(), &subscriptions)
+	feedID := subscriptions[0].ID
+
+	update := &parsedFeed{name: "baz", items: []parsedItem{
+		{url: "http://baz/bar", title: "Baz", publicationTime: box.NewTime(now)},
+	}}
+	err := repo.UpdateFeedWithFetchSuccess(feedID, update, "", now)
+	if err != nil {
+		t.Fatalf("UpdateFeedWithFetchSuccess failed: %v", err)
+	}
+
+	buffer.Reset()
+	if err := repo.CopyUnreadItemsAsJSONByUserID(buffer, userID); err != nil {
+		t.Fatalf("CopyUnreadItemsAsJSONByUserID failed: %v", err)
+	}
+
+	type UnreadItemsFromJSON struct {
+		ID int32 `json:id`
+	}
+
+	var unreadItems []UnreadItemsFromJSON
+	json.Unmarshal(buffer.Bytes(), &unreadItems)
+	if len(unreadItems) != 1 {
+		t.Fatalf("UpdateFeedWithFetchSuccess should have created %d unread item, but it created %d", 1, len(unreadItems))
+	}
+
+	// Update again and ensure item does not get created again
+	err = repo.UpdateFeedWithFetchSuccess(feedID, update, "", now)
+	if err != nil {
+		t.Fatalf("UpdateFeedWithFetchSuccess failed: %v", err)
+	}
+
+	buffer.Reset()
+	if err := repo.CopyUnreadItemsAsJSONByUserID(buffer, userID); err != nil {
+		t.Fatalf("CopyUnreadItemsAsJSONByUserID failed: %v", err)
+	}
+
+	json.Unmarshal(buffer.Bytes(), &unreadItems)
+	if len(unreadItems) != 1 {
+		t.Fatalf("UpdateFeedWithFetchSuccess should have created %d unread item, but it created %d", 1, len(unreadItems))
+	}
+}
+
+// This function is a nasty copy and paste of testRepositoryUpdateFeedWithFetchSuccess
+// Fix me when refactoring tests
+func testRepositoryUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testing.T, repo repository) {
+	userID := mustCreateUser(t, repo, "test")
+	now := time.Now()
+
+	url := "http://bar"
+	mustCreateSubscription(t, repo, userID, url)
+
+	buffer := &bytes.Buffer{}
+	if err := repo.CopySubscriptionsForUserAsJSON(buffer, userID); err != nil {
+		t.Fatalf("CopySubscriptionsForUserAsJSON failed: %v", err)
+	}
+
+	var subscriptions []SubscriptionFromJSON
+	json.Unmarshal(buffer.Bytes(), &subscriptions)
+	feedID := subscriptions[0].ID
+
+	update := &parsedFeed{name: "baz", items: []parsedItem{
+		{url: "http://baz/bar", title: "Baz"},
+	}}
+	err := repo.UpdateFeedWithFetchSuccess(feedID, update, "", now)
+	if err != nil {
+		t.Fatalf("UpdateFeedWithFetchSuccess failed: %v", err)
+	}
+
+	buffer.Reset()
+	if err := repo.CopyUnreadItemsAsJSONByUserID(buffer, userID); err != nil {
+		t.Fatalf("CopyUnreadItemsAsJSONByUserID failed: %v", err)
+	}
+
+	type UnreadItemsFromJSON struct {
+		ID int32 `json:id`
+	}
+
+	var unreadItems []UnreadItemsFromJSON
+	json.Unmarshal(buffer.Bytes(), &unreadItems)
+	if len(unreadItems) != 1 {
+		t.Fatalf("UpdateFeedWithFetchSuccess should have created %d unread item, but it created %d", 1, len(unreadItems))
+	}
+
+	// Update again and ensure item does not get created again
+	err = repo.UpdateFeedWithFetchSuccess(feedID, update, "", now)
+	if err != nil {
+		t.Fatalf("UpdateFeedWithFetchSuccess failed: %v", err)
+	}
+
+	buffer.Reset()
+	if err := repo.CopyUnreadItemsAsJSONByUserID(buffer, userID); err != nil {
+		t.Fatalf("CopyUnreadItemsAsJSONByUserID failed: %v", err)
+	}
+
+	json.Unmarshal(buffer.Bytes(), &unreadItems)
+	if len(unreadItems) != 1 {
+		t.Fatalf("UpdateFeedWithFetchSuccess should have created %d unread item, but it created %d", 1, len(unreadItems))
+	}
+}
+
 func testRepositorySubscriptions(t *testing.T, repo repository) {
 	userID := mustCreateUser(t, repo, "test")
 	url := "http://foo"
@@ -173,7 +288,7 @@ func testRepositoryDeleteSubscription(t *testing.T, repo repository) {
 	feedID := subscriptions[0].ID
 
 	update := &parsedFeed{name: "baz", items: []parsedItem{
-		{url: "http://baz/bar", title: "Baz", publicationTime: time.Now()},
+		{url: "http://baz/bar", title: "Baz", publicationTime: box.NewTime(time.Now())},
 	}}
 	mustUpdateFeedWithFetchSuccess(t, repo, feedID, update, "", time.Now().Add(-20*time.Minute))
 

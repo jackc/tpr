@@ -230,7 +230,11 @@ func (repo *pgxRepository) buildNewItemsSQL(feedID int32, items []parsedItem) (s
 
 		buf.WriteString(",$")
 
-		args = append(args, item.publicationTime)
+		if item.publicationTime.IsFull() {
+			args = append(args, item.publicationTime.Get())
+		} else {
+			args = append(args, nil)
+		}
 		buf.WriteString(strconv.FormatInt(int64(len(args)), 10))
 
 		buf.WriteString("::timestamptz)")
@@ -266,7 +270,7 @@ func afterConnect(conn *pgx.Connection) (err error) {
         feeds.name as feed_name,
         items.title,
         items.url,
-        publication_time
+        coalesce(publication_time, items.creation_time) as publication_time
       from feeds
         join items on feeds.id=items.feed_id
         join unread_items on items.id=unread_items.item_id

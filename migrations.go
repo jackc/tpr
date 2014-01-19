@@ -162,5 +162,16 @@ func migrate(connectionParameters pgx.ConnectionParameters) (err error) {
       add constraint items_feed_id_fkey foreign key (feed_id) references feeds on delete cascade;
   `)
 
+	m.AppendMigration("Alter digest_item to allow for null publication_time", `
+    create or replace function digest_item(feed_id integer, publication_time timestamp with time zone, title text, url text) returns bytea as $$
+      begin
+        return digest(feed_id::text || coalesce(publication_time::text, '') || title || url, 'sha256');
+      end;
+    $$ language plpgsql;
+
+    -- Remove publication_time from obviously bad records
+    update items set publication_time = null where publication_time < '1990-01-01';
+  `)
+
 	return m.Migrate()
 }

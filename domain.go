@@ -7,6 +7,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"github.com/JackC/box"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -107,15 +108,6 @@ func RefreshFeed(staleFeed staleFeed) {
 		return
 	}
 
-	// If any items did not have publication times, then default to now
-	var zeroTime time.Time
-	now := time.Now()
-	for _, item := range feed.items {
-		if item.publicationTime == zeroTime {
-			item.publicationTime = now
-		}
-	}
-
 	logger.Info("tpr", fmt.Sprintf("refreshFeed %s (%d) succeeded", staleFeed.url, staleFeed.id))
 	repo.UpdateFeedWithFetchSuccess(staleFeed.id, feed, rawFeed.etag, time.Now())
 }
@@ -123,7 +115,7 @@ func RefreshFeed(staleFeed staleFeed) {
 type parsedItem struct {
 	url             string
 	title           string
-	publicationTime time.Time
+	publicationTime box.Time
 }
 
 func (i *parsedItem) isValid() bool {
@@ -255,7 +247,7 @@ func parseXML(body []byte, doc interface{}) error {
 }
 
 // Try multiple time formats one after another until one works or all fail
-func parseTime(value string) (t time.Time, err error) {
+func parseTime(value string) (bt box.Time, err error) {
 	formats := []string{
 		"2006-01-02T15:04:05-07:00",
 		"2006-01-02T15:04:05Z",
@@ -268,11 +260,12 @@ func parseTime(value string) (t time.Time, err error) {
 		"2006-01-02",
 	}
 	for _, f := range formats {
-		t, err = time.Parse(f, value)
+		t, err := time.Parse(f, value)
 		if err == nil {
-			return
+			bt.Set(t)
+			return bt, nil
 		}
 	}
 
-	return t, errors.New("Unable to parse time")
+	return bt, errors.New("Unable to parse time")
 }

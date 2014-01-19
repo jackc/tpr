@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/JackC/box"
 	"testing"
 	"time"
 )
@@ -35,12 +36,12 @@ var feedParsingTests = []struct {
 				{
 					title:           "Snow Storm",
 					url:             "http://example.org/snow-storm",
-					publicationTime: time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC),
+					publicationTime: box.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
 				},
 				{
 					title:           "Blizzard",
 					url:             "http://example.org/blizzard",
-					publicationTime: time.Date(2014, 1, 4, 8, 15, 0, 0, time.UTC),
+					publicationTime: box.NewTime(time.Date(2014, 1, 4, 8, 15, 0, 0, time.UTC)),
 				},
 			}},
 		"",
@@ -64,7 +65,7 @@ var feedParsingTests = []struct {
 				{
 					title:           "Snow Storm",
 					url:             "http://example.org/snow-storm",
-					publicationTime: time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC),
+					publicationTime: box.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
 				},
 			}},
 		"",
@@ -88,7 +89,7 @@ var feedParsingTests = []struct {
 				{
 					title:           "Snow Storm",
 					url:             "http://example.org/snow-storm",
-					publicationTime: time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC),
+					publicationTime: box.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
 				},
 			}},
 		"",
@@ -138,12 +139,12 @@ var feedParsingTests = []struct {
 				{
 					title:           "Snow Storm",
 					url:             "http://example.org/snow-storm",
-					publicationTime: time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC),
+					publicationTime: box.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
 				},
 				{
 					title:           "Blizzard",
 					url:             "http://example.org/blizzard",
-					publicationTime: time.Date(2014, 1, 4, 8, 15, 0, 0, time.UTC),
+					publicationTime: box.NewTime(time.Date(2014, 1, 4, 8, 15, 0, 0, time.UTC)),
 				},
 			}},
 		"",
@@ -181,8 +182,12 @@ func TestParseFeed(t *testing.T) {
 			if actualItem.url != expectedItem.url {
 				t.Errorf("%d. %s Item %d: Expected url %#v, but is was %#v", i, tt.name, j, expectedItem.url, actualItem.url)
 			}
-			if !actualItem.publicationTime.Equal(expectedItem.publicationTime) {
-				t.Errorf("%d. %s Item %d: Expected publicationTime %s, but is was %s", i, tt.name, j, expectedItem.publicationTime, actualItem.publicationTime)
+			if actualItem.publicationTime.Status() == expectedItem.publicationTime.Status() {
+				if actualItem.publicationTime.IsFull() && !actualItem.publicationTime.Get().Equal(expectedItem.publicationTime.Get()) {
+					t.Errorf("%d. %s Item %d: Expected publicationTime %v, but is was %v", i, tt.name, j, expectedItem.publicationTime, actualItem.publicationTime)
+				}
+			} else {
+				t.Errorf("%d. %s Item %d: Expected publicationTime status %v, but is was %v", i, tt.name, j, expectedItem.publicationTime.Status(), actualItem.publicationTime.Status())
 			}
 		}
 	}
@@ -210,7 +215,7 @@ func TestParseTime(t *testing.T) {
 			t.Errorf("%d. %s: Unexpected error: %v", i, tt.unparsed, err)
 			continue
 		}
-		if !tt.expected.Equal(actual) {
+		if !tt.expected.Equal(actual.Get()) {
 			t.Errorf("%d. %s: expected to parse to %s, but instead was %s", i, tt.unparsed, tt.expected, actual)
 		}
 	}

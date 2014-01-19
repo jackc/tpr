@@ -49,6 +49,14 @@ func TestPgxRepositoryFeeds(t *testing.T) {
 	testRepositoryFeeds(t, repo)
 }
 
+func TestPgxUpdateFeedWithFetchSuccess(t *testing.T) {
+	repo = getFreshPgxRepository(t)
+	testRepositoryUpdateFeedWithFetchSuccess(t, repo)
+
+	repo = getFreshPgxRepository(t)
+	testRepositoryUpdateFeedWithFetchSuccessWithoutPublicationTime(t, repo)
+}
+
 func TestPgxRepositorySubscriptions(t *testing.T) {
 	repo = getFreshPgxRepository(t)
 	testRepositorySubscriptions(t, repo)
