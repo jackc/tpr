@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"github.com/JackC/box"
+	"io"
 	"testing"
 	"time"
 )
@@ -32,6 +33,12 @@ func mustCreateSubscription(t *testing.T, repo repository, userID int32, url str
 func mustUpdateFeedWithFetchSuccess(t *testing.T, repo repository, feedID int32, update *parsedFeed, etag string, fetchTime time.Time) {
 	if err := repo.UpdateFeedWithFetchSuccess(feedID, update, etag, fetchTime); err != nil {
 		t.Fatalf("CreateSubscription failed: %v", err)
+	}
+}
+
+func mustCopySubscriptionsForUserAsJSON(t *testing.T, repo repository, w io.Writer, userID int32) {
+	if err := repo.CopySubscriptionsForUserAsJSON(w, userID); err != nil {
+		t.Fatalf("CopySubscriptionsForUserAsJSON failed: %v", err)
 	}
 }
 
@@ -151,9 +158,7 @@ func testRepositoryUpdateFeedWithFetchSuccess(t *testing.T, repo repository) {
 	mustCreateSubscription(t, repo, userID, url)
 
 	buffer := &bytes.Buffer{}
-	if err := repo.CopySubscriptionsForUserAsJSON(buffer, userID); err != nil {
-		t.Fatalf("CopySubscriptionsForUserAsJSON failed: %v", err)
-	}
+	mustCopySubscriptionsForUserAsJSON(t, repo, buffer, userID)
 
 	var subscriptions []SubscriptionFromJSON
 	json.Unmarshal(buffer.Bytes(), &subscriptions)
@@ -209,9 +214,7 @@ func testRepositoryUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testing.T
 	mustCreateSubscription(t, repo, userID, url)
 
 	buffer := &bytes.Buffer{}
-	if err := repo.CopySubscriptionsForUserAsJSON(buffer, userID); err != nil {
-		t.Fatalf("CopySubscriptionsForUserAsJSON failed: %v", err)
-	}
+	mustCopySubscriptionsForUserAsJSON(t, repo, buffer, userID)
 
 	var subscriptions []SubscriptionFromJSON
 	json.Unmarshal(buffer.Bytes(), &subscriptions)
@@ -260,15 +263,10 @@ func testRepositoryUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testing.T
 func testRepositorySubscriptions(t *testing.T, repo repository) {
 	userID := mustCreateUser(t, repo, "test")
 	url := "http://foo"
-
-	if err := repo.CreateSubscription(userID, url); err != nil {
-		t.Fatalf("CreateSubscription failed: %v", err)
-	}
+	mustCreateSubscription(t, repo, userID, url)
 
 	buffer := &bytes.Buffer{}
-	if err := repo.CopySubscriptionsForUserAsJSON(buffer, userID); err != nil {
-		t.Fatalf("CopySubscriptionsForUserAsJSON failed: %v", err)
-	}
+	mustCopySubscriptionsForUserAsJSON(t, repo, buffer, userID)
 	if !bytes.Contains(buffer.Bytes(), []byte("foo")) {
 		t.Errorf("CopySubscriptionsForUserAsJSON should have included: %v", "foo")
 	}
@@ -279,9 +277,7 @@ func testRepositoryDeleteSubscription(t *testing.T, repo repository) {
 	mustCreateSubscription(t, repo, userID, "http://foo")
 
 	buffer := &bytes.Buffer{}
-	if err := repo.CopySubscriptionsForUserAsJSON(buffer, userID); err != nil {
-		t.Fatalf("CopySubscriptionsForUserAsJSON failed: %v", err)
-	}
+	mustCopySubscriptionsForUserAsJSON(t, repo, buffer, userID)
 
 	var subscriptions []SubscriptionFromJSON
 	json.Unmarshal(buffer.Bytes(), &subscriptions)
@@ -297,9 +293,7 @@ func testRepositoryDeleteSubscription(t *testing.T, repo repository) {
 	}
 
 	buffer.Reset()
-	if err := repo.CopySubscriptionsForUserAsJSON(buffer, userID); err != nil {
-		t.Fatalf("CopySubscriptionsForUserAsJSON failed: %v", err)
-	}
+	mustCopySubscriptionsForUserAsJSON(t, repo, buffer, userID)
 	json.Unmarshal(buffer.Bytes(), &subscriptions)
 	if len(subscriptions) != 0 {
 		t.Fatalf("DeleteSubscription did not delete subscription")
