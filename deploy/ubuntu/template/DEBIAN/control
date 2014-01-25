@@ -1,0 +1,8 @@
+Package: tpr
+Architecture: all
+Maintainer: Jack Christensen <jack@jackchristensen.com>
+Depends: debconf (>= 0.5.00), adduser
+Priority: optional
+Version: <%= VERSION %>
+Description: The Pithy Reader
+ Simple RSS reader

@@ -146,21 +146,13 @@ file "tpr_#{VERSION}.deb" => :build do
   pkg_dir = "tpr_#{VERSION}"
   FileUtils.rm_rf pkg_dir
 
-  FileUtils.mkdir_p "#{pkg_dir}/DEBIAN"
-  File.write "#{pkg_dir}/DEBIAN/control", "Package: tpr
-Architecture: all
-Maintainer: Jack Christensen <jack@jackchristensen.com>
-Depends: debconf (>= 0.5.00)
-Priority: optional
-Version: #{VERSION}
-Description: The Pithy Reader
- Simple RSS reader
-"
+  FileUtils.cp_r 'deploy/ubuntu/template', "#{pkg_dir}"
 
-  FileUtils.mkdir_p "#{pkg_dir}/usr/bin"
+  control_template = File.read("#{pkg_dir}/DEBIAN/control")
+  control = ERB.new(control_template).result binding
+  File.write "#{pkg_dir}/DEBIAN/control", control
+
   FileUtils.cp 'tpr', "#{pkg_dir}/usr/bin"
-
-  FileUtils.mkdir_p "#{pkg_dir}/usr/share"
   FileUtils.cp_r 'public', "#{pkg_dir}/usr/share/tpr"
 
   sh "dpkg --build #{pkg_dir}"
