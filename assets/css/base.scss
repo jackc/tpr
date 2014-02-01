@@ -55,6 +55,24 @@ a.button {
   font-weight: bold;
   padding: 4px 8px 4px 8px;
   border: none;
+
+  &:hover {
+    color: white;
+  }
+}
+
+input[type=submit] {
+  background-color: $primary-color;
+  color: $light-contrast-color;
+  border-radius: 4px;
+  font-size: 1.5em;
+  font-weight: bold;
+  padding: 4px 8px 4px 8px;
+  border: none;
+
+  &:hover {
+    color: white;
+  }
 }
 
 #view > .login, #view > .register {
@@ -80,15 +98,7 @@ a.button {
       margin-bottom: 0.5em;
     }
 
-    input[type=submit] {
-      background-color: $primary-color;
-      color: $light-contrast-color;
-      border-radius: 4px;
-      font-size: 1.5em;
-      font-weight: bold;
-      padding: 4px 8px 4px 8px;
-      border: none;
-    }
+
 
     a {
       font-size: 0.75em;
@@ -149,16 +159,6 @@ a.button {
 
     input[type=file] {
       margin-bottom: 0.5em;
-    }
-
-    input[type=submit] {
-      background-color: $primary-color;
-      color: $light-contrast-color;
-      border-radius: 4px;
-      font-size: 1.5em;
-      font-weight: bold;
-      padding: 4px 8px 4px 8px;
-      border: none;
     }
   }
 
