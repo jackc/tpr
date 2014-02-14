@@ -44,6 +44,8 @@ func KeepFeedsFresh() {
 			for _, sf := range staleFeeds {
 				RefreshFeed(sf)
 			}
+		} else {
+			logger.Error("tpr", fmt.Sprintf("repo.GetFeedsUncheckedSince failed: %v", err))
 		}
 		time.Sleep(time.Minute)
 	}
