@@ -21,7 +21,7 @@ import (
 	"time"
 )
 
-const version = "0.1.7"
+const version = "0.1.8"
 
 var repo repository
 
