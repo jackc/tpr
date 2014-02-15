@@ -61,9 +61,9 @@ func (s *RepositorySuite) TestFeeds(c *C) {
 	staleFeeds, err := s.repo.GetFeedsUncheckedSince(tenMinutesAgo)
 	c.Assert(err, IsNil)
 	c.Assert(staleFeeds, HasLen, 1)
-	c.Check(staleFeeds[0].url, Equals, url)
+	c.Check(staleFeeds[0].URL.Get(), Equals, url)
 
-	feedID := staleFeeds[0].id
+	feedID := staleFeeds[0].ID.Get()
 
 	// Update feed as of now
 	err = s.repo.UpdateFeedWithFetchSuccess(feedID, update, "", now)
@@ -82,7 +82,7 @@ func (s *RepositorySuite) TestFeeds(c *C) {
 	staleFeeds, err = s.repo.GetFeedsUncheckedSince(tenMinutesAgo)
 	c.Assert(err, IsNil)
 	c.Assert(staleFeeds, HasLen, 1)
-	c.Check(staleFeeds[0].id, Equals, feedID)
+	c.Check(staleFeeds[0].ID.Get(), Equals, feedID)
 
 	// But update feed with a recent failed fetch
 	err = s.repo.UpdateFeedWithFetchFailure(feedID, "something went wrong", fiveMinutesAgo)

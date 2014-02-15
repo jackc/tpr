@@ -89,29 +89,29 @@ func fetchFeed(url, etag string) (feed *rawFeed, err error) {
 	}
 }
 
-func RefreshFeed(staleFeed staleFeed) {
-	rawFeed, err := fetchFeed(staleFeed.url, staleFeed.etag)
+func RefreshFeed(staleFeed Feed) {
+	rawFeed, err := fetchFeed(staleFeed.URL.Get(), staleFeed.ETag.Get())
 	if err != nil {
-		logger.Error("tpr", fmt.Sprintf("fetchFeed %s failed: %v", staleFeed.url, err))
-		repo.UpdateFeedWithFetchFailure(staleFeed.id, err.Error(), time.Now())
+		logger.Error("tpr", fmt.Sprintf("fetchFeed %s failed: %v", staleFeed.URL.Get(), err))
+		repo.UpdateFeedWithFetchFailure(staleFeed.ID.Get(), err.Error(), time.Now())
 		return
 	}
 	// 304 unchanged
 	if rawFeed == nil {
-		logger.Info("tpr", fmt.Sprintf("fetchFeed %s 304 unchanged", staleFeed.url))
-		repo.UpdateFeedWithFetchUnchanged(staleFeed.id, time.Now())
+		logger.Info("tpr", fmt.Sprintf("fetchFeed %s 304 unchanged", staleFeed.URL.Get()))
+		repo.UpdateFeedWithFetchUnchanged(staleFeed.ID.Get(), time.Now())
 		return
 	}
 
 	feed, err := parseFeed(rawFeed.body)
 	if err != nil {
-		logger.Error("tpr", fmt.Sprintf("parseFeed %s failed: %v", staleFeed.url, err))
-		repo.UpdateFeedWithFetchFailure(staleFeed.id, fmt.Sprintf("Unable to parse feed: %v", err), time.Now())
+		logger.Error("tpr", fmt.Sprintf("parseFeed %s failed: %v", staleFeed.URL.Get(), err))
+		repo.UpdateFeedWithFetchFailure(staleFeed.ID.Get(), fmt.Sprintf("Unable to parse feed: %v", err), time.Now())
 		return
 	}
 
-	logger.Info("tpr", fmt.Sprintf("refreshFeed %s (%d) succeeded", staleFeed.url, staleFeed.id))
-	repo.UpdateFeedWithFetchSuccess(staleFeed.id, feed, rawFeed.etag, time.Now())
+	logger.Info("tpr", fmt.Sprintf("refreshFeed %s (%d) succeeded", staleFeed.URL.Get(), staleFeed.ID.Get()))
+	repo.UpdateFeedWithFetchSuccess(staleFeed.ID.Get(), feed, rawFeed.etag, time.Now())
 }
 
 type parsedItem struct {

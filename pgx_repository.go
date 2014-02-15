@@ -50,13 +50,18 @@ func (repo *pgxRepository) GetUserName(userID int32) (name string, err error) {
 	return
 }
 
-func (repo *pgxRepository) GetFeedsUncheckedSince(since time.Time) (feeds []staleFeed, err error) {
+func (repo *pgxRepository) GetFeedsUncheckedSince(since time.Time) (feeds []Feed, err error) {
 	err = repo.pool.SelectFunc("getFeedsUncheckedSince", func(r *pgx.DataRowReader) (err error) {
-		var feed staleFeed
-		feed.id = r.ReadValue().(int32)
-		feed.url = r.ReadValue().(string)
+		var feed Feed
+		feed.ID.Set(r.ReadValue().(int32))
+		feed.URL.Set(r.ReadValue().(string))
 		etag := r.ReadValue()
-		feed.etag, _ = etag.(string) // ignore if null
+		if etag == nil {
+			feed.ETag.SetEmpty()
+		} else {
+			feed.ETag.Set(etag.(string))
+		}
+
 		feeds = append(feeds, feed)
 		return
 	}, since)

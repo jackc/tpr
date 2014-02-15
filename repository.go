@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"github.com/JackC/box"
 	"io"
 	"time"
 )
@@ -13,7 +14,7 @@ type repository interface {
 	GetUserAuthenticationByName(name string) (userID int32, passwordDigest, passwordSalt []byte, err error)
 	GetUserName(userID int32) (name string, err error)
 
-	GetFeedsUncheckedSince(since time.Time) (feeds []staleFeed, err error)
+	GetFeedsUncheckedSince(since time.Time) (feeds []Feed, err error)
 	UpdateFeedWithFetchSuccess(feedID int32, update *parsedFeed, etag string, fetchTime time.Time) error
 	UpdateFeedWithFetchUnchanged(feedID int32, fetchTime time.Time) error
 	UpdateFeedWithFetchFailure(feedID int32, failure string, fetchTime time.Time) (err error)
@@ -30,6 +31,18 @@ type repository interface {
 	CreateSession(id []byte, userID int32) (err error)
 	GetUserIDBySessionID(id []byte) (userID int32, err error)
 	DeleteSession(id []byte) (err error)
+}
+
+type Feed struct {
+	ID              box.Int32
+	Name            box.String
+	URL             box.String
+	LastFetchTime   box.Time
+	ETag            box.String
+	LastFailure     box.String
+	LastFailureTime box.Time
+	FailureCount    box.Int32
+	CreationTime    box.Time
 }
 
 type staleFeed struct {
