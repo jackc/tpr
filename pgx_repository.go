@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"github.com/JackC/box"
 	"github.com/JackC/pgx"
 	"io"
 	"strconv"
@@ -55,13 +56,7 @@ func (repo *pgxRepository) GetFeedsUncheckedSince(since time.Time) (feeds []Feed
 		var feed Feed
 		feed.ID.Set(r.ReadValue().(int32))
 		feed.URL.Set(r.ReadValue().(string))
-		etag := r.ReadValue()
-		if etag == nil {
-			feed.ETag.SetEmpty()
-		} else {
-			feed.ETag.Set(etag.(string))
-		}
-
+		feed.ETag.SetAllowNil(r.ReadValue(), box.Empty)
 		feeds = append(feeds, feed)
 		return
 	}, since)
