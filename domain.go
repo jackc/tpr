@@ -14,9 +14,11 @@ import (
 )
 
 var client *http.Client
+var transport *http.Transport
 
 func init() {
-	client = &http.Client{}
+	transport = &http.Transport{ResponseHeaderTimeout: time.Duration(10 * time.Second)}
+	client = &http.Client{Transport: transport}
 }
 
 func CreateUser(name string, password string) (userID int32, err error) {
