@@ -58,8 +58,6 @@ type rawFeed struct {
 }
 
 func fetchFeed(url, etag string) (feed *rawFeed, err error) {
-	client := &http.Client{}
-
 	feed = &rawFeed{url: url}
 
 	req, err := http.NewRequest("GET", feed.url, nil)
