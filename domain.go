@@ -10,15 +10,17 @@ import (
 	"github.com/JackC/box"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"time"
 )
 
 var client *http.Client
-var transport *http.Transport
+var bodyResponseTimeout time.Duration
 
 func init() {
-	transport = &http.Transport{ResponseHeaderTimeout: time.Duration(10 * time.Second)}
+	transport := &http.Transport{ResponseHeaderTimeout: time.Duration(10 * time.Second)}
 	client = &http.Client{Transport: transport}
+	bodyResponseTimeout = 60 * time.Second
 }
 
 func CreateUser(name string, password string) (userID int32, err error) {
@@ -59,8 +61,8 @@ type rawFeed struct {
 	etag string
 }
 
-func fetchFeed(url, etag string) (feed *rawFeed, err error) {
-	feed = &rawFeed{url: url}
+func fetchFeed(feedURL, etag string) (*rawFeed, error) {
+	feed := &rawFeed{url: feedURL}
 
 	req, err := http.NewRequest("GET", feed.url, nil)
 	if etag != "" {
@@ -68,15 +70,26 @@ func fetchFeed(url, etag string) (feed *rawFeed, err error) {
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("HTTP error: %v", err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	switch resp.StatusCode {
 	case 200:
-		feed.body, err = ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("Unable to read response body: %v", err)
+		done := make(chan bool, 1)
+		go func() {
+			feed.body, err = ioutil.ReadAll(resp.Body)
+			done <- true
+		}()
+
+		select {
+		case <-done:
+			if err != nil {
+				return nil, fmt.Errorf("Unable to read response body: %v", err)
+			}
+		case <-time.After(bodyResponseTimeout):
+			client.Transport.(*http.Transport).CancelRequest(req)
+			return nil, &url.Error{Op: "Get", URL: feedURL, Err: errors.New("Timeout receiving response body")}
 		}
 
 		feed.etag = resp.Header.Get("Etag")

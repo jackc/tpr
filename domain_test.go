@@ -1,7 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"github.com/JackC/box"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -218,5 +222,51 @@ func TestParseTime(t *testing.T) {
 		if !tt.expected.Equal(actual.Get()) {
 			t.Errorf("%d. %s: expected to parse to %s, but instead was %s", i, tt.unparsed, tt.expected, actual)
 		}
+	}
+}
+
+func TestFetchFeedResponseHeaderTimeout(t *testing.T) {
+	origClient := client
+	transport := &http.Transport{ResponseHeaderTimeout: time.Duration(1 * time.Millisecond)}
+	client = &http.Client{Transport: transport}
+	defer func() {
+		client = origClient
+	}()
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(2 * time.Millisecond)
+		fmt.Fprintln(w, "Too Late!")
+	}))
+	defer ts.Close()
+
+	_, err := fetchFeed(ts.URL, "")
+	if err == nil {
+		t.Fatal("Expected but did not receive error")
+	}
+	if !strings.Contains(err.Error(), "net/http: timeout awaiting response headers") {
+		t.Fatalf("Did not receive expected timeout error, instead received: %v", err)
+	}
+}
+
+func TestFetchFeedResponseBodyTimeout(t *testing.T) {
+	origBodyResponseTimeout := bodyResponseTimeout
+	bodyResponseTimeout = 1 * time.Millisecond
+	defer func() {
+		bodyResponseTimeout = origBodyResponseTimeout
+	}()
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		w.(http.Flusher).Flush()
+		time.Sleep(2 * time.Millisecond)
+	}))
+	defer ts.Close()
+
+	_, err := fetchFeed(ts.URL, "")
+	if err == nil {
+		t.Fatal("Expected but did not receive error")
+	}
+	if !strings.Contains(err.Error(), "Timeout receiving response body") {
+		t.Fatalf("Did not receive expected timeout error, instead received: %v", err)
 	}
 }
