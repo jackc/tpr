@@ -1,0 +1,6 @@
+address: 127.0.0.1
+port: 4000
+database:
+  socket: /var/run/postgresql/.s.PGSQL.5432
+  database: tpr
+  user: tpr

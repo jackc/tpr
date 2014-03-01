@@ -1,6 +1,6 @@
-.sass-cache
-config.yml
-config.test.yml
-public
-tpr
-tmp
+/.sass-cache
+/config.yml
+/config.test.yml
+/public
+/tpr
+/tmp

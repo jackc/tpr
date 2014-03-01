@@ -152,6 +152,9 @@ file "tpr_#{VERSION}.deb" => :build do
   control = ERB.new(control_template).result binding
   File.write "#{pkg_dir}/DEBIAN/control", control
 
+  FileUtils.rm "#{pkg_dir}/usr/bin/.gitignore"
+  FileUtils.rm "#{pkg_dir}/usr/share/.gitignore"
+
   FileUtils.cp 'tpr', "#{pkg_dir}/usr/bin"
   FileUtils.cp_r 'public', "#{pkg_dir}/usr/share/tpr"
 
