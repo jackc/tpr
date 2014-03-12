@@ -49,7 +49,7 @@ task spec_server: "build:binary" do
   FileUtils.mkdir_p "tmp/spec/server"
   FileUtils.touch "tmp/spec/server/stdout.log"
   FileUtils.touch "tmp/spec/server/stderr.log"
-  pid = Process.spawn "build/tpr -config=config.test.yml",
+  pid = Process.spawn "build/tpr -config=config.test.yml -static-url http://localhost:4567",
     out: "tmp/spec/server/stdout.log",
     err: "tmp/spec/server/stderr.log"
   at_exit { Process.kill "TERM", pid }
