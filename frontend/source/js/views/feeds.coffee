@@ -65,7 +65,7 @@ class App.Views.FeedsList extends App.Views.Base
     @
 
 class App.Views.Feed extends App.Views.Base
-  template: _.template($("#feeds_page_feed").html())
+  template: _.template($("#feeds_page_feed_template").html())
   tagName: 'li'
 
   events:

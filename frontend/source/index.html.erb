@@ -1,0 +1,20 @@
+<html>
+<head>
+  <title>The Pithy Reader</title>
+
+  <% Dir.glob("source/templates/_*.html.erb").map do |path|
+       script_name = path.sub(%r[source/templates/(.+).html.*], '\1').gsub('/', '_').sub('__', '_').sub(/^_/, '')
+       partial_name = path.sub(%r[source/(.+).html.*], '\1').sub(/^_|(?<=\/)_/, '')
+  %>
+    <script id="<%= script_name %>_template" type="text/underscore">
+      <%= partial partial_name %>
+    </script>
+  <% end %>
+
+  <%= stylesheet_link_tag "base" %>
+  <%= javascript_include_tag "application" %>
+</head>
+<body>
+<div id="view"></div>
+</body>
+</html>

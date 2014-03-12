@@ -1,6 +1,8 @@
 /.sass-cache
 /config.yml
 /config.test.yml
+/build
+/frontend/.cache
 /public
 /tpr
 /tmp

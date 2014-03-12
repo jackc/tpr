@@ -25,6 +25,10 @@ func (l *Logger) Log(pkg, level, msg string) {
 	}
 }
 
+func (l *Logger) Fatal(pkg, msg string) {
+	l.Log(pkg, "Fatal", msg)
+}
+
 func (l *Logger) Error(pkg, msg string) {
 	l.Log(pkg, "Error", msg)
 }

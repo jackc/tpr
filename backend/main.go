@@ -12,8 +12,9 @@ import (
 	"github.com/JackC/pgx"
 	qv "github.com/JackC/quo_vadis"
 	"github.com/kylelemons/go-gypsy/yaml"
-	"mime"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -29,6 +30,7 @@ var config struct {
 	configPath    string
 	listenAddress string
 	listenPort    string
+	staticURL     string
 }
 
 func initialize() {
@@ -38,6 +40,7 @@ func initialize() {
 	flag.StringVar(&config.listenAddress, "address", "127.0.0.1", "address to listen on")
 	flag.StringVar(&config.listenPort, "port", "8080", "port to listen on")
 	flag.StringVar(&config.configPath, "config", "config.yml", "path to config file")
+	flag.StringVar(&config.staticURL, "static-url", "", "reverse proxy static asset requests to URL")
 
 	var printVersion bool
 	flag.BoolVar(&printVersion, "version", false, "Print version and exit")
@@ -441,39 +444,6 @@ func GetFeedsHandler(w http.ResponseWriter, req *http.Request, env *environment)
 	}
 }
 
-func NoDirListing(handler http.Handler) http.HandlerFunc {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, "/") {
-			http.NotFound(w, r)
-			return
-		}
-		handler.ServeHTTP(w, r)
-	})
-}
-
-func PreGzipped(handler http.Handler) http.HandlerFunc {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if strings.Contains(req.Header.Get("Accept-Encoding"), "gzip") {
-			contentType := mime.TypeByExtension(filepath.Ext(req.URL.Path))
-			if contentType != "" {
-				w.Header().Set("Content-Type", contentType)
-			}
-
-			req.URL.Path = req.URL.Path + ".gz"
-			w.Header().Set("Content-Encoding", "gzip")
-		}
-		handler.ServeHTTP(w, req)
-	})
-}
-
-func IndexHtmlHandler(w http.ResponseWriter, req *http.Request) {
-	http.ServeFile(w, req, "public/index.html")
-}
-
-func AssetFileServer(root http.FileSystem) http.HandlerFunc {
-	return NoDirListing(PreGzipped(http.FileServer(root)))
-}
-
 func main() {
 	initialize()
 	router := qv.NewRouter()
@@ -490,9 +460,14 @@ func main() {
 	router.Delete("/items/unread/:id", ApiSecureHandlerFunc(MarkItemReadHandler))
 	http.Handle("/api/", http.StripPrefix("/api", router))
 
-	http.Handle("/", http.HandlerFunc(IndexHtmlHandler))
-	http.Handle("/css/", AssetFileServer(http.Dir("./public/")))
-	http.Handle("/js/", AssetFileServer(http.Dir("./public/")))
+	if config.staticURL != "" {
+		staticURL, err := url.Parse(config.staticURL)
+		if err != nil {
+			logger.Fatal("tpr", fmt.Sprintf("Bad static-rul: %v", err))
+			os.Exit(1)
+		}
+		http.Handle("/", httputil.NewSingleHostReverseProxy(staticURL))
+	}
 
 	listenAt := fmt.Sprintf("%s:%s", config.listenAddress, config.listenPort)
 	fmt.Printf("Starting to listen on: %s\n", listenAt)
