@@ -15,6 +15,8 @@ Capybara.default_driver = :poltergeist
 Capybara.app_host = "http://#{config['address']}:#{config['port']}"
 
 RSpec.configure do |config|
+  config.include FactoryHelper
+
   config.before(:each) do
     clean_database
     visit '/'

@@ -1,6 +1,8 @@
 source 'https://rubygems.org'
 
 gem 'capybara'
+gem 'ffaker'
+gem 'launchy'
 gem 'middleman'
 gem 'middleman-core'
 gem 'pg'
@@ -10,3 +12,4 @@ gem 'rake'
 gem 'rerun'
 gem 'rspec'
 gem 'sequel'
+gem 'scrypt'

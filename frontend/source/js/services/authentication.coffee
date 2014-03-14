@@ -7,5 +7,5 @@ class App.Services.Authentication
 
   logout: ->
     $.ajax(url: "/api/sessions/#{State.Session.id}", method: "DELETE")
-      .success ->
-        State.Session.clear()
+    State.Session.clear()
+

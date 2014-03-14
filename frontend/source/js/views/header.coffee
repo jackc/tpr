@@ -12,5 +12,5 @@ class App.Views.LoggedInHeader extends App.Views.Base
   logout: (e)->
     e.preventDefault()
     authenticationService = new App.Services.Authentication
-    authenticationService.logout().success ->
-      Backbone.history.navigate('login', true)
+    authenticationService.logout()
+    Backbone.history.navigate('login', true)
