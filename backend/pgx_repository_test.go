@@ -17,7 +17,7 @@ func getFreshPgxRepository(c *C) repository {
 		var connectionParameters pgx.ConnectionParameters
 		var yf *yaml.File
 
-		configPath := "config.test.yml"
+		configPath := "../config.test.yml"
 		yf, err = yaml.ReadFile(configPath)
 		c.Assert(err, IsNil)
 
