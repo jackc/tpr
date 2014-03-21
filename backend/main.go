@@ -382,10 +382,23 @@ func MarkItemReadHandler(w http.ResponseWriter, req *http.Request, env *environm
 	}
 }
 
-func MarkAllItemsReadHandler(w http.ResponseWriter, req *http.Request, env *environment) {
-	err := repo.MarkAllItemsRead(env.CurrentAccount().id)
-	if err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+func MarkMultipleItemsReadHandler(w http.ResponseWriter, req *http.Request, env *environment) {
+	var request struct {
+		ItemIDs []int32 `json:"itemIDs"`
+	}
+
+	decoder := json.NewDecoder(req.Body)
+	if err := decoder.Decode(&request); err != nil {
+		w.WriteHeader(422)
+		fmt.Fprintf(w, "Error decoding request: %v", err)
+		return
+	}
+
+	for _, itemID := range request.ItemIDs {
+		err := repo.MarkItemRead(env.CurrentAccount().id, itemID)
+		if err != nil && err != notFound {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
 	}
 }
 
@@ -456,7 +469,7 @@ func main() {
 	router.Get("/feeds", ApiSecureHandlerFunc(GetFeedsHandler))
 	router.Post("/feeds/import", ApiSecureHandlerFunc(ImportFeedsHandler))
 	router.Get("/items/unread", ApiSecureHandlerFunc(GetUnreadItemsHandler))
-	router.Delete("/items/unread", ApiSecureHandlerFunc(MarkAllItemsReadHandler))
+	router.Post("/items/unread/mark_multiple_read", ApiSecureHandlerFunc(MarkMultipleItemsReadHandler))
 	router.Delete("/items/unread/:id", ApiSecureHandlerFunc(MarkItemReadHandler))
 	http.Handle("/api/", http.StripPrefix("/api", router))
 

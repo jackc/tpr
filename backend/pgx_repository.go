@@ -127,12 +127,6 @@ func (repo *pgxRepository) MarkItemRead(userID, itemID int32) error {
 	return nil
 }
 
-// TODO - change interface to only mark items read that are visible to user when they issue command
-func (repo *pgxRepository) MarkAllItemsRead(userID int32) error {
-	_, err := repo.pool.Execute("markAllItemsRead", userID)
-	return err
-}
-
 func (repo *pgxRepository) CreateSubscription(userID int32, feedURL string) error {
 	_, err := repo.pool.Execute("createSubscription", userID, feedURL)
 	return err
@@ -313,11 +307,6 @@ func afterConnect(conn *pgx.Connection) (err error) {
     delete from unread_items
     where user_id=$1
       and item_id=$2`)
-	if err != nil {
-		return
-	}
-
-	err = conn.Prepare("markAllItemsRead", `delete from unread_items where user_id=$1`)
 	if err != nil {
 		return
 	}

@@ -10,4 +10,23 @@ module FactoryHelper
     attrs[:password_digest] = Sequel::SQL::Blob.new password_digest
     DB[:users].insert attrs
   end
+
+  def create_feed attrs={}
+    defaults = {
+      name: Faker::Lorem.sentence,
+      url: "http://localhost/#{Faker::Internet.domain_word}/#{Faker::Internet.domain_word}"
+    }
+    attrs = defaults.merge(attrs)
+    DB[:feeds].insert attrs
+  end
+
+  def create_item attrs={}
+    attrs[:feed_id] ||= create_feed # not part of defaults hash so we don't create feed unless we need to
+    defaults = {
+      title: Faker::Lorem.sentence,
+      url: Faker::Internet.http_url
+    }
+    attrs = defaults.merge(attrs)
+    DB[:items].insert attrs
+  end
 end

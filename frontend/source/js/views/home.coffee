@@ -20,8 +20,12 @@ class App.Views.HomePage extends App.Views.Base
 
   markAllRead: (e)->
     e.preventDefault()
-    $.ajax(url: "/api/items/unread?sessionID=#{State.Session.id}", method: "DELETE")
-      .success => @unreadItems.fetch()
+    $.ajax(
+      url: "/api/items/unread/mark_multiple_read?sessionID=#{State.Session.id}",
+      method: "POST",
+      contentType : "application/json",
+      data: JSON.stringify({itemIDs: @unreadItems.pluck("id")})
+    ).success => @unreadItems.fetch()
 
 class App.Views.UnreadItemsList extends App.Views.Base
   tagName: 'ul'

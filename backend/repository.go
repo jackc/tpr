@@ -23,7 +23,6 @@ type repository interface {
 	CopySubscriptionsForUserAsJSON(w io.Writer, userID int32) error
 
 	MarkItemRead(userID, itemID int32) error
-	MarkAllItemsRead(userID int32) error
 
 	CreateSubscription(userID int32, feedURL string) (err error)
 	DeleteSubscription(userID, feedID int32) (err error)
