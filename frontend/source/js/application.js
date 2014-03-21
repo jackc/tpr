@@ -3,12 +3,12 @@
 //= require vendor/backbone-min.js
 //= require vendor/moment.min.js
 //= require namespace.js
+//= require connection.coffee
 //= require models/feed.coffee
 //= require models/item.coffee
 //= require models/session.coffee
 //= require collections/unread_items.coffee
 //= require collections/feeds.coffee
-//= require services/authentication.coffee
 //= require services/registration.coffee
 //= require views/base.coffee
 //= require views/header.coffee

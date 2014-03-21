@@ -7,8 +7,7 @@ class App.Router extends Backbone.Router
     "*path" : "login"
 
   login: ->
-    authenticationService = new App.Services.Authentication
-    @changePage App.Views.LoginPage, authenticationService: authenticationService
+    @changePage App.Views.LoginPage
 
   home: ->
     unless State.Session.isAuthenticated()

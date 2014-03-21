@@ -2,10 +2,6 @@ class App.Views.LoginPage extends App.Views.Base
   template: _.template($("#login_page_template").html())
   className: 'login'
 
-  initialize: (options)->
-    super()
-    @authenticationService = options.authenticationService
-
   events:
     "submit form" : "login"
     "click a.register" : "register"
@@ -16,19 +12,20 @@ class App.Views.LoginPage extends App.Views.Base
     credentials =
       name: $form.find("input[name='name']").val()
       password: $form.find("input[name='password']").val()
-    @authenticationService.login(credentials)
-      .success(@onLoginSuccess)
-      .fail(@onLoginFailure)
+    conn.login(credentials, @onLoginSuccess, @onLoginFailure)
 
   register: (e)->
     e.preventDefault()
     Backbone.history.navigate('register', true)
 
-  onLoginSuccess: ->
+  onLoginSuccess: (data)->
+    State.Session = new App.Models.Session data
+    State.Session.save()
+    $.ajaxSetup headers: {"X-Authentication": State.Session.id}
     Backbone.history.navigate('home', true)
 
   onLoginFailure: (response)->
-    alert response.responseText
+    alert response
 
   render: ->
     @$el.html @template()
