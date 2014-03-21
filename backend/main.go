@@ -463,7 +463,7 @@ func main() {
 	if config.staticURL != "" {
 		staticURL, err := url.Parse(config.staticURL)
 		if err != nil {
-			logger.Fatal("tpr", fmt.Sprintf("Bad static-rul: %v", err))
+			logger.Fatal("tpr", fmt.Sprintf("Bad static-url: %v", err))
 			os.Exit(1)
 		}
 		http.Handle("/", httputil.NewSingleHostReverseProxy(staticURL))
