@@ -127,7 +127,7 @@ func (f ApiSecureHandlerFunc) ServeHTTP(w http.ResponseWriter, req *http.Request
 	env := CreateEnvironment(req)
 	if env.CurrentAccount() == nil {
 		w.WriteHeader(http.StatusForbidden)
-		fmt.Fprint(w, "Bad or missing sessionID")
+		fmt.Fprint(w, "Bad or missing X-Authentication header")
 		return
 	}
 	f(w, req, env)
@@ -154,9 +154,9 @@ func (env *environment) CurrentAccount() *currentAccount {
 		var present bool
 
 		var sessionID []byte
-		sessionID, err = hex.DecodeString(env.request.FormValue("sessionID"))
+		sessionID, err = hex.DecodeString(env.request.Header.Get("X-Authentication"))
 		if err != nil {
-			logger.Warning("tpr", fmt.Sprintf(`Bad or missing to sessionID "%s": %v`, env.request.FormValue("sessionID"), err))
+			logger.Warning("tpr", fmt.Sprintf(`Bad or missing to X-Authenticaton header "%s": %v`, env.request.Header.Get("X-Authentication"), err))
 			return nil
 		}
 		if session, present = getSession(sessionID); !present {

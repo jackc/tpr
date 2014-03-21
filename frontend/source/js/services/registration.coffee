@@ -4,3 +4,4 @@ class App.Services.Registration
       .success (data)->
         State.Session = new App.Models.Session data
         State.Session.save()
+        $.ajaxSetup headers: {"X-Authentication": State.Session.id}

@@ -26,7 +26,7 @@ class App.Views.FeedsPage extends App.Views.Base
       url: @$("input[name=url]").val()
 
     $.ajax(
-      url: "/api/subscriptions?sessionID=#{State.Session.id}",
+      url: "/api/subscriptions",
       type: "POST",
       data: JSON.stringify(data)
       contentType: "application/json"
@@ -39,7 +39,7 @@ class App.Views.FeedsPage extends App.Views.Base
     fd = new FormData(e.target)
 
     $.ajax({
-      url: "/api/feeds/import?sessionID=#{State.Session.id}",
+      url: "/api/feeds/import",
       type: "POST",
       data: fd,
       processData: false,

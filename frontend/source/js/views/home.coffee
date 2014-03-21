@@ -21,7 +21,7 @@ class App.Views.HomePage extends App.Views.Base
   markAllRead: (e)->
     e.preventDefault()
     $.ajax(
-      url: "/api/items/unread/mark_multiple_read?sessionID=#{State.Session.id}",
+      url: "/api/items/unread/mark_multiple_read",
       method: "POST",
       contentType : "application/json",
       data: JSON.stringify({itemIDs: @unreadItems.pluck("id")})

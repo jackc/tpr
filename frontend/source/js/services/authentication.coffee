@@ -4,8 +4,10 @@ class App.Services.Authentication
       .success (data)->
         State.Session = new App.Models.Session data
         State.Session.save()
+        $.ajaxSetup headers: {"X-Authentication": State.Session.id}
 
   logout: ->
     $.ajax(url: "/api/sessions/#{State.Session.id}", method: "DELETE")
     State.Session.clear()
+    $.ajaxSetup headers: {}
 
