@@ -9,9 +9,13 @@ class App.Views.FeedsPage extends App.Views.Base
   initialize: ->
     super()
     @header = @createChild App.Views.LoggedInHeader
-    @feeds = @createChild App.Collections.Feeds
-    @feedsListView = @createChild App.Views.FeedsList, collection: @feeds
-    @feeds.fetch()
+    @feedsListView = @createChild App.Views.FeedsList, collection: []
+    @fetch()
+
+  fetch: ->
+    conn.getFeeds (data)=>
+      @feedsListView.collection = data
+      @feedsListView.render()
 
   render: ->
     @$el.html @header.render().$el
@@ -51,14 +55,10 @@ class App.Views.FeedsPage extends App.Views.Base
 class App.Views.FeedsList extends App.Views.Base
   tagName: 'ul'
 
-  initialize: ->
-    super()
-    @listenTo @collection, 'sync', @render
-
   render: ->
     @$el.empty()
 
-    @feedViews = for model in @collection.models
+    @feedViews = for model in @collection
       @createChild App.Views.Feed, model: model
     for feedView in @feedViews
       @$el.append feedView.render().$el
@@ -72,11 +72,11 @@ class App.Views.Feed extends App.Views.Base
     'click a.unsubscribe' : 'unsubscribe'
 
   render: ->
-    @$el.html(@template(@model.toJSON()))
+    @$el.html(@template(@model))
     @
 
   unsubscribe: (e)->
     e.preventDefault()
-    if confirm "Are you sure you want to unsubscribe from #{@model.get('name')}?"
-      @model.destroy()
+    if confirm "Are you sure you want to unsubscribe from #{@model.name}?"
+      conn.deleteSubscription(@model.id)
       @remove()

@@ -16,3 +16,11 @@ class window.Connection
       promise = promise.success (data)-> onSuccess(data)
     if onFailure
       promise = promise.fail (response)-> onFailure(response.responseText)
+
+  getFeeds: (onSuccess)->
+    promise = $.getJSON("/api/feeds")
+    if onSuccess
+      promise = promise.success (data)-> onSuccess(data)
+
+  deleteSubscription: (feedID)->
+    $.ajax(url: "api/subscriptions/#{feedID}", method: "DELETE")
