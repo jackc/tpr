@@ -58,7 +58,12 @@ end
 RSpec::Core::RakeTask.new(:spec)
 task spec: :spec_server
 
-task :default => :spec
+desc "Run go tests"
+task :test do
+  sh "cd backend; go test"
+end
+
+task :default => [:test, :spec]
 
 file "tpr_#{VERSION}.deb" => :build do
   raise "Must run as root" unless Process.uid == 0
