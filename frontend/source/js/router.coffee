@@ -17,8 +17,7 @@ class App.Router extends Backbone.Router
     @changePage App.Views.HomePage
 
   register: ->
-    registrationService = new App.Services.Registration
-    @changePage App.Views.RegisterPage, registrationService: registrationService
+    @changePage App.Views.RegisterPage
 
   feeds: ->
     unless State.Session.isAuthenticated()

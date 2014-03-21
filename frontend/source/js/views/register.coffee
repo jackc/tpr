@@ -2,10 +2,6 @@ class App.Views.RegisterPage extends App.Views.Base
   template: _.template($("#register_page_template").html())
   className: 'register'
 
-  initialize: (options)->
-    super()
-    @registrationService = options.registrationService
-
   events:
     "submit form" : "register"
     "click a.login" : "login"
@@ -17,15 +13,16 @@ class App.Views.RegisterPage extends App.Views.Base
       name: $form.find("input[name='name']").val()
       password: $form.find("input[name='password']").val()
       passwordConfirmation: $form.find("input[name='passwordConfirmation']").val()
-    @registrationService.register(registration)
-      .success(@onRegistrationSuccess)
-      .fail(@onRegistrationFailure)
+    conn.register(registration, @onRegistrationSuccess, @onRegistrationFailure)
 
-  onRegistrationSuccess: ->
+  onRegistrationSuccess: (data)->
+    State.Session = new App.Models.Session data
+    State.Session.save()
+    $.ajaxSetup headers: {"X-Authentication": State.Session.id}
     Backbone.history.navigate('home', true)
 
   onRegistrationFailure: (response)->
-    alert response.responseText
+    alert response
 
   login: (e)->
     e.preventDefault()

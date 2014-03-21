@@ -9,7 +9,6 @@
 //= require models/session.coffee
 //= require collections/unread_items.coffee
 //= require collections/feeds.coffee
-//= require services/registration.coffee
 //= require views/base.coffee
 //= require views/header.coffee
 //= require views/feeds.coffee
