@@ -8,9 +8,13 @@ class App.Views.HomePage extends App.Views.Base
   initialize: ->
     super()
     @header = @createChild App.Views.LoggedInHeader
-    @unreadItems = @createChild App.Collections.UnreadItems
-    @unreadItemsView = @createChild App.Views.UnreadItemsList, collection: @unreadItems
-    @unreadItems.fetch()
+    @unreadItemsView = @createChild App.Views.UnreadItemsList, collection: []
+    @fetch()
+
+  fetch: ->
+    conn.getUnreadItems (data)=>
+      @unreadItemsView.collection = data
+      @unreadItemsView.render()
 
   render: ->
     @$el.html @header.render().$el
@@ -24,8 +28,8 @@ class App.Views.HomePage extends App.Views.Base
       url: "/api/items/unread/mark_multiple_read",
       method: "POST",
       contentType : "application/json",
-      data: JSON.stringify({itemIDs: @unreadItems.pluck("id")})
-    ).success => @unreadItems.fetch()
+      data: JSON.stringify({itemIDs: _.map(@unreadItems, (i)-> i.id)})
+    ).success => @fetch()
 
 class App.Views.UnreadItemsList extends App.Views.Base
   tagName: 'ul'
@@ -33,13 +37,12 @@ class App.Views.UnreadItemsList extends App.Views.Base
 
   initialize: ->
     super()
-    @listenTo @collection, 'sync', @render
     $(document).on 'keydown', (e)=> @keyDown(e)
 
   render: ->
     @$el.empty()
 
-    @itemViews = for model in @collection.models
+    @itemViews = for model in @collection
       @createChild App.Views.UnreadItem, model: model
     if @itemViews.length > 0
       @selected = @itemViews[0]
@@ -104,7 +107,7 @@ class App.Views.UnreadItem extends App.Views.Base
     'click a' : 'view'
 
   render: ->
-    @$el.html @template(@model.toJSON())
+    @$el.html @template(@model)
     if @isSelected
       @$el.addClass 'selected'
     else

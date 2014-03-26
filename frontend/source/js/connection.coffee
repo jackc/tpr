@@ -24,3 +24,15 @@ class window.Connection
 
   deleteSubscription: (feedID)->
     $.ajax(url: "api/subscriptions/#{feedID}", method: "DELETE")
+
+  getUnreadItems: (onSuccess)->
+    promise = $.getJSON("/api/items/unread")
+    if onSuccess
+      promise = promise.success (data)->
+        models = for record in data
+          model = new App.Models.Item
+          _.extend(model, record)
+        onSuccess(models)
+
+  markItemRead: (itemID)->
+    $.ajax(url: "/api/items/unread/#{itemID}", method: "DELETE")

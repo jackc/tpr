@@ -1,5 +1,5 @@
-class App.Models.Item extends Backbone.Model
+class App.Models.Item
   markRead: ->
     return if @isRead
-    $.ajax(url: "/api/items/unread/#{@get("id")}", method: "DELETE")
+    conn.markItemRead(@id)
     @isRead = true
