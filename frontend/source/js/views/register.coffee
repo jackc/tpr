@@ -23,14 +23,14 @@ class App.Views.RegisterPage
     State.Session = new App.Models.Session data
     State.Session.save()
     $.ajaxSetup headers: {"X-Authentication": State.Session.id}
-    Backbone.history.navigate('home', true)
+    window.router.navigate('home')
 
   onRegistrationFailure: (response)->
     alert response
 
   login: (e)->
     e.preventDefault()
-    Backbone.history.navigate('login', true)
+    window.router.navigate('login')
 
   render: ->
     @$el.html @template()

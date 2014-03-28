@@ -20,13 +20,13 @@ class App.Views.LoginPage
 
   register: (e)->
     e.preventDefault()
-    Backbone.history.navigate('register', true)
+    window.router.navigate('register')
 
   onLoginSuccess: (data)->
     State.Session = new App.Models.Session data
     State.Session.save()
     $.ajaxSetup headers: {"X-Authentication": State.Session.id}
-    Backbone.history.navigate('home', true)
+    window.router.navigate('home')
 
   onLoginFailure: (response)->
     alert response

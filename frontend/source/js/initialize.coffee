@@ -8,4 +8,4 @@ $ ->
   $.ajaxSetup headers: {"X-Authentication": State.Session.id}
 
   window.router = new App.Router
-  Backbone.history.start()
+  window.router.start()

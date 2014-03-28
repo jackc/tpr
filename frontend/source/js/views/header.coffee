@@ -15,7 +15,7 @@ class App.Views.LoggedInHeader
     conn.logout()
     State.Session.clear()
     $.ajaxSetup headers: {}
-    Backbone.history.navigate('login', true)
+    window.router.navigate('login')
 
   remove: ->
     @

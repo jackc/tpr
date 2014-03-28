@@ -1,10 +1,9 @@
-class App.Router extends Backbone.Router
+class App.Router
   routes:
     "login" : "login"
     "home"  : "home"
     "register"  : "register"
     "feeds"  : "feeds"
-    "*path" : "login"
 
   login: ->
     @changePage App.Views.LoginPage
@@ -31,3 +30,18 @@ class App.Router extends Backbone.Router
     @currentPage = new pageClass(options)
     $("#view").empty().append(@currentPage.render().$el)
 
+  start: ->
+    window.addEventListener("hashchange",
+      => @change(),
+      false)
+    @change()
+
+  change: ->
+    handler = @routes[window.location.hash.slice(1)]
+    if !handler
+      @navigate("login")
+      return
+    this[handler]()
+
+  navigate: (route)->
+    window.location.hash = "#" + route
