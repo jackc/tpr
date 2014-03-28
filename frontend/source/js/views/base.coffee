@@ -1,5 +1,5 @@
-class App.Views.Base extends Backbone.View
-  initialize: ->
+class App.Views.Base
+  constructor: ->
     @children = []
 
   createChild: (klass, options)->
@@ -29,4 +29,3 @@ class App.Views.Base extends Backbone.View
   remove: ->
     @parent.detatchChild(this) if @parent
     @removeAllChildren()
-    super()

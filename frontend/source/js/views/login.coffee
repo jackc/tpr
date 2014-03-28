@@ -1,10 +1,12 @@
-class App.Views.LoginPage extends App.Views.Base
+class App.Views.LoginPage
   template: _.template($("#login_page_template").html())
   className: 'login'
 
-  events:
-    "submit form" : "login"
-    "click a.register" : "register"
+  constructor: ->
+    @$el = $("<div></div>")
+    @$el.addClass @className
+    @$el.on "submit", "form", (e)=> @login(e)
+    @$el.on "click", "a.register", (e) =>@register(e)
 
   login: (e)->
     e.preventDefault()
@@ -12,7 +14,9 @@ class App.Views.LoginPage extends App.Views.Base
     credentials =
       name: $form.find("input[name='name']").val()
       password: $form.find("input[name='password']").val()
-    conn.login(credentials, @onLoginSuccess, @onLoginFailure)
+    conn.login(credentials,
+      (data)=> @onLoginSuccess(data),
+      (response)=> @onLoginFailure(response))
 
   register: (e)->
     e.preventDefault()
@@ -29,4 +33,7 @@ class App.Views.LoginPage extends App.Views.Base
 
   render: ->
     @$el.html @template()
+    @
+
+  remove: ->
     @

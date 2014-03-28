@@ -6,8 +6,15 @@ class App.Views.FeedsPage extends App.Views.Base
     'submit form.subscribe' : 'subscribe'
     'submit form.import' : 'import'
 
-  initialize: ->
+  constructor: ->
     super()
+
+    @$el = $("<div></div>")
+    @$el.addClass @className
+
+    @$el.on "submit", "form.subscribe", (e)=> @subscribe(e)
+    @$el.on "submit", "form.import", (e)=> @import(e)
+
     @header = @createChild App.Views.LoggedInHeader
     @feedsListView = @createChild App.Views.FeedsList, collection: []
     @fetch()
@@ -55,6 +62,12 @@ class App.Views.FeedsPage extends App.Views.Base
 class App.Views.FeedsList extends App.Views.Base
   tagName: 'ul'
 
+  constructor: (options)->
+    super()
+
+    @$el = $("<#{@tagName}></#{@tagName}>")
+    @collection = options.collection
+
   render: ->
     @$el.empty()
 
@@ -68,8 +81,13 @@ class App.Views.Feed extends App.Views.Base
   template: _.template($("#feeds_page_feed_template").html())
   tagName: 'li'
 
-  events:
-    'click a.unsubscribe' : 'unsubscribe'
+  constructor: (options)->
+    super()
+
+    @$el = $("<#{@tagName}></#{@tagName}>")
+    @model = options.model
+
+    @$el.on "click", "a.unsubscribe", (e)=> @unsubscribe(e)
 
   render: ->
     @$el.html(@template(@model))

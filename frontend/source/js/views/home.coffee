@@ -5,11 +5,17 @@ class App.Views.HomePage extends App.Views.Base
   events:
     'click a.markAllRead' : 'markAllRead'
 
-  initialize: ->
+  constructor: ->
     super()
+
+    @$el = $("<div></div>")
+    @$el.addClass @className
+
     @header = @createChild App.Views.LoggedInHeader
     @unreadItemsView = @createChild App.Views.UnreadItemsList, collection: []
     @fetch()
+
+    @$el.on "click", "a.markAllRead", (e) => @markAllRead(e)
 
   fetch: ->
     conn.getUnreadItems (data)=>
@@ -35,8 +41,14 @@ class App.Views.UnreadItemsList extends App.Views.Base
   tagName: 'ul'
   className: 'unreadItems'
 
-  initialize: ->
+  constructor: (options)->
     super()
+
+    @collection = options.collection
+
+    @$el = $("<#{@tagName}></#{@tagName}>")
+    @$el.addClass @className
+
     $(document).on 'keydown', (e)=> @keyDown(e)
 
   render: ->
@@ -103,6 +115,15 @@ class App.Views.UnreadItem extends App.Views.Base
   tagName: 'li'
   template: _.template($("#item_template").html())
 
+  constructor: (options)->
+    super()
+
+    @model = options.model
+
+    @$el = $("<#{@tagName}></#{@tagName}>")
+    @el = @$el[0]
+    @$el.on "click", "a", (e) => @view(e)
+
   events:
     'click a' : 'view'
 
@@ -117,7 +138,7 @@ class App.Views.UnreadItem extends App.Views.Base
   view: (e)->
     e.preventDefault() if e
     @model.markRead()
-    window.open(@model.get('url'))
+    window.open(@model.url)
 
   select: ->
     @isSelected = true
