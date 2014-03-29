@@ -1,7 +1,6 @@
 //= require vendor/jquery-2.0.3.min.js
-//= require vendor/underscore-min.js
-//= require vendor/backbone-min.js
 //= require vendor/moment.min.js
+//= require_tree ./templates
 //= require namespace.js
 //= require connection.coffee
 //= require models/item.coffee
@@ -14,3 +13,4 @@
 //= require views/register.coffee
 //= require router.coffee
 //= require initialize.coffee
+

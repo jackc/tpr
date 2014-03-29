@@ -1,5 +1,5 @@
 class App.Views.HomePage extends App.Views.Base
-  template: _.template($("#home_page_template").html())
+  template: JST["templates/home_page"]
   className: 'home'
 
   events:
@@ -19,6 +19,7 @@ class App.Views.HomePage extends App.Views.Base
 
   fetch: ->
     conn.getUnreadItems (data)=>
+      @unreadItems = data
       @unreadItemsView.collection = data
       @unreadItemsView.render()
 
@@ -34,7 +35,7 @@ class App.Views.HomePage extends App.Views.Base
       url: "/api/items/unread/mark_multiple_read",
       method: "POST",
       contentType : "application/json",
-      data: JSON.stringify({itemIDs: _.map(@unreadItems, (i)-> i.id)})
+      data: JSON.stringify({itemIDs: (i.id for i in @unreadItems)})
     ).success => @fetch()
 
 class App.Views.UnreadItemsList extends App.Views.Base
@@ -113,7 +114,7 @@ class App.Views.UnreadItemsList extends App.Views.Base
 
 class App.Views.UnreadItem extends App.Views.Base
   tagName: 'li'
-  template: _.template($("#item_template").html())
+  template: JST["templates/item"]
 
   constructor: (options)->
     super()

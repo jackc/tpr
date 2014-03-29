@@ -1,5 +1,5 @@
 class App.Views.LoggedInHeader
-  template: _.template($("#logged_in_header_template").html())
+  template: JST["templates/logged_in_header"]
   tagName: 'header'
 
   constructor: ->

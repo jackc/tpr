@@ -1,5 +1,5 @@
 class App.Views.FeedsPage extends App.Views.Base
-  template: _.template($("#feeds_page_template").html())
+  template: JST["templates/feeds_page"]
   className: 'feeds'
 
   events:
@@ -78,7 +78,7 @@ class App.Views.FeedsList extends App.Views.Base
     @
 
 class App.Views.Feed extends App.Views.Base
-  template: _.template($("#feeds_page_feed_template").html())
+  template: JST["templates/feeds_page_feed"]
   tagName: 'li'
 
   constructor: (options)->

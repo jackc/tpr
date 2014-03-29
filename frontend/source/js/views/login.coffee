@@ -1,5 +1,5 @@
 class App.Views.LoginPage
-  template: _.template($("#login_page_template").html())
+  template: JST["templates/login_page"]
   className: 'login'
 
   constructor: ->

@@ -1,5 +1,5 @@
 class App.Views.RegisterPage
-  template: _.template($("#register_page_template").html())
+  template: JST["templates/register_page"]
   className: 'register'
 
   constructor: ->

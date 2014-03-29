@@ -31,7 +31,9 @@ class window.Connection
       promise = promise.success (data)->
         models = for record in data
           model = new App.Models.Item
-          _.extend(model, record)
+          for k, v of record
+            model[k] = v
+          model
         onSuccess(models)
 
   markItemRead: (itemID)->

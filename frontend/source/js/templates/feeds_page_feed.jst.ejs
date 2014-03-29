@@ -1,0 +1,15 @@
+<div class="name"><a href="<%= url %>"><%= name %></a></div>
+<div class="meta">
+  <% if(last_publication_time) { %>
+    Last published
+    <time datetime="<%= last_publication_time %>"><%= moment(last_publication_time).format("MMMM Do, YYYY [at] h:mm a") %></time>
+  <% } %>
+</div>
+<% if(failure_count > 0) { %>
+  <div class="error">
+    <%= last_failure %>
+  </div>
+<% } %>
+<div class="actions">
+  <a class="unsubscribe" href="#">Unsubscribe</a>
+</div>

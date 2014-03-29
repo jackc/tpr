@@ -1,6 +1,7 @@
 source 'https://rubygems.org'
 
 gem 'capybara'
+gem 'ejs'
 gem 'ffaker'
 gem 'launchy'
 gem 'middleman'
