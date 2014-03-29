@@ -67,10 +67,8 @@ end
 task :default => [:test, :spec]
 
 file "tpr_#{VERSION}.deb" => :build do
-  raise "Must run as root" unless Process.uid == 0
-
   pkg_dir = "tpr_#{VERSION}"
-  FileUtils.rm_rf pkg_dir
+  sh "sudo rm -rf #{pkg_dir}"
 
   FileUtils.cp_r "deploy/ubuntu/template", "#{pkg_dir}"
 
@@ -83,6 +81,8 @@ file "tpr_#{VERSION}.deb" => :build do
 
   FileUtils.cp "build/tpr", "#{pkg_dir}/usr/bin"
   FileUtils.cp_r "build/assets", "#{pkg_dir}/usr/share/tpr"
+
+  sh "sudo chown -R 0:0 #{pkg_dir}"
 
   sh "dpkg --build #{pkg_dir}"
   sh "lintian #{pkg_dir}.deb"
