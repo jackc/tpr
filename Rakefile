@@ -82,6 +82,10 @@ file "tpr_#{VERSION}.deb" => :build do
   FileUtils.cp "build/tpr", "#{pkg_dir}/usr/bin"
   FileUtils.cp_r "build/assets", "#{pkg_dir}/usr/share/tpr"
 
+  sh "chmod 0755 #{pkg_dir}/usr/bin/tpr"
+  sh "chmod 0755 #{pkg_dir}/etc #{pkg_dir}/etc/init #{pkg_dir}/etc/tpr #{pkg_dir}/usr #{pkg_dir}/usr/bin"
+  sh "find #{pkg_dir}/usr/share -type d -exec chmod 0755 {} \\;"
+  sh "find #{pkg_dir}/usr/share -type f -exec chmod 0644 {} \\;"
   sh "sudo chown -R 0:0 #{pkg_dir}"
 
   sh "dpkg --build #{pkg_dir}"
