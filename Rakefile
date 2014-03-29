@@ -8,6 +8,7 @@ end
 require "rake/clean"
 require "fileutils"
 require "rspec/core/rake_task"
+require "erb"
 
 CLOBBER.include("build")
 
