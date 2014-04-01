@@ -1,39 +1,30 @@
-class App.Views.LoginPage
+class App.Views.LoginPage extends App.Views.Base
   template: JST["templates/login_page"]
   className: 'login'
 
-  constructor: ->
-    @$el = $("<div></div>")
-    @$el.addClass @className
-    @$el.on "submit", "form", (e)=> @login(e)
-    @$el.on "click", "a.register", (e) =>@register(e)
+  listen: ->
+    form = @el.querySelector("form")
+    form.addEventListener("submit", (e)=> @login(e))
 
   login: (e)->
     e.preventDefault()
-    $form = $(e.currentTarget)
+    form = e.currentTarget
     credentials =
-      name: $form.find("input[name='name']").val()
-      password: $form.find("input[name='password']").val()
+      name: form.elements.name.value
+      password: form.elements.password.value
     conn.login(credentials,
       (data)=> @onLoginSuccess(data),
       (response)=> @onLoginFailure(response))
 
-  register: (e)->
-    e.preventDefault()
-    window.router.navigate('register')
-
   onLoginSuccess: (data)->
     State.Session = new App.Models.Session data
     State.Session.save()
-    $.ajaxSetup headers: {"X-Authentication": State.Session.id}
     window.router.navigate('home')
 
   onLoginFailure: (response)->
     alert response
 
   render: ->
-    @$el.html @template()
-    @
-
-  remove: ->
-    @
+    @el.innerHTML = @template()
+    @listen()
+    @el

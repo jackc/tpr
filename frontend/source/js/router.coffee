@@ -28,7 +28,9 @@ class App.Router
   changePage: (pageClass, options)->
     @currentPage.remove() if @currentPage
     @currentPage = new pageClass(options)
-    $("#view").empty().append(@currentPage.render().$el)
+    view = document.getElementById("view")
+    view.innerHTML = ""
+    view.appendChild(@currentPage.render())
 
   start: ->
     window.addEventListener("hashchange",

@@ -1,42 +1,51 @@
 class App.Views.HomePage extends App.Views.Base
-  template: JST["templates/home_page"]
   className: 'home'
-
-  events:
-    'click a.markAllRead' : 'markAllRead'
 
   constructor: ->
     super()
 
-    @$el = $("<div></div>")
-    @$el.addClass @className
-
     @header = @createChild App.Views.LoggedInHeader
+    @header.render()
+
+    @actions = @createChild App.Views.Actions
+    @actions.render()
+    @actions.markedAllRead.add ()=> @fetch()
+
     @unreadItemsView = @createChild App.Views.UnreadItemsList, collection: []
     @fetch()
 
-    @$el.on "click", "a.markAllRead", (e) => @markAllRead(e)
-
   fetch: ->
     conn.getUnreadItems (data)=>
-      @unreadItems = data
+      @actions.collection = data
       @unreadItemsView.collection = data
       @unreadItemsView.render()
 
   render: ->
-    @$el.html @header.render().$el
-    @$el.append @template()
-    @$el.append @unreadItemsView.render().$el
-    @
+    @el.innerHTML = ""
+    @el.appendChild @header.el
+    @el.appendChild @actions.el
+    @el.appendChild @unreadItemsView.el
+    @el
+
+class App.Views.Actions extends App.Views.Base
+  template: JST["templates/home/actions"]
+
+  constructor: ->
+    super()
+    @markedAllRead = new signals.Signal()
+
+  render: ->
+    @el.innerHTML = @template()
+    @listen()
+
+  listen: ->
+    markAllReadLink = @el.querySelector("a.markAllRead")
+    markAllReadLink.addEventListener("click", (e)=> @markAllRead(e))
 
   markAllRead: (e)->
     e.preventDefault()
-    $.ajax(
-      url: "/api/items/unread/mark_multiple_read",
-      method: "POST",
-      contentType : "application/json",
-      data: JSON.stringify({itemIDs: (i.id for i in @unreadItems)})
-    ).success => @fetch()
+    itemIDs = (i.id for i in @collection)
+    conn.markAllRead itemIDs, => @markedAllRead.dispatch()
 
 class App.Views.UnreadItemsList extends App.Views.Base
   tagName: 'ul'
@@ -47,13 +56,11 @@ class App.Views.UnreadItemsList extends App.Views.Base
 
     @collection = options.collection
 
-    @$el = $("<#{@tagName}></#{@tagName}>")
-    @$el.addClass @className
-
-    $(document).on 'keydown', (e)=> @keyDown(e)
+    @boundKeyDown = (e)=> @keyDown(e)
+    document.addEventListener 'keydown', @boundKeyDown
 
   render: ->
-    @$el.empty()
+    @el.innerHTML = ""
 
     @itemViews = for model in @collection
       @createChild App.Views.UnreadItem, model: model
@@ -62,8 +69,9 @@ class App.Views.UnreadItemsList extends App.Views.Base
       @selected.select()
 
     for itemView in @itemViews
-      @$el.append itemView.render().$el
-    @
+      itemView.render()
+      @el.appendChild itemView.el
+    @el
 
   keyDown: (e)->
     switch e.which
@@ -109,7 +117,7 @@ class App.Views.UnreadItemsList extends App.Views.Base
     @selected.view()
 
   remove: ->
-    $(document).off 'keydown'
+    document.removeEventListener 'keydown', @boundKeyDown
     super()
 
 class App.Views.UnreadItem extends App.Views.Base
@@ -118,23 +126,19 @@ class App.Views.UnreadItem extends App.Views.Base
 
   constructor: (options)->
     super()
-
     @model = options.model
 
-    @$el = $("<#{@tagName}></#{@tagName}>")
-    @el = @$el[0]
-    @$el.on "click", "a", (e) => @view(e)
-
-  events:
-    'click a' : 'view'
+  listen: ->
+    viewLink = @el.querySelector("a")
+    viewLink.addEventListener("click", (e) => @view(e))
 
   render: ->
-    @$el.html @template(@model)
+    @el.innerHTML = @template(@model)
     if @isSelected
-      @$el.addClass 'selected'
+      @el.className = 'selected'
     else
-      @$el.removeClass 'selected'
-    @
+      @el.className = ''
+    @el
 
   view: (e)->
     e.preventDefault() if e

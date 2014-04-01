@@ -1,20 +1,18 @@
-class App.Views.RegisterPage
+class App.Views.RegisterPage extends App.Views.Base
   template: JST["templates/register_page"]
   className: 'register'
 
-  constructor: ->
-    @$el = $("<div></div>")
-    @$el.addClass @className
-    @$el.on "submit", "form", (e)=> @register(e)
-    @$el.on "click", "a.login", (e) => @login(e)
+  listen: ->
+    form = @el.querySelector("form")
+    form.addEventListener("submit", (e)=> @register(e))
 
   register: (e)->
     e.preventDefault()
-    $form = $(e.currentTarget)
+    form = e.target
     registration =
-      name: $form.find("input[name='name']").val()
-      password: $form.find("input[name='password']").val()
-      passwordConfirmation: $form.find("input[name='passwordConfirmation']").val()
+      name: form.elements.name.value
+      password: form.elements.password.value
+      passwordConfirmation: form.elements.passwordConfirmation.value
     conn.register(registration,
       (data)=> @onRegistrationSuccess(data),
       (response)=> @onRegistrationFailure(response))
@@ -22,19 +20,12 @@ class App.Views.RegisterPage
   onRegistrationSuccess: (data)->
     State.Session = new App.Models.Session data
     State.Session.save()
-    $.ajaxSetup headers: {"X-Authentication": State.Session.id}
     window.router.navigate('home')
 
   onRegistrationFailure: (response)->
     alert response
 
-  login: (e)->
-    e.preventDefault()
-    window.router.navigate('login')
-
   render: ->
-    @$el.html @template()
-    @
-
-  remove: ->
-    @
+    @el.innerHTML = @template()
+    @listen()
+    @el

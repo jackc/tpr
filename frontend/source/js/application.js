@@ -1,5 +1,6 @@
-//= require vendor/jquery-2.0.3.min.js
+//= require vendor/reqwest.min.js
 //= require vendor/moment.min.js
+//= require vendor/signals.min.js
 //= require_tree ./templates
 //= require namespace.js
 //= require connection.coffee

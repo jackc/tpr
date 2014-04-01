@@ -1,21 +1,18 @@
-class App.Views.LoggedInHeader
+class App.Views.LoggedInHeader extends App.Views.Base
   template: JST["templates/logged_in_header"]
   tagName: 'header'
 
-  constructor: ->
-    @$el = $("<#{@tagName}></#{@tagName}>")
-    @$el.on "click", "a.logout", (e) => @logout(e)
+  listen: ->
+    logoutLink = @el.querySelector("a.logout")
+    logoutLink.addEventListener("click", (e)=> @logout(e))
 
   render: ->
-    @$el.html @template()
-    @
+    @el.innerHTML = @template()
+    @listen()
+    @el
 
   logout: (e)->
     e.preventDefault()
     conn.logout()
     State.Session.clear()
-    $.ajaxSetup headers: {}
     window.router.navigate('login')
-
-  remove: ->
-    @

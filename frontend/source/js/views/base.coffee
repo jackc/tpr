@@ -1,5 +1,9 @@
 class App.Views.Base
+  tagName: "div"
+
   constructor: ->
+    @el = document.createElement(@tagName)
+    @el.className = @className
     @children = []
 
   createChild: (klass, options)->
@@ -29,3 +33,6 @@ class App.Views.Base
   remove: ->
     @parent.detatchChild(this) if @parent
     @removeAllChildren()
+
+    parentNode = @el.parentNode
+    parentNode.removeChild(@el) if parentNode

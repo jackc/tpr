@@ -2,21 +2,22 @@ class App.Views.FeedsPage extends App.Views.Base
   template: JST["templates/feeds_page"]
   className: 'feeds'
 
-  events:
-    'submit form.subscribe' : 'subscribe'
-    'submit form.import' : 'import'
-
   constructor: ->
     super()
 
-    @$el = $("<div></div>")
-    @$el.addClass @className
-
-    @$el.on "submit", "form.subscribe", (e)=> @subscribe(e)
-    @$el.on "submit", "form.import", (e)=> @import(e)
-
     @header = @createChild App.Views.LoggedInHeader
+    @header.render()
+
+    @subscribeForm = @createChild App.Views.SubscribeForm
+    @subscribeForm.render()
+    @subscribeForm.subscribed.add ()=> @fetch()
+
+    @importForm = @createChild App.Views.ImportForm
+    @importForm.render()
+    @importForm.imported.add ()=> @fetch()
+
     @feedsListView = @createChild App.Views.FeedsList, collection: []
+
     @fetch()
 
   fetch: ->
@@ -25,25 +26,53 @@ class App.Views.FeedsPage extends App.Views.Base
       @feedsListView.render()
 
   render: ->
-    @$el.html @header.render().$el
-    @$el.append @template()
-    @$el.append @feedsListView.render().$el
-    @
+    @el.innerHTML = ""
+    @el.appendChild(@header.el)
+    @el.appendChild(@subscribeForm.el)
+    @el.appendChild(@importForm.el)
+    @el.appendChild(@feedsListView.render())
+    @el
+
+class App.Views.SubscribeForm extends App.Views.Base
+  tagName: "form"
+  className: "subscribe"
+  template: JST["templates/feeds/subscribe"]
+
+  constructor: ->
+    super()
+    @subscribed = new signals.Signal()
+
+  render: ->
+    @el.innerHTML = @template()
+    @listen()
+    @el
+
+  listen: ->
+    @el.addEventListener("submit", (e)=> @subscribe(e))
 
   subscribe: (e)->
     e.preventDefault()
 
-    data =
-      url: @$("input[name=url]").val()
+    conn.subscribe @el.elements.url.value, =>
+      @el.elements.url.value = ""
+      @subscribed.dispatch()
 
-    $.ajax(
-      url: "/api/subscriptions",
-      type: "POST",
-      data: JSON.stringify(data)
-      contentType: "application/json"
-    ).success =>
-      @$("input[name=url]").val("")
-      @feeds.fetch()
+class App.Views.ImportForm extends App.Views.Base
+  tagName: "form"
+  className: "import"
+  template: JST["templates/feeds/import"]
+
+  constructor: ->
+    super()
+    @imported = new signals.Signal()
+
+  render: ->
+    @el.innerHTML = @template()
+    @listen()
+    @el
+
+  listen: ->
+    @el.addEventListener("submit", (e)=> @import(e))
 
   import: (e)->
     e.preventDefault()
@@ -56,7 +85,7 @@ class App.Views.FeedsPage extends App.Views.Base
       processData: false,
       contentType: false
     }).success =>
-      @feeds.fetch()
+      @imported.dispatch()
       alert 'import success'
 
 class App.Views.FeedsList extends App.Views.Base
@@ -64,34 +93,34 @@ class App.Views.FeedsList extends App.Views.Base
 
   constructor: (options)->
     super()
-
-    @$el = $("<#{@tagName}></#{@tagName}>")
     @collection = options.collection
 
   render: ->
-    @$el.empty()
+    @el.innerHTML = ""
 
     @feedViews = for model in @collection
       @createChild App.Views.Feed, model: model
     for feedView in @feedViews
-      @$el.append feedView.render().$el
-    @
+      feedView.render()
+      @el.appendChild feedView.el
+    @el
 
 class App.Views.Feed extends App.Views.Base
-  template: JST["templates/feeds_page_feed"]
+  template: JST["templates/feeds/feed"]
   tagName: 'li'
 
   constructor: (options)->
     super()
-
-    @$el = $("<#{@tagName}></#{@tagName}>")
     @model = options.model
 
-    @$el.on "click", "a.unsubscribe", (e)=> @unsubscribe(e)
+  listen: ->
+    unsubscribeLink = @el.querySelector("a.unsubscribe")
+    unsubscribeLink.addEventListener("click", (e)=> @unsubscribe(e))
 
   render: ->
-    @$el.html(@template(@model))
-    @
+    @el.innerHTML = @template(@model)
+    @listen()
+    @el
 
   unsubscribe: (e)->
     e.preventDefault()
