@@ -56,7 +56,7 @@ func (repo *pgxRepository) GetFeedsUncheckedSince(since time.Time) (feeds []Feed
 		var feed Feed
 		feed.ID.Set(r.ReadValue().(int32))
 		feed.URL.Set(r.ReadValue().(string))
-		feed.ETag.SetAllowNil(r.ReadValue(), box.Empty)
+		feed.ETag.SetCoerceNil(r.ReadValue(), box.Empty)
 		feeds = append(feeds, feed)
 		return
 	}, since)
@@ -64,7 +64,7 @@ func (repo *pgxRepository) GetFeedsUncheckedSince(since time.Time) (feeds []Feed
 	return
 }
 
-func (repo *pgxRepository) UpdateFeedWithFetchSuccess(feedID int32, update *parsedFeed, etag string, fetchTime time.Time) (err error) {
+func (repo *pgxRepository) UpdateFeedWithFetchSuccess(feedID int32, update *parsedFeed, etag box.String, fetchTime time.Time) (err error) {
 	var conn *pgx.Connection
 
 	conn, err = repo.pool.Acquire()
@@ -77,7 +77,7 @@ func (repo *pgxRepository) UpdateFeedWithFetchSuccess(feedID int32, update *pars
 		_, err = conn.Execute("updateFeedWithFetchSuccess",
 			update.name,
 			fetchTime,
-			etag,
+			etag.GetCoerceNil(),
 			feedID)
 		if err != nil {
 			return false
@@ -224,11 +224,8 @@ func (repo *pgxRepository) buildNewItemsSQL(feedID int32, items []parsedItem) (s
 
 		buf.WriteString(",$")
 
-		if item.publicationTime.IsFull() {
-			args = append(args, item.publicationTime.Get())
-		} else {
-			args = append(args, nil)
-		}
+		args = append(args, item.publicationTime.GetCoerceNil())
+
 		buf.WriteString(strconv.FormatInt(int64(len(args)), 10))
 
 		buf.WriteString("::timestamptz)")

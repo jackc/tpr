@@ -15,7 +15,7 @@ type repository interface {
 	GetUserName(userID int32) (name string, err error)
 
 	GetFeedsUncheckedSince(since time.Time) (feeds []Feed, err error)
-	UpdateFeedWithFetchSuccess(feedID int32, update *parsedFeed, etag string, fetchTime time.Time) error
+	UpdateFeedWithFetchSuccess(feedID int32, update *parsedFeed, etag box.String, fetchTime time.Time) error
 	UpdateFeedWithFetchUnchanged(feedID int32, fetchTime time.Time) error
 	UpdateFeedWithFetchFailure(feedID int32, failure string, fetchTime time.Time) (err error)
 

@@ -61,12 +61,12 @@ func (s *RepositorySuite) TestFeeds(c *C) {
 	staleFeeds, err := s.repo.GetFeedsUncheckedSince(tenMinutesAgo)
 	c.Assert(err, IsNil)
 	c.Assert(staleFeeds, HasLen, 1)
-	c.Check(staleFeeds[0].URL.Get(), Equals, url)
+	c.Check(staleFeeds[0].URL.MustGet(), Equals, url)
 
-	feedID := staleFeeds[0].ID.Get()
+	feedID := staleFeeds[0].ID.MustGet()
 
 	// Update feed as of now
-	err = s.repo.UpdateFeedWithFetchSuccess(feedID, update, "", now)
+	err = s.repo.UpdateFeedWithFetchSuccess(feedID, update, box.String{}, now)
 	c.Assert(err, IsNil)
 
 	// feed should no longer be stale
@@ -75,14 +75,14 @@ func (s *RepositorySuite) TestFeeds(c *C) {
 	c.Assert(staleFeeds, HasLen, 0)
 
 	// Update feed to be old enough to need refresh
-	err = s.repo.UpdateFeedWithFetchSuccess(feedID, update, "", fifteenMinutesAgo)
+	err = s.repo.UpdateFeedWithFetchSuccess(feedID, update, box.String{}, fifteenMinutesAgo)
 	c.Assert(err, IsNil)
 
 	// It should now need fetching
 	staleFeeds, err = s.repo.GetFeedsUncheckedSince(tenMinutesAgo)
 	c.Assert(err, IsNil)
 	c.Assert(staleFeeds, HasLen, 1)
-	c.Check(staleFeeds[0].ID.Get(), Equals, feedID)
+	c.Check(staleFeeds[0].ID.MustGet(), Equals, feedID)
 
 	// But update feed with a recent failed fetch
 	err = s.repo.UpdateFeedWithFetchFailure(feedID, "something went wrong", fiveMinutesAgo)
@@ -116,7 +116,7 @@ func (s *RepositorySuite) TestUpdateFeedWithFetchSuccess(c *C) {
 	update := &parsedFeed{name: "baz", items: []parsedItem{
 		{url: "http://baz/bar", title: "Baz", publicationTime: box.NewTime(now)},
 	}}
-	err = s.repo.UpdateFeedWithFetchSuccess(feedID, update, "", now)
+	err = s.repo.UpdateFeedWithFetchSuccess(feedID, update, box.String{}, now)
 	c.Assert(err, IsNil)
 
 	buffer.Reset()
@@ -133,7 +133,7 @@ func (s *RepositorySuite) TestUpdateFeedWithFetchSuccess(c *C) {
 	c.Assert(unreadItems, HasLen, 1)
 
 	// Update again and ensure item does not get created again
-	err = s.repo.UpdateFeedWithFetchSuccess(feedID, update, "", now)
+	err = s.repo.UpdateFeedWithFetchSuccess(feedID, update, box.String{}, now)
 	c.Assert(err, IsNil)
 
 	buffer.Reset()
@@ -169,7 +169,7 @@ func (s *RepositorySuite) TestUpdateFeedWithFetchSuccessWithoutPublicationTime(c
 	update := &parsedFeed{name: "baz", items: []parsedItem{
 		{url: "http://baz/bar", title: "Baz"},
 	}}
-	err = s.repo.UpdateFeedWithFetchSuccess(feedID, update, "", now)
+	err = s.repo.UpdateFeedWithFetchSuccess(feedID, update, box.String{}, now)
 	c.Assert(err, IsNil)
 
 	buffer.Reset()
@@ -186,7 +186,7 @@ func (s *RepositorySuite) TestUpdateFeedWithFetchSuccessWithoutPublicationTime(c
 	c.Assert(unreadItems, HasLen, 1)
 
 	// Update again and ensure item does not get created again
-	err = s.repo.UpdateFeedWithFetchSuccess(feedID, update, "", now)
+	err = s.repo.UpdateFeedWithFetchSuccess(feedID, update, box.String{}, now)
 	c.Assert(err, IsNil)
 
 	buffer.Reset()
@@ -231,7 +231,7 @@ func (s *RepositorySuite) TestDeleteSubscription(c *C) {
 	update := &parsedFeed{name: "baz", items: []parsedItem{
 		{url: "http://baz/bar", title: "Baz", publicationTime: box.NewTime(time.Now())},
 	}}
-	err = s.repo.UpdateFeedWithFetchSuccess(feedID, update, "", time.Now().Add(-20*time.Minute))
+	err = s.repo.UpdateFeedWithFetchSuccess(feedID, update, box.String{}, time.Now().Add(-20*time.Minute))
 	c.Assert(err, IsNil)
 
 	err = s.repo.DeleteSubscription(userID, feedID)

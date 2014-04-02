@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/JackC/box"
 	"net/http"
@@ -187,7 +188,7 @@ func TestParseFeed(t *testing.T) {
 				t.Errorf("%d. %s Item %d: Expected url %#v, but is was %#v", i, tt.name, j, expectedItem.url, actualItem.url)
 			}
 			if actualItem.publicationTime.Status() == expectedItem.publicationTime.Status() {
-				if actualItem.publicationTime.IsFull() && !actualItem.publicationTime.Get().Equal(expectedItem.publicationTime.Get()) {
+				if actualItem.publicationTime.Status() == box.Full && !actualItem.publicationTime.MustGet().Equal(expectedItem.publicationTime.MustGet()) {
 					t.Errorf("%d. %s Item %d: Expected publicationTime %v, but is was %v", i, tt.name, j, expectedItem.publicationTime, actualItem.publicationTime)
 				}
 			} else {
@@ -219,10 +220,50 @@ func TestParseTime(t *testing.T) {
 			t.Errorf("%d. %s: Unexpected error: %v", i, tt.unparsed, err)
 			continue
 		}
-		if !tt.expected.Equal(actual.Get()) {
+		if !tt.expected.Equal(actual.MustGet()) {
 			t.Errorf("%d. %s: expected to parse to %s, but instead was %s", i, tt.unparsed, tt.expected, actual)
 		}
 	}
+}
+
+func TestFetchFeed(t *testing.T) {
+	rssBody := []byte(`<?xml version='1.0' encoding='UTF-8'?>
+<rss>
+  <channel>
+    <title>News</title>
+    <item>
+      <title>Snow Storm</title>
+      <link>http://example.org/snow-storm</link>
+      <pubDate>Fri, 03 Jan 2014 22:45:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Blizzard</title>
+      <link>http://example.org/blizzard</link>
+      <pubDate>Sat, 04 Jan 2014 08:15:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>
+</xml>`)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(rssBody)
+	}))
+	defer ts.Close()
+
+	rawFeed, err := fetchFeed(ts.URL, box.String{})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if rawFeed.url != ts.URL {
+		t.Errorf("rawFeed.url should match requested url but instead it was: %v", rawFeed.url)
+	}
+	if bytes.Compare(rssBody, rawFeed.body) != 0 {
+		t.Errorf("rawFeed body should match returned body but instead it was: %v", rawFeed.body)
+	}
+	if rawFeed.etag.Status() != box.Empty {
+		t.Errorf("Expected no ETag to be empty but instead it was: %v", rawFeed.etag)
+	}
+
 }
 
 func TestFetchFeedResponseHeaderTimeout(t *testing.T) {
@@ -239,7 +280,7 @@ func TestFetchFeedResponseHeaderTimeout(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	_, err := fetchFeed(ts.URL, "")
+	_, err := fetchFeed(ts.URL, box.String{})
 	if err == nil {
 		t.Fatal("Expected but did not receive error")
 	}
@@ -262,7 +303,7 @@ func TestFetchFeedResponseBodyTimeout(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	_, err := fetchFeed(ts.URL, "")
+	_, err := fetchFeed(ts.URL, box.String{})
 	if err == nil {
 		t.Fatal("Expected but did not receive error")
 	}
