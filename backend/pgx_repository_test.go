@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/JackC/pgx"
 	"github.com/kylelemons/go-gypsy/yaml"
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 var _ = Suite(&RepositorySuite{GetFreshRepository: getFreshPgxRepository})

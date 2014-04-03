@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"github.com/JackC/box"
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 	"testing"
 	"time"
 )
