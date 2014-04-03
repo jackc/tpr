@@ -16,6 +16,7 @@ Capybara.app_host = "http://#{config['address']}:#{config['port']}"
 
 RSpec.configure do |config|
   config.include FactoryHelper
+  config.include LoginHelper
 
   config.before(:each) do
     clean_database

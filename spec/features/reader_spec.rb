@@ -8,12 +8,7 @@ feature 'Reader' do
     before_item_id = create_item feed_id: feed_id, title: 'First Post'
     DB[:unread_items].insert user_id: user_id, feed_id: feed_id, item_id: before_item_id
 
-    visit '/#login'
-
-    fill_in 'User name', with: 'john'
-    fill_in 'Password', with: 'secret'
-
-    click_on 'Login'
+    login name: 'john', password: 'secret'
 
     expect(page).to have_content 'First Post'
 
