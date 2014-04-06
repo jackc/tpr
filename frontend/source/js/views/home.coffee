@@ -29,6 +29,7 @@ class App.Views.HomePage extends App.Views.Base
 
 class App.Views.Actions extends App.Views.Base
   template: JST["templates/home/actions"]
+  className: 'pageActions'
 
   constructor: ->
     super()
