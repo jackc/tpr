@@ -3,7 +3,7 @@ class App.Views.Base
 
   constructor: ->
     @el = document.createElement(@tagName)
-    @el.className = @className
+    @el.className = @className if @className?
     @children = []
 
   createChild: (klass, options)->
