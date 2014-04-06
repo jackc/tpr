@@ -1,6 +1,5 @@
 require 'ffaker'
 require 'scrypt'
-require 'digest/md5'
 
 module FactoryHelper
   def create_user attrs={}
@@ -28,8 +27,6 @@ module FactoryHelper
       url: Faker::Internet.http_url
     }
     attrs = defaults.merge(attrs)
-    digest = Digest::MD5.digest "#{attrs[:url]}#{attrs[:title]}#{attrs[:body]}"
-    attrs[:digest] = Sequel::SQL::Blob.new digest
     DB[:items].insert attrs
   end
 end

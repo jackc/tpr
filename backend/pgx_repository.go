@@ -202,8 +202,8 @@ func (repo *pgxRepository) buildNewItemsSQL(feedID int32, items []parsedItem) (s
 
 	buf.WriteString(`
       with new_items as (
-        insert into items(feed_id, url, title, publication_time, digest)
-        select $1, url, title, publication_time, digest
+        insert into items(feed_id, url, title, publication_time)
+        select $1, url, title, publication_time
         from (values
     `)
 
@@ -223,23 +223,16 @@ func (repo *pgxRepository) buildNewItemsSQL(feedID int32, items []parsedItem) (s
 		buf.WriteString(",$")
 		args = append(args, item.publicationTime.GetCoerceNil())
 		buf.WriteString(strconv.FormatInt(int64(len(args)), 10))
-		buf.WriteString("::timestamptz")
-
-		buf.WriteString(",$")
-		args = append(args, item.digest())
-		buf.WriteString(strconv.FormatInt(int64(len(args)), 10))
-		buf.WriteString("::bytea")
-
-		buf.WriteString(")")
+		buf.WriteString("::timestamptz)")
 	}
 
 	buf.WriteString(`
-      ) t(url, title, publication_time, digest)
+      ) t(url, title, publication_time)
       where not exists(
         select 1
         from items
         where feed_id=$1
-          and digest=t.digest
+          and url=t.url
       )
       returning id
     )

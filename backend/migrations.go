@@ -200,5 +200,26 @@ func migrate(connectionParameters pgx.ConnectionParameters) (err error) {
     set digest = digest(url || title, 'md5');
   `)
 
+	m.AppendMigration("Alter items so URL instead of digest is unique", `
+    alter table items drop column digest;
+
+    with to_delete(id) as (
+      select unnest(array_agg(id))
+      from items
+      group by feed_id, url
+      having count(*) > 1
+      except
+      select (array_agg(id))[1]
+      from items
+      group by feed_id, url
+      having count(*) > 1
+    )
+    delete from items
+    using to_delete
+    where items.id=to_delete.id;
+
+    create unique index items_feed_id_url_uniq on items (feed_id, url);
+  `)
+
 	return m.Migrate()
 }
