@@ -173,5 +173,32 @@ func migrate(connectionParameters pgx.ConnectionParameters) (err error) {
     update items set publication_time = null where publication_time < '1990-01-01';
   `)
 
+	m.AppendMigration("Alter items so digest is calculated by application", `
+    drop trigger digest_items on items;
+    drop function digest_items();
+    drop function digest_item(feed_id integer, publication_time timestamp with time zone, title text, url text);
+
+    with to_delete(id) as (
+      select unnest(array_agg(id))
+      from items
+      group by feed_id, title, url
+      having count(*) > 1
+      except
+      select (array_agg(id))[1]
+      from items
+      group by feed_id, title, url
+      having count(*) > 1
+    )
+    delete from items
+    using to_delete
+    where items.id=to_delete.id;
+
+    alter table items drop constraint items_digest_key;
+    create unique index items_digest_feed_id_uniq on items (digest, feed_id);
+
+    update items
+    set digest = digest(url || title, 'md5');
+  `)
+
 	return m.Migrate()
 }

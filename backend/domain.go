@@ -3,11 +3,13 @@ package main
 import (
 	"bytes"
 	"code.google.com/p/go.crypto/scrypt"
+	"crypto/md5"
 	"crypto/rand"
 	"encoding/xml"
 	"errors"
 	"fmt"
 	"github.com/JackC/box"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -131,11 +133,20 @@ func RefreshFeed(staleFeed Feed) {
 type parsedItem struct {
 	url             string
 	title           string
+	body            string
 	publicationTime box.Time
 }
 
 func (i *parsedItem) isValid() bool {
 	return i.url != "" && i.title != ""
+}
+
+func (i *parsedItem) digest() []byte {
+	h := md5.New()
+	io.WriteString(h, i.url)
+	io.WriteString(h, i.title)
+	io.WriteString(h, i.body)
+	return h.Sum(nil)
 }
 
 type parsedFeed struct {
@@ -168,10 +179,11 @@ func parseFeed(body []byte) (f *parsedFeed, err error) {
 
 func parseRSS(body []byte) (*parsedFeed, error) {
 	type Item struct {
-		Link    string `xml:"link"`
-		Title   string `xml:"title"`
-		Date    string `xml:"date"`
-		PubDate string `xml:"pubDate"`
+		Link        string `xml:"link"`
+		Title       string `xml:"title"`
+		Date        string `xml:"date"`
+		PubDate     string `xml:"pubDate"`
+		Description string `xml:"description"`
 	}
 
 	type Channel struct {
@@ -200,6 +212,7 @@ func parseRSS(body []byte) (*parsedFeed, error) {
 		if item.PubDate != "" {
 			feed.items[i].publicationTime, _ = parseTime(item.PubDate)
 		}
+		feed.items[i].body = item.Description
 	}
 
 	if !feed.isValid() {
@@ -219,6 +232,7 @@ func parseAtom(body []byte) (*parsedFeed, error) {
 		Title     string `xml:"title"`
 		Published string `xml:"published"`
 		Updated   string `xml:"updated"`
+		Content   string `xml:"content"`
 	}
 
 	var atom struct {
@@ -243,6 +257,7 @@ func parseAtom(body []byte) (*parsedFeed, error) {
 		if entry.Updated != "" {
 			feed.items[i].publicationTime, _ = parseTime(entry.Updated)
 		}
+		feed.items[i].body = entry.Content
 	}
 
 	if !feed.isValid() {

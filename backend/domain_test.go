@@ -121,6 +121,32 @@ var feedParsingTests = []struct {
 			}},
 		"",
 	},
+	{"RSS - With Description",
+		[]byte(`<?xml version='1.0' encoding='UTF-8'?>
+<rss>
+  <channel>
+    <title>News</title>
+    <item>
+      <title>Snow Storm</title>
+      <link>http://example.org/snow-storm</link>
+      <pubDate>Fri, 03 Jan 2014 22:45:00 GMT</pubDate>
+      <description>18 inches!</description>
+    </item>
+  </channel>
+</rss>
+</xml>`),
+		&parsedFeed{
+			name: "News",
+			items: []parsedItem{
+				{
+					title:           "Snow Storm",
+					url:             "http://example.org/snow-storm",
+					publicationTime: box.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
+					body:            "18 inches!",
+				},
+			}},
+		"",
+	},
 
 	{"Atom - Minimal",
 		[]byte(`<?xml version='1.0' encoding='UTF-8'?>
@@ -150,6 +176,42 @@ var feedParsingTests = []struct {
 					title:           "Blizzard",
 					url:             "http://example.org/blizzard",
 					publicationTime: box.NewTime(time.Date(2014, 1, 4, 8, 15, 0, 0, time.UTC)),
+				},
+			}},
+		"",
+	},
+	{"Atom - With Content",
+		[]byte(`<?xml version='1.0' encoding='UTF-8'?>
+<feed>
+  <title>News</title>
+  <entry>
+    <title>Snow Storm</title>
+    <link href="http://example.org/snow-storm" />
+    <published>2014-01-03T22:45:00Z</published>
+    <content>Stay home!</content>
+  </entry>
+  <entry>
+    <title>Blizzard</title>
+    <link href="http://example.org/blizzard" />
+    <published>2014-01-04T08:15:00Z</published>
+    <content>Roads closed!</content>
+  </entry>
+</feed>
+</xml>`),
+		&parsedFeed{
+			name: "News",
+			items: []parsedItem{
+				{
+					title:           "Snow Storm",
+					url:             "http://example.org/snow-storm",
+					publicationTime: box.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
+					body:            "Stay home!",
+				},
+				{
+					title:           "Blizzard",
+					url:             "http://example.org/blizzard",
+					publicationTime: box.NewTime(time.Date(2014, 1, 4, 8, 15, 0, 0, time.UTC)),
+					body:            "Roads closed!",
 				},
 			}},
 		"",
@@ -187,6 +249,9 @@ func TestParseFeed(t *testing.T) {
 			if actualItem.url != expectedItem.url {
 				t.Errorf("%d. %s Item %d: Expected url %#v, but is was %#v", i, tt.name, j, expectedItem.url, actualItem.url)
 			}
+			if actualItem.body != expectedItem.body {
+				t.Errorf("%d. %s Item %d: Expected body %#v, but is was %#v", i, tt.name, j, expectedItem.body, actualItem.body)
+			}
 			if actualItem.publicationTime.Status() == expectedItem.publicationTime.Status() {
 				if actualItem.publicationTime.Status() == box.Full && !actualItem.publicationTime.MustGet().Equal(expectedItem.publicationTime.MustGet()) {
 					t.Errorf("%d. %s Item %d: Expected publicationTime %v, but is was %v", i, tt.name, j, expectedItem.publicationTime, actualItem.publicationTime)
@@ -211,6 +276,15 @@ var timeParsingTests = []struct {
 	{"Fri, 3 Jan 2014 16:35:05 -0800", time.Date(2014, 1, 4, 0, 35, 5, 0, time.UTC), ""},
 	{"Sat, 04 Jan 2014", time.Date(2014, 1, 4, 0, 0, 0, 0, time.UTC), ""},
 	{"2011-05-19", time.Date(2011, 5, 19, 0, 0, 0, 0, time.UTC), ""},
+}
+
+func TestParsedItemDigest(t *testing.T) {
+	i := &parsedItem{url: "http://example.com", title: "Some article", body: "Some body"}
+	expected := []byte{0x2b, 0x9d, 0x15, 0xe8, 0x7, 0x9d, 0xca, 0x6a, 0x43, 0x52, 0x7a, 0xb1, 0xef, 0xe0, 0x98, 0xd7}
+	actual := i.digest()
+	if bytes.Compare(expected, actual) != 0 {
+		t.Errorf("Expected digest (%#v) did not equal actual digest (%#v)", expected, actual)
+	}
 }
 
 func TestParseTime(t *testing.T) {
