@@ -16,11 +16,13 @@ import (
 
 var client *http.Client
 var bodyResponseTimeout time.Duration
+var maxConcurrentFeedFetches int
 
 func init() {
 	transport := &http.Transport{ResponseHeaderTimeout: time.Duration(10 * time.Second)}
 	client = &http.Client{Transport: transport}
 	bodyResponseTimeout = 60 * time.Second
+	maxConcurrentFeedFetches = 25
 }
 
 func CreateUser(name string, password string) (userID int32, err error) {
@@ -41,18 +43,47 @@ func Subscribe(userID int32, feedURL string) (err error) {
 }
 
 func KeepFeedsFresh() {
+
 	for {
-		t := time.Now().Add(-10 * time.Minute)
-		if staleFeeds, err := repo.GetFeedsUncheckedSince(t); err == nil {
+		startTime := time.Now()
+
+		if staleFeeds, err := repo.GetFeedsUncheckedSince(startTime.Add(-10 * time.Minute)); err == nil {
 			logger.Info("tpr", fmt.Sprintf("Found %d stale feeds", len(staleFeeds)))
-			for _, sf := range staleFeeds {
-				RefreshFeed(sf)
+
+			staleFeedChan := make(chan Feed)
+			finishChan := make(chan bool)
+
+			worker := func() {
+				for feed := range staleFeedChan {
+					RefreshFeed(feed)
+				}
+				finishChan <- true
 			}
+
+			for i := 0; i < maxConcurrentFeedFetches; i++ {
+				go worker()
+			}
+
+			for _, sf := range staleFeeds {
+				staleFeedChan <- sf
+			}
+			close(staleFeedChan)
+
+			for i := 0; i < maxConcurrentFeedFetches; i++ {
+				<-finishChan
+			}
+
 		} else {
 			logger.Error("tpr", fmt.Sprintf("repo.GetFeedsUncheckedSince failed: %v", err))
 		}
-		time.Sleep(time.Minute)
+
+		sleepUntil(startTime.Add(time.Minute))
 	}
+}
+
+// sleepUntil sleeps until t. If t is in the past it returns immediately
+func sleepUntil(t time.Time) {
+	time.Sleep(t.Sub(time.Now()))
 }
 
 type rawFeed struct {
