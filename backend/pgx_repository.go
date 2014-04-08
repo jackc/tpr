@@ -15,6 +15,7 @@ type pgxRepository struct {
 }
 
 func NewPgxRepository(parameters pgx.ConnectionParameters, options pgx.ConnectionPoolOptions) (*pgxRepository, error) {
+	parameters.MsgBufSize = 16 * 1024
 	pool, err := pgx.NewConnectionPool(parameters, options)
 	if err != nil {
 		return nil, err
