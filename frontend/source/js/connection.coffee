@@ -1,12 +1,10 @@
 class window.Connection
-  login: (credentials, onSuccess, onFailure)->
+  login: (credentials)->
     reqwest
       url: "/api/sessions"
       method: "post"
       contentType: "application/json"
       data: JSON.stringify(credentials)
-      success: onSuccess
-      error: (r)-> onFailure(r.responseText)
 
   logout: ->
     reqwest
@@ -14,22 +12,19 @@ class window.Connection
       method: "delete"
 
   # registration -- name, password, passwordConfirmation
-  register: (registration, onSuccess, onFailure)->
+  register: (registration)->
     reqwest
       url: "/api/register"
       method: "post"
       data: JSON.stringify(registration)
-      success: onSuccess
-      error: (r)-> onFailure(r.responseText)
 
-  getFeeds: (onSuccess)->
+  getFeeds: ()->
     reqwest
       url: "/api/feeds"
       method: "get"
       headers: {"X-Authentication" : State.Session.id}
-      success: onSuccess
 
-  subscribe: (url, onSuccess)->
+  subscribe: (url)->
     data =
       url: url
 
@@ -38,7 +33,6 @@ class window.Connection
       method: "post"
       headers: {"X-Authentication" : State.Session.id}
       data: JSON.stringify(data)
-      success: onSuccess
 
   deleteSubscription: (feedID)->
     reqwest
@@ -46,18 +40,11 @@ class window.Connection
       method: "delete"
       headers: {"X-Authentication" : State.Session.id}
 
-  getUnreadItems: (onSuccess)->
+  getUnreadItems: ()->
     reqwest
       url: "/api/items/unread"
       method: "get"
       headers: {"X-Authentication" : State.Session.id}
-      success: (data)->
-        models = for record in data
-          model = new App.Models.Item
-          for k, v of record
-            model[k] = v
-          model
-        onSuccess(models)
 
   markItemRead: (itemID)->
     reqwest
@@ -65,10 +52,9 @@ class window.Connection
       method: "DELETE"
       headers: {"X-Authentication" : State.Session.id}
 
-  markAllRead: (itemIDs, onSuccess)->
+  markAllRead: (itemIDs)->
     reqwest
       url: "/api/items/unread/mark_multiple_read"
       method: "post"
       headers: {"X-Authentication" : State.Session.id}
       data: JSON.stringify({itemIDs: itemIDs})
-      success: onSuccess

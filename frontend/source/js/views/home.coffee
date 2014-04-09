@@ -15,9 +15,13 @@ class App.Views.HomePage extends App.Views.Base
     @fetch()
 
   fetch: ->
-    conn.getUnreadItems (data)=>
-      @actions.collection = data
-      @unreadItemsView.collection = data
+    conn.getUnreadItems().then (data)=>
+      @actions.collection = for record in data
+        model = new App.Models.Item
+        for k, v of record
+          model[k] = v
+        model
+      @unreadItemsView.collection = @actions.collection
       @unreadItemsView.render()
 
   render: ->
@@ -46,7 +50,7 @@ class App.Views.Actions extends App.Views.Base
   markAllRead: (e)->
     e.preventDefault()
     itemIDs = (i.id for i in @collection)
-    conn.markAllRead itemIDs, => @markedAllRead.dispatch()
+    conn.markAllRead(itemIDs).then => @markedAllRead.dispatch()
 
 class App.Views.UnreadItemsList extends App.Views.Base
   tagName: 'ul'

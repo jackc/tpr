@@ -21,7 +21,7 @@ class App.Views.FeedsPage extends App.Views.Base
     @fetch()
 
   fetch: ->
-    conn.getFeeds (data)=>
+    conn.getFeeds().then (data)=>
       @feedsListView.collection = data
       @feedsListView.render()
 
@@ -53,7 +53,7 @@ class App.Views.SubscribeForm extends App.Views.Base
   subscribe: (e)->
     e.preventDefault()
 
-    conn.subscribe @el.elements.url.value, =>
+    conn.subscribe(@el.elements.url.value).then =>
       @el.elements.url.value = ""
       @subscribed.dispatch()
 
