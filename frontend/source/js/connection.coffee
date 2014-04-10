@@ -34,6 +34,24 @@ class window.Connection
       headers: {"X-Authentication" : State.Session.id}
       data: JSON.stringify(data)
 
+  importOPML: (formData)->
+    # reqwest doesn't support file uploading
+    # Hack enough of a promise implementation to make a raw XHR compatible
+    promise =
+      thens: []
+      then: (f)->
+        @thens.push f
+        this
+
+    xhr = new XMLHttpRequest()
+    xhr.open('POST', "/api/feeds/import", true)
+    xhr.setRequestHeader("X-Authentication", State.Session.id)
+    xhr.onreadystatechange = ()->
+      if xhr.readyState == 4
+        t() for t in promise.thens
+    xhr.send(formData)
+    promise
+
   deleteSubscription: (feedID)->
     reqwest
       url: "api/subscriptions/#{feedID}"

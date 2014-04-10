@@ -14,4 +14,19 @@ feature 'Feed Management' do
       expect(page).to have_content 'http://localhost:1234'
     end
   end
+
+  scenario 'User imports OPML file' do
+    create_user name: 'john', password: 'secret'
+    login name: 'john', password: 'secret'
+
+    click_on 'Feeds'
+
+    attach_file 'OPML File', 'spec/fixtures/opml.xml'
+    click_on 'Import'
+
+    within '.feeds > ul' do
+      expect(page).to have_content 'http://localhost/rss'
+      expect(page).to have_content 'http://localhost/other/rss'
+    end
+  end
 end

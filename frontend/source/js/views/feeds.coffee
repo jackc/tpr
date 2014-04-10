@@ -78,13 +78,7 @@ class App.Views.ImportForm extends App.Views.Base
     e.preventDefault()
     fd = new FormData(e.target)
 
-    $.ajax({
-      url: "/api/feeds/import",
-      type: "POST",
-      data: fd,
-      processData: false,
-      contentType: false
-    }).success =>
+    conn.importOPML(fd).then =>
       @imported.dispatch()
       alert 'import success'
 

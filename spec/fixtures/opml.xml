@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<opml version="1.0">
+  <head>
+    <title>Test Feeds</title>
+  </head>
+  <body>
+    <outline text="Test Feed 1" title="Test Feed 1" type="rss" xmlUrl="http://localhost/rss"/>
+    <outline text="Test Feed 2" title="Test Feed 2" type="rss" xmlUrl="http://localhost/other/rss"/>
+  </body>
+</opml>
