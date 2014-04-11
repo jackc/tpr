@@ -3,7 +3,7 @@
 //= require vendor/signals.min.js
 //= require_tree ./templates
 //= require namespace.js
-//= require connection.coffee
+//= require connection.js
 //= require models/item.coffee
 //= require models/session.coffee
 //= require views/base.coffee
