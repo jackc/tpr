@@ -7,3 +7,5 @@ document.addEventListener 'DOMContentLoaded', ->
 
   window.router = new App.Router
   window.router.start()
+
+  new App.Views.WorkingNotice

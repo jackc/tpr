@@ -1,9 +1,14 @@
 (function() {
   "use strict";
 
-  window.Connection = function() {};
+  window.Connection = function() {
+    this.firstAjaxStarted = new signals.Signal();
+    this.lastAjaxFinished = new signals.Signal();
+  };
 
   Connection.prototype = {
+    pendingCount: 0,
+
     ajax: function(url, method, options) {
       if (options == null) {
         options = {};
@@ -42,6 +47,21 @@
           reject(req, Error("Network Error"));
         };
       });
+
+      this.pendingCount++;
+      if (this.pendingCount === 1) {
+        this.firstAjaxStarted.dispatch();
+      }
+
+      var self = this;
+      var finish = function() {
+        self.pendingCount--;
+        if (self.pendingCount === 0) {
+          self.lastAjaxFinished.dispatch();
+        }
+      };
+
+      promise.then(finish, finish);
 
       req.send(options.data);
       return promise;

@@ -12,6 +12,7 @@
 //= require views/login.coffee
 //= require views/home.coffee
 //= require views/register.coffee
+//= require views/working_notice.js
 //= require router.coffee
 //= require initialize.coffee
 
