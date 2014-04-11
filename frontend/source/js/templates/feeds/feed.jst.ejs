@@ -2,7 +2,7 @@
 <div class="meta">
   <% if(last_publication_time) { %>
     Last published
-    <time datetime="<%= last_publication_time %>"><%= moment(last_publication_time).format("MMMM Do, YYYY [at] h:mm a") %></time>
+    <time datetime="<%= last_publication_time.toISOString() %>"><%= last_publication_time.toTPRString() %></time>
   <% } %>
 </div>
 <% if(failure_count > 0) { %>

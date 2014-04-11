@@ -258,7 +258,7 @@ func afterConnect(conn *pgx.Connection) (err error) {
         feeds.name as feed_name,
         items.title,
         items.url,
-        coalesce(publication_time, items.creation_time) as publication_time
+        extract(epoch from coalesce(publication_time, items.creation_time)::timestamptz(0)) as publication_time
       from feeds
         join items on feeds.id=items.feed_id
         join unread_items on items.id=unread_items.item_id
@@ -280,12 +280,12 @@ func afterConnect(conn *pgx.Connection) (err error) {
       select feeds.id,
         name,
         feeds.url,
-        last_fetch_time,
+        extract(epoch from last_fetch_time::timestamptz(0)) as last_fetch_time,
         last_failure,
-        last_failure_time,
+        extract(epoch from last_failure_time::timestamptz(0)) as last_failure_time,
         failure_count,
         count(items.id) as item_count,
-        max(items.publication_time) as last_publication_time
+        extract(epoch from max(items.publication_time::timestamptz(0))) as last_publication_time
       from feeds
         join subscriptions on feeds.id=subscriptions.feed_id
         left join items on feeds.id=items.feed_id

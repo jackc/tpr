@@ -97,7 +97,16 @@
     },
 
     getFeeds: function() {
-      return this.get("/api/feeds");
+      return this.get("/api/feeds").then(function(data) {
+        data.forEach(function(feed) {
+          ["last_fetch_time", "last_failure_time", "last_publication_time"].forEach(function(name) {
+            if (feed[name]) {
+              feed[name] = new Date(feed[name]*1000)
+            }
+          })
+        });
+        return data;
+      });
     },
 
     subscribe: function(url) {
@@ -117,7 +126,12 @@
     },
 
     getUnreadItems: function() {
-      return this.get("/api/items/unread");
+      return this.get("/api/items/unread").then(function(data) {
+        data.forEach(function(item) {
+          item.publication_time = new Date(item.publication_time*1000)
+        });
+        return data;
+      });
     },
 
     markItemRead: function(itemID) {
