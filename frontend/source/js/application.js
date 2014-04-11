@@ -1,5 +1,4 @@
 //= require vendor/promise-0.1.1.min.js
-//= require vendor/reqwest.min.js
 //= require vendor/moment.min.js
 //= require vendor/signals.min.js
 //= require_tree ./templates

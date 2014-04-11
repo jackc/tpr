@@ -1,77 +1,83 @@
 class window.Connection
+  ajax: (url, method, options)->
+    new Promise (resolve, reject)->
+      req = new XMLHttpRequest()
+      req.open(method, url, true)
+
+      if options.contentType
+        req.setRequestHeader("Content-Type", options.contentType)
+
+      if options.headers
+        for k, v of options.headers
+          req.setRequestHeader(k, v)
+
+      req.onload = ->
+        if 200 <= req.status and req.status <= 299
+          data = if req.getResponseHeader("Content-Type") == "application/json"
+            JSON.parse(req.responseText)
+          else
+            req.responseText
+          resolve(data)
+        else
+          reject(req, Error(req.statusText))
+
+      req.onerror = ->
+        reject(req, Error("Network Error"))
+
+      req.send(options.data)
+
+  get: (url, options)->
+    @ajax(url, "GET", options)
+
+  post: (url, options)->
+    @ajax(url, "POST", options)
+
+  delete: (url, options)->
+    @ajax(url, "DELETE", options)
+
   login: (credentials)->
-    reqwest
-      url: "/api/sessions"
-      method: "post"
-      contentType: "application/json"
+    @post "/api/sessions",
+      contentType: "application/json",
       data: JSON.stringify(credentials)
 
   logout: ->
-    reqwest
-      url: "/api/sessions/#{State.Session.id}"
-      method: "delete"
+    @delete "/api/sessions/#{State.Session.id}"
 
   # registration -- name, password, passwordConfirmation
   register: (registration)->
-    reqwest
-      url: "/api/register"
-      method: "post"
+    @post "/api/register",
       data: JSON.stringify(registration)
 
   getFeeds: ()->
-    reqwest
-      url: "/api/feeds"
-      method: "get"
+    @get "/api/feeds",
       headers: {"X-Authentication" : State.Session.id}
 
   subscribe: (url)->
     data =
       url: url
 
-    reqwest
-      url: "/api/subscriptions"
-      method: "post"
-      headers: {"X-Authentication" : State.Session.id}
+    @post "/api/subscriptions",
+      headers: {"X-Authentication" : State.Session.id},
       data: JSON.stringify(data)
 
   importOPML: (formData)->
-    new Promise (resolve, reject)->
-      req = new XMLHttpRequest()
-      req.open('POST', "/api/feeds/import", true)
-      req.setRequestHeader("X-Authentication", State.Session.id)
-
-      req.onload = ->
-        if req.status == 200
-          resolve(req.response);
-        else
-          reject(Error(req.statusText))
-
-      req.onerror = ->
-        reject(Error("Network Error"))
-
-      req.send(formData)
+    @post "/api/feeds/import",
+      headers: {"X-Authentication" : State.Session.id},
+      data: formData
 
   deleteSubscription: (feedID)->
-    reqwest
-      url: "api/subscriptions/#{feedID}"
-      method: "delete"
+    @delete "api/subscriptions/#{feedID}",
       headers: {"X-Authentication" : State.Session.id}
 
   getUnreadItems: ()->
-    reqwest
-      url: "/api/items/unread"
-      method: "get"
+    @get "/api/items/unread",
       headers: {"X-Authentication" : State.Session.id}
 
   markItemRead: (itemID)->
-    reqwest
-      url: "/api/items/unread/#{itemID}"
-      method: "DELETE"
+    @delete "/api/items/unread/#{itemID}",
       headers: {"X-Authentication" : State.Session.id}
 
   markAllRead: (itemIDs)->
-    reqwest
-      url: "/api/items/unread/mark_multiple_read"
-      method: "post"
-      headers: {"X-Authentication" : State.Session.id}
+    @post "/api/items/unread/mark_multiple_read",
+      headers: {"X-Authentication" : State.Session.id},
       data: JSON.stringify({itemIDs: itemIDs})

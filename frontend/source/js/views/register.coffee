@@ -15,7 +15,7 @@ class App.Views.RegisterPage extends App.Views.Base
       passwordConfirmation: form.elements.passwordConfirmation.value
     conn.register(registration)
       .then((data)=> @onRegistrationSuccess(data))
-      .fail((response)=> @onRegistrationFailure(response.responseText))
+      .catch((response)=> @onRegistrationFailure(response.responseText))
 
   onRegistrationSuccess: (data)->
     State.Session = new App.Models.Session data
