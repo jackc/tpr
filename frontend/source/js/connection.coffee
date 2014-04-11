@@ -35,22 +35,21 @@ class window.Connection
       data: JSON.stringify(data)
 
   importOPML: (formData)->
-    # reqwest doesn't support file uploading
-    # Hack enough of a promise implementation to make a raw XHR compatible
-    promise =
-      thens: []
-      then: (f)->
-        @thens.push f
-        this
+    new Promise (resolve, reject)->
+      req = new XMLHttpRequest()
+      req.open('POST', "/api/feeds/import", true)
+      req.setRequestHeader("X-Authentication", State.Session.id)
 
-    xhr = new XMLHttpRequest()
-    xhr.open('POST', "/api/feeds/import", true)
-    xhr.setRequestHeader("X-Authentication", State.Session.id)
-    xhr.onreadystatechange = ()->
-      if xhr.readyState == 4
-        t() for t in promise.thens
-    xhr.send(formData)
-    promise
+      req.onload = ->
+        if req.status == 200
+          resolve(req.response);
+        else
+          reject(Error(req.statusText))
+
+      req.onerror = ->
+        reject(Error("Network Error"))
+
+      req.send(formData)
 
   deleteSubscription: (feedID)->
     reqwest
