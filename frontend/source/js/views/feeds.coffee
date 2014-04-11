@@ -21,9 +21,10 @@ class App.Views.FeedsPage extends App.Views.Base
     @fetch()
 
   fetch: ->
-    conn.getFeeds().then (data)=>
+    conn.getFeeds().then((data)=>
       @feedsListView.collection = data
       @feedsListView.render()
+    ).catch(promiseFailed)
 
   render: ->
     @el.innerHTML = ""

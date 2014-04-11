@@ -1,3 +1,4 @@
+//= require util.js
 //= require vendor/promise-0.1.1.min.js
 //= require vendor/moment.min.js
 //= require vendor/signals.min.js

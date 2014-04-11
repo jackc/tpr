@@ -15,7 +15,7 @@ class App.Views.HomePage extends App.Views.Base
     @fetch()
 
   fetch: ->
-    conn.getUnreadItems().then (data)=>
+    conn.getUnreadItems().then((data)=>
       @actions.collection = for record in data
         model = new App.Models.Item
         for k, v of record
@@ -23,6 +23,7 @@ class App.Views.HomePage extends App.Views.Base
         model
       @unreadItemsView.collection = @actions.collection
       @unreadItemsView.render()
+    ).catch(promiseFailed)
 
   render: ->
     @el.innerHTML = ""
