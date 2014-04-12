@@ -4,26 +4,16 @@ class App.Views.HomePage extends App.Views.Base
   constructor: ->
     super()
 
+    @collection = new App.Collections.UnreadItems
+
     @header = @createChild App.Views.LoggedInHeader
     @header.render()
 
-    @actions = @createChild App.Views.Actions
+    @actions = @createChild App.Views.Actions, collection: @collection
     @actions.render()
-    @actions.markedAllRead.add ()=> @fetch()
 
-    @unreadItemsView = @createChild App.Views.UnreadItemsList, collection: []
-    @fetch()
-
-  fetch: ->
-    conn.getUnreadItems().then((data)=>
-      @actions.collection = for record in data
-        model = new App.Models.Item
-        for k, v of record
-          model[k] = v
-        model
-      @unreadItemsView.collection = @actions.collection
-      @unreadItemsView.render()
-    ).catch(promiseFailed)
+    @unreadItemsView = @createChild App.Views.UnreadItemsList, collection: @collection
+    @collection.fetch()
 
   render: ->
     @el.innerHTML = ""
@@ -36,9 +26,9 @@ class App.Views.Actions extends App.Views.Base
   template: JST["templates/home/actions"]
   className: 'pageActions'
 
-  constructor: ->
+  constructor: (options)->
     super()
-    @markedAllRead = new signals.Signal()
+    @collection = options.collection
 
   render: ->
     @el.innerHTML = @template()
@@ -50,8 +40,7 @@ class App.Views.Actions extends App.Views.Base
 
   markAllRead: (e)->
     e.preventDefault()
-    itemIDs = (i.id for i in @collection)
-    conn.markAllRead(itemIDs).then => @markedAllRead.dispatch()
+    @collection.markAllRead()
 
 class App.Views.UnreadItemsList extends App.Views.Base
   tagName: 'ul'
@@ -61,6 +50,7 @@ class App.Views.UnreadItemsList extends App.Views.Base
     super()
 
     @collection = options.collection
+    @collection.changed.add => @render()
 
     @boundKeyDown = (e)=> @keyDown(e)
     document.addEventListener 'keydown', @boundKeyDown
@@ -68,7 +58,7 @@ class App.Views.UnreadItemsList extends App.Views.Base
   render: ->
     @el.innerHTML = ""
 
-    @itemViews = for model in @collection
+    @itemViews = for model in @collection.items
       @createChild App.Views.UnreadItem, model: model
     if @itemViews.length > 0
       @selected = @itemViews[0]

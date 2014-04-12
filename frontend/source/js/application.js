@@ -7,6 +7,7 @@
 //= require connection.js
 //= require models/item.coffee
 //= require models/session.coffee
+//= require collections/unread_items.js
 //= require views/base.coffee
 //= require views/header.coffee
 //= require views/feeds.coffee
