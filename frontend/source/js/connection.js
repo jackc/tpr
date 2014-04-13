@@ -39,6 +39,10 @@
             var data = req.getResponseHeader("Content-Type") === "application/json" ? JSON.parse(req.responseText) : req.responseText;
             resolve(data);
           } else {
+            if (req.status === 403 && req.responseText === "Bad or missing X-Authentication header") {
+              State.Session.clear();
+              window.router.navigate('login');
+            }
             reject(req, Error(req.statusText));
           }
         };
