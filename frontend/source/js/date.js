@@ -32,7 +32,7 @@
     var t = this,
         y = t.getFullYear(),
         m = monthNames[t.getMonth()],
-        d = t.getDay(),
+        d = t.getDate(),
         o = ordinalSuffix(d),
         h = t.getHours(),
         mm = t.getMinutes();
