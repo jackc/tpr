@@ -1,6 +1,4 @@
-//= require util.js
 //= require date.js
-//= require vendor/promise-0.1.1.min.js
 //= require vendor/signals.min.js
 //= require_tree ./templates
 //= require namespace.js

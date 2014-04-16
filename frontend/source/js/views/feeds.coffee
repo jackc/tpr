@@ -21,10 +21,9 @@ class App.Views.FeedsPage extends App.Views.Base
     @fetch()
 
   fetch: ->
-    conn.getFeeds().then((data)=>
+    conn.getFeeds succeeded: (data)=>
       @feedsListView.collection = data
       @feedsListView.render()
-    ).catch(promiseFailed)
 
   render: ->
     @el.innerHTML = ""
@@ -54,7 +53,7 @@ class App.Views.SubscribeForm extends App.Views.Base
   subscribe: (e)->
     e.preventDefault()
 
-    conn.subscribe(@el.elements.url.value).then =>
+    conn.subscribe @el.elements.url.value, succeeded: =>
       @el.elements.url.value = ""
       @subscribed.dispatch()
 
@@ -79,7 +78,7 @@ class App.Views.ImportForm extends App.Views.Base
     e.preventDefault()
     fd = new FormData(e.target)
 
-    conn.importOPML(fd).then =>
+    conn.importOPML fd, succeeded: =>
       @imported.dispatch()
       alert 'import success'
 

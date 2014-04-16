@@ -12,9 +12,9 @@ class App.Views.LoginPage extends App.Views.Base
     credentials =
       name: form.elements.name.value
       password: form.elements.password.value
-    conn.login(credentials)
-      .then((data)=> @onLoginSuccess(data))
-      .catch((response)=> @onLoginFailure(response.responseText))
+    conn.login credentials,
+      succeeded: (data)=> @onLoginSuccess(data)
+      failed: (_, response)=> @onLoginFailure(response.responseText)
 
   onLoginSuccess: (data)->
     State.Session = new App.Models.Session data

@@ -9,7 +9,23 @@
   Connection.prototype = {
     pendingCount: 0,
 
+    incAjax: function() {
+      this.pendingCount++;
+      if (this.pendingCount === 1) {
+        this.firstAjaxStarted.dispatch();
+      }
+    },
+
+    decAjax: function() {
+      this.pendingCount--;
+      if (this.pendingCount === 0) {
+        this.lastAjaxFinished.dispatch();
+      }
+    },
+
     ajax: function(url, method, options) {
+      var self = this;
+
       if (options == null) {
         options = {};
       }
@@ -33,119 +49,158 @@
         }
       }
 
-      var promise = new Promise(function(resolve, reject) {
-        req.onload = function() {
-          if (200 <= req.status && req.status <= 299) {
-            var data = req.getResponseHeader("Content-Type") === "application/json" ? JSON.parse(req.responseText) : req.responseText;
-            resolve(data);
-          } else {
-            if (req.status === 403 && req.responseText === "Bad or missing X-Authentication header") {
-              State.Session.clear();
-              window.router.navigate('login');
-            }
-            reject(req, Error(req.statusText));
-          }
-        };
+      req.onload = function() {
+        self.decAjax();
+        var data = req.getResponseHeader("Content-Type") === "application/json" ? JSON.parse(req.responseText) : req.responseText;
 
-        req.onerror = function() {
-          reject(req, Error("Network Error"));
-        };
-      });
+        if (200 <= req.status && req.status <= 299 && options.succeeded) {
+          options.succeeded(data, req);
+          return;
+        }
 
-      this.pendingCount++;
-      if (this.pendingCount === 1) {
-        this.firstAjaxStarted.dispatch();
-      }
+        if (req.status === 403 && req.responseText === "Bad or missing X-Authentication header") {
+          State.Session.clear();
+          window.router.navigate('login');
+          return;
+        }
 
-      var self = this;
-      var finish = function() {
-        self.pendingCount--;
-        if (self.pendingCount === 0) {
-          self.lastAjaxFinished.dispatch();
+        if (options.failed) {
+          options.failed(data, req);
         }
       };
 
-      promise.then(finish, finish);
+      req.onerror = function() {
+        self.decAjax();
+        options.failed(undefined, req);
+      };
+
+      this.incAjax();
 
       req.send(options.data);
-      return promise;
     },
 
     get: function(url, options) {
-      return this.ajax(url, "GET", options);
+      this.ajax(url, "GET", options);
     },
 
     post: function(url, options) {
-      return this.ajax(url, "POST", options);
+      this.ajax(url, "POST", options);
     },
 
     delete: function(url, options) {
-      return this.ajax(url, "DELETE", options);
+      this.ajax(url, "DELETE", options);
     },
 
-    login: function(credentials) {
-      return this.post("/api/sessions", {
+    mergeCallbacks: function(options, callbacks) {
+      if (callbacks) {
+        options.succeeded = callbacks.succeeded;
+        options.failed = callbacks.failed;
+      }
+
+      return options;
+    },
+
+    login: function(credentials, callbacks) {
+      var options = {
         contentType: "application/json",
         data: JSON.stringify(credentials)
-      });
+      };
+
+      options = this.mergeCallbacks(options, callbacks);
+
+      this.post("/api/sessions", options);
     },
 
     logout: function() {
       return this.delete("/api/sessions/" + State.Session.id);
     },
 
-    register: function(registration) {
-      return this.post("/api/register", {
+    register: function(registration, callbacks) {
+      var options = {
         data: JSON.stringify(registration)
-      });
+      };
+
+      options = this.mergeCallbacks(options, callbacks);
+
+      return this.post("/api/register", options);
     },
 
-    getFeeds: function() {
-      return this.get("/api/feeds").then(function(data) {
-        data.forEach(function(feed) {
-          ["last_fetch_time", "last_failure_time", "last_publication_time"].forEach(function(name) {
-            if (feed[name]) {
-              feed[name] = new Date(feed[name]*1000)
-            }
-          })
-        });
-        return data;
-      });
+    getFeeds: function(callbacks) {
+      var options = this.mergeCallbacks({}, callbacks);
+
+      if (options.succeeded) {
+        var succeeded = options.succeeded;
+        options.succeeded = function(data, req) {
+          data.forEach(function(feed) {
+            ["last_fetch_time", "last_failure_time", "last_publication_time"].forEach(function(name) {
+              if (feed[name]) {
+                feed[name] = new Date(feed[name]*1000)
+              }
+            })
+          });
+
+          succeeded(data, req);
+        };
+      }
+
+      this.get("/api/feeds", options)
     },
 
-    subscribe: function(url) {
-      return this.post("/api/subscriptions", {
+    subscribe: function(url, callbacks) {
+      var options = {
         data: JSON.stringify({url: url })
-      });
+      };
+
+      options = this.mergeCallbacks(options, callbacks);
+
+      this.post("/api/subscriptions", options);
     },
 
-    importOPML: function(formData) {
-      return this.post("/api/feeds/import", {
+    importOPML: function(formData, callbacks) {
+      var options = {
         data: formData
-      });
+      };
+
+      options = this.mergeCallbacks(options, callbacks);
+
+      this.post("/api/feeds/import", options);
     },
 
     deleteSubscription: function(feedID) {
-      return this.delete("api/subscriptions/" + feedID);
+      this.delete("api/subscriptions/" + feedID);
     },
 
-    getUnreadItems: function() {
-      return this.get("/api/items/unread").then(function(data) {
-        data.forEach(function(item) {
-          item.publication_time = new Date(item.publication_time*1000)
-        });
-        return data;
-      });
+    getUnreadItems: function(callbacks) {
+      var options = this.mergeCallbacks({}, callbacks);
+
+      if (options.succeeded) {
+        var succeeded = options.succeeded;
+        options.succeeded = function(data, req) {
+          data.forEach(function(item) {
+            item.publication_time = new Date(item.publication_time*1000)
+          });
+
+          succeeded(data, req);
+        };
+      }
+
+      this.get("/api/items/unread", options);
     },
 
-    markItemRead: function(itemID) {
-      return this.delete("/api/items/unread/" + itemID);
+    markItemRead: function(itemID, callbacks) {
+      var options = this.mergeCallbacks({}, callbacks);
+
+      this.delete("/api/items/unread/" + itemID, options);
     },
 
-    markAllRead: function(itemIDs) {
-      return this.post("/api/items/unread/mark_multiple_read", {
+    markAllRead: function(itemIDs, callbacks) {
+      var options = {
         data: JSON.stringify({itemIDs: itemIDs})
-      });
+      };
+
+      options = this.mergeCallbacks(options, callbacks);
+
+      this.post("/api/items/unread/mark_multiple_read", options);
     }
   };
 })();

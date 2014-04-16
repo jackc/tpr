@@ -9,7 +9,7 @@
   App.Collections.UnreadItems.prototype = {
     fetch: function() {
       self = this;
-      conn.getUnreadItems().then(function(data) {
+      conn.getUnreadItems({ succeeded: function(data) {
         self.items = data.map(function(record) {
           var model = new App.Models.Item;
           for (var k in record) {
@@ -18,17 +18,16 @@
           return model;
         });
         self.changed.dispatch();
-      }).catch(promiseFailed);
+      }});
     },
 
     markAllRead: function() {
       self = this;
       var itemIDs = this.items.map(function(i) { return i.id; });
-      conn.markAllRead(itemIDs).then(function() {
+      conn.markAllRead(itemIDs, { succeeded: function() {
         self.changed.dispatch();
-      }).then(function() {
         self.fetch();
-      }).catch(promiseFailed);
+      }});
     }
   };
 })();
