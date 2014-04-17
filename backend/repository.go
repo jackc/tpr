@@ -11,8 +11,8 @@ var notFound = errors.New("not found")
 
 type repository interface {
 	CreateUser(name string, passwordDigest, passwordSalt []byte) (userID int32, err error)
-	GetUserAuthenticationByName(name string) (userID int32, passwordDigest, passwordSalt []byte, err error)
-	GetUserName(userID int32) (name string, err error)
+	GetUser(userID int32) (*User, error)
+	GetUserByName(name string) (*User, error)
 
 	GetFeedsUncheckedSince(since time.Time) (feeds []Feed, err error)
 	UpdateFeedWithFetchSuccess(feedID int32, update *parsedFeed, etag box.String, fetchTime time.Time) error
@@ -30,6 +30,13 @@ type repository interface {
 	CreateSession(id []byte, userID int32) (err error)
 	GetUserIDBySessionID(id []byte) (userID int32, err error)
 	DeleteSession(id []byte) (err error)
+}
+
+type User struct {
+	ID             box.Int32
+	Name           box.String
+	PasswordDigest []byte
+	PasswordSalt   []byte
 }
 
 type Feed struct {

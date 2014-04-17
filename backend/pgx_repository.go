@@ -35,21 +35,30 @@ func (repo *pgxRepository) CreateUser(name string, passwordDigest, passwordSalt 
 	return userID, err
 }
 
-func (repo *pgxRepository) GetUserAuthenticationByName(name string) (userID int32, passwordDigest, passwordSalt []byte, err error) {
-	err = repo.pool.SelectFunc("getUserAuthenticationByName", func(r *pgx.DataRowReader) (err error) {
-		userID = r.ReadValue().(int32)
-		passwordDigest = r.ReadValue().([]byte)
-		passwordSalt = r.ReadValue().([]byte)
+func (repo *pgxRepository) GetUser(userID int32) (*User, error) {
+	user := User{}
+	err := repo.pool.SelectFunc("getUser", func(r *pgx.DataRowReader) (err error) {
+		user.ID.Set(r.ReadValue().(int32))
+		user.Name.Set(r.ReadValue().(string))
+		user.PasswordDigest = r.ReadValue().([]byte)
+		user.PasswordSalt = r.ReadValue().([]byte)
+		return
+	}, userID)
+
+	return &user, err
+}
+
+func (repo *pgxRepository) GetUserByName(name string) (*User, error) {
+	user := User{}
+	err := repo.pool.SelectFunc("getUserByName", func(r *pgx.DataRowReader) (err error) {
+		user.ID.Set(r.ReadValue().(int32))
+		user.Name.Set(r.ReadValue().(string))
+		user.PasswordDigest = r.ReadValue().([]byte)
+		user.PasswordSalt = r.ReadValue().([]byte)
 		return
 	}, name)
 
-	return
-}
-
-func (repo *pgxRepository) GetUserName(userID int32) (name string, err error) {
-	v, err := repo.pool.SelectValue("getUserName", userID)
-	name = v.(string)
-	return
+	return &user, err
 }
 
 func (repo *pgxRepository) GetFeedsUncheckedSince(since time.Time) (feeds []Feed, err error) {
@@ -390,6 +399,16 @@ func afterConnect(conn *pgx.Connection) (err error) {
 	}
 
 	err = conn.Prepare("getUserName", `select name from users where id=$1`)
+	if err != nil {
+		return
+	}
+
+	err = conn.Prepare("getUser", `select id, name, password_digest, password_salt from users where id=$1`)
+	if err != nil {
+		return
+	}
+
+	err = conn.Prepare("getUserByName", `select id, name, password_digest, password_salt from users where name=$1`)
 	if err != nil {
 		return
 	}

@@ -31,15 +31,43 @@ func (s *RepositorySuite) TestUsers(c *C) {
 	userID, err := s.repo.CreateUser(name, passwordDigest, passwordSalt)
 	c.Assert(err, IsNil)
 
-	userID2, passwordDigest2, passwordSalt2, err := s.repo.GetUserAuthenticationByName(name)
+	user, err := s.repo.GetUserByName(name)
 	c.Assert(err, IsNil)
-	c.Check(userID2, Equals, userID)
-	c.Check(bytes.Compare(passwordDigest2, passwordDigest), Equals, 0)
-	c.Check(bytes.Compare(passwordSalt2, passwordSalt), Equals, 0)
+	c.Check(user.ID.MustGet(), Equals, userID)
+	c.Check(user.Name.MustGet(), Equals, name)
+	c.Check(bytes.Compare(user.PasswordDigest, passwordDigest), Equals, 0)
+	c.Check(bytes.Compare(user.PasswordSalt, passwordSalt), Equals, 0)
 
-	name2, err := s.repo.GetUserName(userID)
+	user, err = s.repo.GetUser(userID)
 	c.Assert(err, IsNil)
-	c.Check(name2, Equals, name)
+	c.Check(user.ID.MustGet(), Equals, userID)
+	c.Check(user.Name.MustGet(), Equals, name)
+	c.Check(bytes.Compare(user.PasswordDigest, passwordDigest), Equals, 0)
+	c.Check(bytes.Compare(user.PasswordSalt, passwordSalt), Equals, 0)
+}
+
+func (s *RepositorySuite) BenchmarkGetUser(c *C) {
+	name, passwordDigest, passwordSalt := "test", []byte("digest"), []byte("salt")
+	userID, err := s.repo.CreateUser(name, passwordDigest, passwordSalt)
+	c.Assert(err, IsNil)
+
+	c.ResetTimer()
+	for i := 0; i < c.N; i++ {
+		_, err := s.repo.GetUser(userID)
+		c.Assert(err, IsNil)
+	}
+}
+
+func (s *RepositorySuite) BenchmarkGetUserByName(c *C) {
+	name, passwordDigest, passwordSalt := "test", []byte("digest"), []byte("salt")
+	_, err := s.repo.CreateUser(name, passwordDigest, passwordSalt)
+	c.Assert(err, IsNil)
+
+	c.ResetTimer()
+	for i := 0; i < c.N; i++ {
+		_, err := s.repo.GetUserByName(name)
+		c.Assert(err, IsNil)
+	}
 }
 
 func (s *RepositorySuite) TestFeeds(c *C) {

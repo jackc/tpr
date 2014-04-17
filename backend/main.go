@@ -163,11 +163,10 @@ func (env *environment) CurrentAccount() *currentAccount {
 			return nil
 		}
 
-		var name interface{}
 		// TODO - this could be an error from no records found -- or the connection could be dead or we could have a syntax error...
-		name, err = repo.GetUserName(session.userID)
+		user, err := repo.GetUser(session.userID)
 		if err == nil {
-			env.currentAccount = &currentAccount{id: session.userID, name: name.(string)}
+			env.currentAccount = &currentAccount{id: user.ID.MustGet(), name: user.Name.MustGet()}
 		}
 	}
 	return env.currentAccount
@@ -280,19 +279,19 @@ func DeleteSubscriptionHandler(w http.ResponseWriter, req *http.Request, env *en
 	w.WriteHeader(http.StatusOK)
 }
 
-func AuthenticateUser(name, password string) (userID int32, err error) {
-	userID, passwordDigest, passwordSalt, err := repo.GetUserAuthenticationByName(name)
+func AuthenticateUser(name, password string) (*User, error) {
+	user, err := repo.GetUserByName(name)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	var digest []byte
-	digest, _ = scrypt.Key([]byte(password), passwordSalt, 16384, 8, 1, 32)
+	digest, _ = scrypt.Key([]byte(password), user.PasswordSalt, 16384, 8, 1, 32)
 
-	if !bytes.Equal(digest, passwordDigest) {
+	if !bytes.Equal(digest, user.PasswordDigest) {
 		err = fmt.Errorf("Bad user name or password")
 	}
-	return
+	return user, err
 }
 
 func CreateSessionHandler(w http.ResponseWriter, req *http.Request) {
@@ -320,7 +319,7 @@ func CreateSessionHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if userID, err := AuthenticateUser(credentials.Name, credentials.Password); err == nil {
+	if user, err := AuthenticateUser(credentials.Name, credentials.Password); err == nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 
@@ -330,7 +329,7 @@ func CreateSessionHandler(w http.ResponseWriter, req *http.Request) {
 		}
 
 		response.Name = credentials.Name
-		response.SessionID = hex.EncodeToString(createSession(userID))
+		response.SessionID = hex.EncodeToString(createSession(user.ID.MustGet()))
 
 		encoder := json.NewEncoder(w)
 		encoder.Encode(response)
