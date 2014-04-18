@@ -4,5 +4,5 @@
 /build
 /frontend/.cache
 /public
-/tpr
+/tpr_*
 /tmp
