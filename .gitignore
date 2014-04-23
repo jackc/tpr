@@ -4,5 +4,7 @@
 /build
 /frontend/.cache
 /public
+/tern.conf
+/tern.test.conf
 /tpr_*
 /tmp

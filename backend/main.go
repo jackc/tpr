@@ -86,11 +86,6 @@ func initialize() {
 	pgxLogger := &PackageLogger{logger: logger, pkg: "pgx"}
 	connectionParameters.Logger = pgxLogger
 
-	if err = migrate(connectionParameters); err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
-	}
-
 	poolOptions := pgx.ConnectionPoolOptions{MaxConnections: 10, AfterConnect: afterConnect, Logger: pgxLogger}
 
 	repo, err = NewPgxRepository(connectionParameters, poolOptions)

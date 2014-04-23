@@ -28,6 +28,6 @@ Please fix this and reinstall this package." >&2
     exit 1
 fi
 
-chown -R tpr:tpr /etc/tpr
-chmod 740 /etc/tpr
-chmod 640 /etc/tpr/config.yml
+chown -R tpr:tpr /etc/tpr/config.yml
+chgrp postgres /etc/tpr/tern.conf
+chmod 640 /etc/tpr/config.yml /etc/tpr/tern.conf

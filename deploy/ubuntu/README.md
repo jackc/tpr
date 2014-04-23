@@ -16,9 +16,14 @@ Adjust version as appropriate.
 
 PostgreSQL 9.3+ is required.
 
-    sudo createuser tpr
-    sudo createdb --owner tpr tpr
-    sudo -u postgres psql tpr -c 'create extension if not exists pgcrypto;'
+    sudo -u postgres createuser tpr
+    sudo -u postgres createdb
+
+Database migrations are performed with (tern)[https://github.com/JackC/tern].
+/etc/tpr/tern.conf is preset for a default installation where the database is
+owned by postgres.
+
+    sudo -u postgres tern -c /etc/tpr/tern.conf -m /usr/share/tpr/migrate
 
 ## Configuration
 
