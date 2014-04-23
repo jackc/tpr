@@ -25,8 +25,12 @@ func NewPgxRepository(parameters pgx.ConnectionParameters, options pgx.Connectio
 	return repo, nil
 }
 
-func (repo *pgxRepository) CreateUser(name string, passwordDigest, passwordSalt []byte) (int32, error) {
-	v, err := repo.pool.SelectValue("insertUser", name, passwordDigest, passwordSalt)
+func (repo *pgxRepository) CreateUser(user *User) (int32, error) {
+	v, err := repo.pool.SelectValue("insertUser",
+		user.Name.GetCoerceNil(),
+		user.Email.GetCoerceNil(),
+		user.PasswordDigest,
+		user.PasswordSalt)
 	if err != nil {
 		return 0, err
 	}
@@ -40,6 +44,7 @@ func (repo *pgxRepository) GetUser(userID int32) (*User, error) {
 	err := repo.pool.SelectFunc("getUser", func(r *pgx.DataRowReader) (err error) {
 		user.ID.Set(r.ReadValue().(int32))
 		user.Name.Set(r.ReadValue().(string))
+		user.Email.SetCoerceNil(r.ReadValue(), box.Empty)
 		user.PasswordDigest = r.ReadValue().([]byte)
 		user.PasswordSalt = r.ReadValue().([]byte)
 		return
@@ -53,6 +58,7 @@ func (repo *pgxRepository) GetUserByName(name string) (*User, error) {
 	err := repo.pool.SelectFunc("getUserByName", func(r *pgx.DataRowReader) (err error) {
 		user.ID.Set(r.ReadValue().(int32))
 		user.Name.Set(r.ReadValue().(string))
+		user.Email.SetCoerceNil(r.ReadValue(), box.Empty)
 		user.PasswordDigest = r.ReadValue().([]byte)
 		user.PasswordSalt = r.ReadValue().([]byte)
 		return
@@ -315,8 +321,8 @@ func afterConnect(conn *pgx.Connection) (err error) {
 	}
 
 	err = conn.Prepare("insertUser", `
-    insert into users(name, password_digest, password_salt)
-    values($1, $2, $3)
+    insert into users(name, email, password_digest, password_salt)
+    values($1, $2, $3, $4)
     returning id`)
 	if err != nil {
 		return
@@ -403,12 +409,12 @@ func afterConnect(conn *pgx.Connection) (err error) {
 		return
 	}
 
-	err = conn.Prepare("getUser", `select id, name, password_digest, password_salt from users where id=$1`)
+	err = conn.Prepare("getUser", `select id, name, email, password_digest, password_salt from users where id=$1`)
 	if err != nil {
 		return
 	}
 
-	err = conn.Prepare("getUserByName", `select id, name, password_digest, password_salt from users where name=$1`)
+	err = conn.Prepare("getUserByName", `select id, name, email, password_digest, password_salt from users where name=$1`)
 	if err != nil {
 		return
 	}

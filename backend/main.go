@@ -170,6 +170,7 @@ func (env *environment) CurrentAccount() *currentAccount {
 func RegisterHandler(w http.ResponseWriter, req *http.Request) {
 	var registration struct {
 		Name                 string `json:"name"`
+		Email                string `json:"email"`
 		Password             string `json:"password"`
 		PasswordConfirmation string `json:"passwordConfirmation"`
 	}
@@ -205,7 +206,7 @@ func RegisterHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if userID, err := CreateUser(registration.Name, registration.Password); err == nil {
+	if userID, err := CreateUser(registration.Name, registration.Email, registration.Password); err == nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 
@@ -223,6 +224,10 @@ func RegisterHandler(w http.ResponseWriter, req *http.Request) {
 		if strings.Contains(err.Error(), "users_name_unq") {
 			w.WriteHeader(422)
 			fmt.Fprintln(w, `"name" is already taken`)
+			return
+		} else if strings.Contains(err.Error(), "users_email_key") {
+			w.WriteHeader(422)
+			fmt.Fprintln(w, `"email" is already taken`)
 			return
 		} else {
 			panic(err.Error())

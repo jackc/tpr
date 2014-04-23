@@ -106,13 +106,11 @@ input[type=submit] {
       color: $primary-color;
     }
 
-    input[type=text], input[type=password] {
+    input[type=text], input[type=email], input[type=password] {
       width: 100%;
       font-size: 1.5em;
       margin-bottom: 0.5em;
     }
-
-
 
     a {
       font-size: 0.75em;

@@ -25,7 +25,7 @@ func init() {
 	maxConcurrentFeedFetches = 25
 }
 
-func CreateUser(name string, password string) (userID int32, err error) {
+func CreateUser(name, email, password string) (userID int32, err error) {
 	salt := make([]byte, 8)
 	_, _ = rand.Read(salt)
 
@@ -35,7 +35,13 @@ func CreateUser(name string, password string) (userID int32, err error) {
 		return
 	}
 
-	return repo.CreateUser(name, digest, salt)
+	user := &User{}
+	user.Name.SetCoerceZero(name, box.Empty)
+	user.Email.SetCoerceZero(email, box.Empty)
+	user.PasswordDigest = digest
+	user.PasswordSalt = salt
+
+	return repo.CreateUser(user)
 }
 
 func Subscribe(userID int32, feedURL string) (err error) {

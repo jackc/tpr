@@ -10,7 +10,7 @@ import (
 var notFound = errors.New("not found")
 
 type repository interface {
-	CreateUser(name string, passwordDigest, passwordSalt []byte) (userID int32, err error)
+	CreateUser(user *User) (userID int32, err error)
 	GetUser(userID int32) (*User, error)
 	GetUserByName(name string) (*User, error)
 
@@ -35,6 +35,7 @@ type repository interface {
 type User struct {
 	ID             box.Int32
 	Name           box.String
+	Email          box.String
 	PasswordDigest []byte
 	PasswordSalt   []byte
 }

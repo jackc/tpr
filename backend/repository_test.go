@@ -26,29 +26,43 @@ type SubscriptionFromJSON struct {
 	URL  string `json:url`
 }
 
+func (s *RepositorySuite) newUser() *User {
+	return &User{
+		Name:           box.NewString("test"),
+		PasswordDigest: []byte("digest"),
+		PasswordSalt:   []byte("salt"),
+	}
+}
+
 func (s *RepositorySuite) TestUsers(c *C) {
-	name, passwordDigest, passwordSalt := "test", []byte("digest"), []byte("salt")
-	userID, err := s.repo.CreateUser(name, passwordDigest, passwordSalt)
+	input := &User{
+		Name:           box.NewString("test"),
+		Email:          box.NewString("test@example.com"),
+		PasswordDigest: []byte("digest"),
+		PasswordSalt:   []byte("salt"),
+	}
+	userID, err := s.repo.CreateUser(input)
 	c.Assert(err, IsNil)
 
-	user, err := s.repo.GetUserByName(name)
+	user, err := s.repo.GetUserByName(input.Name.MustGet())
 	c.Assert(err, IsNil)
-	c.Check(user.ID.MustGet(), Equals, userID)
-	c.Check(user.Name.MustGet(), Equals, name)
-	c.Check(bytes.Compare(user.PasswordDigest, passwordDigest), Equals, 0)
-	c.Check(bytes.Compare(user.PasswordSalt, passwordSalt), Equals, 0)
+	c.Check(user.ID.GetCoerceNil(), Equals, userID)
+	c.Check(user.Name.GetCoerceNil(), Equals, input.Name.MustGet())
+	c.Check(user.Email.GetCoerceNil(), Equals, input.Email.MustGet())
+	c.Check(bytes.Compare(user.PasswordDigest, input.PasswordDigest), Equals, 0)
+	c.Check(bytes.Compare(user.PasswordSalt, input.PasswordSalt), Equals, 0)
 
 	user, err = s.repo.GetUser(userID)
 	c.Assert(err, IsNil)
-	c.Check(user.ID.MustGet(), Equals, userID)
-	c.Check(user.Name.MustGet(), Equals, name)
-	c.Check(bytes.Compare(user.PasswordDigest, passwordDigest), Equals, 0)
-	c.Check(bytes.Compare(user.PasswordSalt, passwordSalt), Equals, 0)
+	c.Check(user.ID.GetCoerceNil(), Equals, userID)
+	c.Check(user.Name.GetCoerceNil(), Equals, input.Name.MustGet())
+	c.Check(user.Email.GetCoerceNil(), Equals, input.Email.MustGet())
+	c.Check(bytes.Compare(user.PasswordDigest, input.PasswordDigest), Equals, 0)
+	c.Check(bytes.Compare(user.PasswordSalt, input.PasswordSalt), Equals, 0)
 }
 
 func (s *RepositorySuite) BenchmarkGetUser(c *C) {
-	name, passwordDigest, passwordSalt := "test", []byte("digest"), []byte("salt")
-	userID, err := s.repo.CreateUser(name, passwordDigest, passwordSalt)
+	userID, err := s.repo.CreateUser(s.newUser())
 	c.Assert(err, IsNil)
 
 	c.ResetTimer()
@@ -59,19 +73,19 @@ func (s *RepositorySuite) BenchmarkGetUser(c *C) {
 }
 
 func (s *RepositorySuite) BenchmarkGetUserByName(c *C) {
-	name, passwordDigest, passwordSalt := "test", []byte("digest"), []byte("salt")
-	_, err := s.repo.CreateUser(name, passwordDigest, passwordSalt)
+	user := s.newUser()
+	_, err := s.repo.CreateUser(user)
 	c.Assert(err, IsNil)
 
 	c.ResetTimer()
 	for i := 0; i < c.N; i++ {
-		_, err := s.repo.GetUserByName(name)
+		_, err := s.repo.GetUserByName(user.Name.MustGet())
 		c.Assert(err, IsNil)
 	}
 }
 
 func (s *RepositorySuite) TestFeeds(c *C) {
-	userID, err := s.repo.CreateUser("test", []byte("digest"), []byte("salt"))
+	userID, err := s.repo.CreateUser(s.newUser())
 	c.Assert(err, IsNil)
 
 	now := time.Now()
@@ -123,7 +137,7 @@ func (s *RepositorySuite) TestFeeds(c *C) {
 }
 
 func (s *RepositorySuite) TestUpdateFeedWithFetchSuccess(c *C) {
-	userID, err := s.repo.CreateUser("test", []byte("digest"), []byte("salt"))
+	userID, err := s.repo.CreateUser(s.newUser())
 	c.Assert(err, IsNil)
 
 	now := time.Now()
@@ -176,7 +190,7 @@ func (s *RepositorySuite) TestUpdateFeedWithFetchSuccess(c *C) {
 // This function is a nasty copy and paste of testRepositoryUpdateFeedWithFetchSuccess
 // Fix me when refactoring tests
 func (s *RepositorySuite) TestUpdateFeedWithFetchSuccessWithoutPublicationTime(c *C) {
-	userID, err := s.repo.CreateUser("test", []byte("digest"), []byte("salt"))
+	userID, err := s.repo.CreateUser(s.newUser())
 	c.Assert(err, IsNil)
 
 	now := time.Now()
@@ -227,7 +241,7 @@ func (s *RepositorySuite) TestUpdateFeedWithFetchSuccessWithoutPublicationTime(c
 }
 
 func (s *RepositorySuite) TestSubscriptions(c *C) {
-	userID, err := s.repo.CreateUser("test", []byte("digest"), []byte("salt"))
+	userID, err := s.repo.CreateUser(s.newUser())
 	c.Assert(err, IsNil)
 
 	url := "http://foo"
@@ -241,7 +255,7 @@ func (s *RepositorySuite) TestSubscriptions(c *C) {
 }
 
 func (s *RepositorySuite) TestDeleteSubscription(c *C) {
-	userID, err := s.repo.CreateUser("test", []byte("digest"), []byte("salt"))
+	userID, err := s.repo.CreateUser(s.newUser())
 	c.Assert(err, IsNil)
 
 	err = s.repo.CreateSubscription(userID, "http://foo")
@@ -280,7 +294,7 @@ func (s *RepositorySuite) TestDeleteSubscription(c *C) {
 }
 
 func (s *RepositorySuite) TestCopySubscriptionsForUserAsJSON(c *C) {
-	userID, err := s.repo.CreateUser("test", []byte("digest"), []byte("salt"))
+	userID, err := s.repo.CreateUser(s.newUser())
 	c.Assert(err, IsNil)
 
 	buffer := &bytes.Buffer{}
@@ -297,7 +311,7 @@ func (s *RepositorySuite) TestCopySubscriptionsForUserAsJSON(c *C) {
 }
 
 func (s *RepositorySuite) TestSessions(c *C) {
-	userID, err := s.repo.CreateUser("test", []byte("digest"), []byte("salt"))
+	userID, err := s.repo.CreateUser(s.newUser())
 	c.Assert(err, IsNil)
 
 	sessionID := []byte("deadbeef")
