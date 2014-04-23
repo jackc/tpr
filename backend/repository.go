@@ -2,12 +2,21 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"github.com/JackC/box"
 	"io"
 	"time"
 )
 
 var notFound = errors.New("not found")
+
+type DuplicationError struct {
+	Field string // Field or fields that caused the rejection
+}
+
+func (e DuplicationError) Error() string {
+	return fmt.Sprintf("%s is already taken", e.Field)
+}
 
 type repository interface {
 	CreateUser(user *User) (userID int32, err error)

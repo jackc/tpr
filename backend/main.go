@@ -18,7 +18,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -221,16 +220,13 @@ func RegisterHandler(w http.ResponseWriter, req *http.Request) {
 		encoder := json.NewEncoder(w)
 		encoder.Encode(response)
 	} else {
-		if strings.Contains(err.Error(), "users_name_unq") {
+		if err, ok := err.(DuplicationError); ok {
 			w.WriteHeader(422)
-			fmt.Fprintln(w, `"name" is already taken`)
-			return
-		} else if strings.Contains(err.Error(), "users_email_key") {
-			w.WriteHeader(422)
-			fmt.Fprintln(w, `"email" is already taken`)
+			fmt.Fprintf(w, `"%s" is already taken`, err.Field)
 			return
 		} else {
-			panic(err.Error())
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
 		}
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/JackC/pgx"
 	"io"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -32,11 +33,16 @@ func (repo *pgxRepository) CreateUser(user *User) (int32, error) {
 		user.PasswordDigest,
 		user.PasswordSalt)
 	if err != nil {
+		if strings.Contains(err.Error(), "users_name_unq") {
+			return 0, DuplicationError{Field: "name"}
+		}
+		if strings.Contains(err.Error(), "users_email_key") {
+			return 0, DuplicationError{Field: "email"}
+		}
 		return 0, err
 	}
-	userID := v.(int32)
 
-	return userID, err
+	return v.(int32), nil
 }
 
 func (repo *pgxRepository) GetUser(userID int32) (*User, error) {

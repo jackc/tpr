@@ -34,7 +34,7 @@ func (s *RepositorySuite) newUser() *User {
 	}
 }
 
-func (s *RepositorySuite) TestUsers(c *C) {
+func (s *RepositorySuite) TestUsersLifeCycle(c *C) {
 	input := &User{
 		Name:           box.NewString("test"),
 		Email:          box.NewString("test@example.com"),
@@ -59,6 +59,26 @@ func (s *RepositorySuite) TestUsers(c *C) {
 	c.Check(user.Email.GetCoerceNil(), Equals, input.Email.MustGet())
 	c.Check(bytes.Compare(user.PasswordDigest, input.PasswordDigest), Equals, 0)
 	c.Check(bytes.Compare(user.PasswordSalt, input.PasswordSalt), Equals, 0)
+}
+
+func (s *RepositorySuite) TestCreateUserHandlesNameUniqueness(c *C) {
+	u := s.newUser()
+	_, err := s.repo.CreateUser(u)
+	c.Assert(err, IsNil)
+
+	_, err = s.repo.CreateUser(u)
+	c.Assert(err, Equals, DuplicationError{Field: "name"})
+}
+
+func (s *RepositorySuite) TestCreateUserHandlesEmailUniqueness(c *C) {
+	u := s.newUser()
+	u.Email.Set("test@example.com")
+	_, err := s.repo.CreateUser(u)
+	c.Assert(err, IsNil)
+
+	u.Name.Set("othername")
+	_, err = s.repo.CreateUser(u)
+	c.Assert(err, Equals, DuplicationError{Field: "email"})
 }
 
 func (s *RepositorySuite) BenchmarkGetUser(c *C) {
