@@ -43,7 +43,7 @@ file "build/tpr.1.gz" => "man/tpr.md" do
 
   # Shelling out to gzip instead of doing it in memory because lintian doesn't
   # consider it to have been done at max compression
-  File.write "build/tpr.1"
+  File.write "build/tpr.1", roff
   sh "gzip", "-9", "build/tpr.1"
 end
 
