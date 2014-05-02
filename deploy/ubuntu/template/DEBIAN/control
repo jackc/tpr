@@ -1,5 +1,5 @@
 Package: tpr
-Architecture: all
+Architecture: amd64
 Maintainer: Jack Christensen <jack@jackchristensen.com>
 Depends: debconf (>= 0.5.00), adduser
 Priority: optional
