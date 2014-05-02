@@ -9,6 +9,7 @@ require "rake/clean"
 require "fileutils"
 require "rspec/core/rake_task"
 require "erb"
+require "md2man/roff/engine"
 
 CLOBBER.include("build")
 
@@ -26,14 +27,28 @@ namespace :build do
 
   desc "Build tpr binary"
   task binary: "build/tpr"
+
+  desc "Build tpr man page"
+  task man: "build/tpr.1.gz"
 end
 
 file "build/tpr" => ["build:directory", *FileList["backend/*.go"]] do |t|
   sh "go build -o build/tpr github.com/JackC/tpr/backend"
 end
 
-desc "Build assets and binary"
-task build: ["build:assets", "build:binary"]
+file "build/tpr.1.gz" => "man/tpr.md" do
+  md_template = File.read("man/tpr.md")
+  md = ERB.new(md_template).result binding
+  roff = Md2Man::Roff::ENGINE.render(md)
+
+  # Shelling out to gzip instead of doing it in memory because lintian doesn't
+  # consider it to have been done at max compression
+  File.write "build/tpr.1"
+  sh "gzip", "-9", "build/tpr.1"
+end
+
+desc "Build all"
+task build: ["build:assets", "build:binary", "build:man"]
 
 desc "Run tpr"
 task run: "build:binary" do
@@ -78,8 +93,10 @@ file "tpr_#{VERSION}.deb" => :build do
 
   FileUtils.rm "#{pkg_dir}/usr/bin/.gitignore"
   FileUtils.rm "#{pkg_dir}/usr/share/tpr/.gitignore"
+  FileUtils.rm "#{pkg_dir}/usr/share/man/man1/.gitignore"
 
   FileUtils.cp "build/tpr", "#{pkg_dir}/usr/bin"
+  FileUtils.cp "build/tpr.1.gz", "#{pkg_dir}/usr/share/man/man1"
   FileUtils.cp_r "build/assets", "#{pkg_dir}/usr/share/tpr"
   FileUtils.cp_r "migrate", "#{pkg_dir}/usr/share/tpr/migrate"
 

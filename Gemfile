@@ -4,6 +4,7 @@ gem 'capybara'
 gem 'ejs'
 gem 'ffaker'
 gem 'launchy'
+gem 'md2man'
 gem 'middleman'
 gem 'middleman-core'
 gem 'oj' # faster JS compiles
