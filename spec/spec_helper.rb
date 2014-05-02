@@ -7,9 +7,16 @@ require 'yaml'
 Dir["#{File.dirname(__FILE__)}/support/**/*.rb"].each {|f| require f}
 
 config = YAML.load File.read('config.test.yml')
-host = config['database']['socket'].sub(/\/[^\/]+$/, '')
+host = if config['database']['socket']
+  config['database']['socket'].sub(/\/[^\/]+$/, '')
+else
+  config['database']['host']
+end
 
-DB = Sequel.postgres host: host, database: config['database']['database']
+DB = Sequel.postgres host: host,
+  password: config['database']['password'],
+  user: config['database']['user'],
+  database: config['database']['database']
 
 Capybara.default_driver = :poltergeist
 Capybara.app_host = "http://#{config['address']}:#{config['port']}"
