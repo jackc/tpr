@@ -1,7 +1,7 @@
 Package: tpr
 Architecture: amd64
 Maintainer: Jack Christensen <jack@jackchristensen.com>
-Depends: debconf (>= 0.5.00), adduser
+Depends: debconf (>= 0.5.00), adduser, libc6
 Priority: optional
 Version: <%= VERSION %>
 Description: The Pithy Reader
