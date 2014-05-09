@@ -3,8 +3,8 @@
 //= require_tree ./templates
 //= require namespace.js
 //= require connection.js
-//= require models/item.coffee
-//= require models/session.coffee
+//= require models/item.js
+//= require models/session.js
 //= require collections/unread_items.js
 //= require views/base.coffee
 //= require views/header.coffee
@@ -13,6 +13,6 @@
 //= require views/home.coffee
 //= require views/register.coffee
 //= require views/working_notice.js
-//= require router.coffee
-//= require initialize.coffee
+//= require router.js
+//= require initialize.js
 
