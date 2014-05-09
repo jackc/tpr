@@ -89,8 +89,8 @@ class App.Views.UnreadItemsList extends App.Views.Base
       when 75 then @selectPrevious()
       # v
       when 86 then @viewSelected()
-      # m and shift
-      when 77 then if e.shiftKey then @collection.markAllRead()
+      # a and shift
+      when 65 then if e.shiftKey then @collection.markAllRead()
 
   selectNext: ->
     return if @itemViews.length == 0
