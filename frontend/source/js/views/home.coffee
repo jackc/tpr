@@ -30,17 +30,29 @@ class App.Views.Actions extends App.Views.Base
     super()
     @collection = options.collection
 
+    @collection = options.collection
+    @collection.changed.add => @render()
+
   render: ->
-    @el.innerHTML = @template()
+    @el.innerHTML = @template({collection: @collection})
     @listen()
 
   listen: ->
     markAllReadLink = @el.querySelector("a.markAllRead")
-    markAllReadLink.addEventListener("click", (e)=> @markAllRead(e))
+    if markAllReadLink
+      markAllReadLink.addEventListener("click", (e)=> @markAllRead(e))
+
+    refreshLink = @el.querySelector("a.refresh")
+    if refreshLink
+      refreshLink.addEventListener("click", (e)=> @refresh(e))
 
   markAllRead: (e)->
     e.preventDefault()
     @collection.markAllRead()
+
+  refresh: (e)->
+    e.preventDefault()
+    @collection.fetch()
 
 class App.Views.UnreadItemsList extends App.Views.Base
   tagName: 'ul'

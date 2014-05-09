@@ -10,6 +10,10 @@ body {
   font-size: 16px;
 }
 
+p.noUnread {
+  color: $dark-contrast-color;
+}
+
 #working_notice {
   position: fixed;
   left: 50%;

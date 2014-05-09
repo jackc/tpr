@@ -1,1 +1,6 @@
+<% if(collection.items.length > 0) { %>
 <a href="#" class="markAllRead button">Mark All Read</a>
+<% } else { %>
+<a href="#" class="refresh button">Refresh</a>
+<p class="noUnread">No unread items as of <%= new Date().toTPRString() %>.</p>
+<% } %>
