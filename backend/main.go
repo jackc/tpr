@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"errors"
-	"flag"
 	"fmt"
+	"github.com/JackC/cli"
 	"github.com/JackC/pgx"
 	qv "github.com/JackC/quo_vadis"
 	"github.com/kylelemons/go-gypsy/yaml"
@@ -30,68 +30,6 @@ var config struct {
 	listenAddress string
 	listenPort    string
 	staticURL     string
-}
-
-func initialize() {
-	var err error
-	var yf *yaml.File
-
-	flag.StringVar(&config.listenAddress, "address", "127.0.0.1", "address to listen on")
-	flag.StringVar(&config.listenPort, "port", "8080", "port to listen on")
-	flag.StringVar(&config.configPath, "config", "config.yml", "path to config file")
-	flag.StringVar(&config.staticURL, "static-url", "", "reverse proxy static asset requests to URL")
-
-	var printVersion bool
-	flag.BoolVar(&printVersion, "version", false, "Print version and exit")
-	flag.Parse()
-
-	if printVersion {
-		fmt.Printf("tpr v%s\n", version)
-		os.Exit(0)
-	}
-
-	givenCliArgs := make(map[string]bool)
-	flag.Visit(func(f *flag.Flag) {
-		givenCliArgs[f.Name] = true
-	})
-
-	if config.configPath, err = filepath.Abs(config.configPath); err != nil {
-		fmt.Fprintf(os.Stderr, "Invalid config path: %v\n", err)
-		os.Exit(1)
-	}
-
-	if yf, err = yaml.ReadFile(config.configPath); err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
-	}
-
-	if !givenCliArgs["address"] {
-		if address, err := yf.Get("address"); err == nil {
-			config.listenAddress = address
-		}
-	}
-
-	if !givenCliArgs["port"] {
-		if port, err := yf.Get("port"); err == nil {
-			config.listenPort = port
-		}
-	}
-
-	var connectionParameters pgx.ConnectionParameters
-	if connectionParameters, err = extractConnectionOptions(yf); err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
-	}
-	pgxLogger := &PackageLogger{logger: logger, pkg: "pgx"}
-	connectionParameters.Logger = pgxLogger
-
-	poolOptions := pgx.ConnectionPoolOptions{MaxConnections: 10, AfterConnect: afterConnect, Logger: pgxLogger}
-
-	repo, err = NewPgxRepository(connectionParameters, poolOptions)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to create pgx repository: %v\n", err)
-		os.Exit(1)
-	}
 }
 
 func extractConnectionOptions(config *yaml.File) (connectionOptions pgx.ConnectionParameters, err error) {
@@ -453,7 +391,81 @@ func GetFeedsHandler(w http.ResponseWriter, req *http.Request, env *environment)
 }
 
 func main() {
-	initialize()
+	app := cli.NewApp()
+	app.Name = "tpr"
+	app.Usage = "The Pithy Reader RSS Aggregator"
+	app.Version = version
+	app.Author = "Jack Christensen"
+	app.Email = "jack@jackchristensen.com"
+
+	app.Commands = []cli.Command{
+		{
+			Name:        "server",
+			ShortName:   "s",
+			Usage:       "run the server",
+			Synopsis:    "[command options]",
+			Description: "run the tpr server",
+			Flags: []cli.Flag{
+				cli.StringFlag{"address, a", "127.0.0.1", "address to listen on"},
+				cli.StringFlag{"port, p", "8080", "port to listen on"},
+				cli.StringFlag{"config, c", "config.yml", "path to config file"},
+				cli.StringFlag{"static-url", "", "reverse proxy static asset requests to URL"},
+			},
+			Action: Serve,
+		},
+	}
+
+	app.Run(os.Args)
+
+}
+
+func Serve(c *cli.Context) {
+	var err error
+	var yf *yaml.File
+
+	config.listenAddress = c.String("address")
+	config.listenPort = c.String("port")
+	config.configPath = c.String("config")
+	config.staticURL = c.String("static-url")
+
+	if config.configPath, err = filepath.Abs(config.configPath); err != nil {
+		fmt.Fprintf(os.Stderr, "Invalid config path: %v\n", err)
+		os.Exit(1)
+	}
+
+	if yf, err = yaml.ReadFile(config.configPath); err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+
+	if !c.IsSet("address") {
+		if address, err := yf.Get("address"); err == nil {
+			config.listenAddress = address
+		}
+	}
+
+	if !c.IsSet("port") {
+		if port, err := yf.Get("port"); err == nil {
+			config.listenPort = port
+		}
+	}
+
+	var connectionParameters pgx.ConnectionParameters
+	if connectionParameters, err = extractConnectionOptions(yf); err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+	pgxLogger := &PackageLogger{logger: logger, pkg: "pgx"}
+	connectionParameters.Logger = pgxLogger
+
+	poolOptions := pgx.ConnectionPoolOptions{MaxConnections: 10, AfterConnect: afterConnect, Logger: pgxLogger}
+
+	repo, err = NewPgxRepository(connectionParameters, poolOptions)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to create pgx repository: %v\n", err)
+		os.Exit(1)
+	}
+
 	router := qv.NewRouter()
 
 	router.Post("/register", http.HandlerFunc(RegisterHandler))

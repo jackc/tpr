@@ -53,7 +53,7 @@ task build: ["build:assets", "build:binary", "build:man"]
 desc "Run tpr"
 task run: "build:binary" do
   puts "Remember to start middleman"
-  exec "build/tpr -config config.yml -static-url http://localhost:4567"
+  exec "build/tpr server --config config.yml --static-url http://localhost:4567"
 end
 
 desc "Watch for source changes and rebuild and rerun"
