@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/JackC/pgx"
-	"github.com/kylelemons/go-gypsy/yaml"
+	"github.com/vaughan0/go-ini"
 	. "gopkg.in/check.v1"
 )
 
@@ -15,13 +15,13 @@ func getFreshPgxRepository(c *C) repository {
 
 	if sharedPgxRepository == nil {
 		var connectionParameters pgx.ConnectionParameters
-		var yf *yaml.File
+		var file ini.File
 
-		configPath := "../config.test.yml"
-		yf, err = yaml.ReadFile(configPath)
+		configPath := "../tpr.test.conf"
+		file, err = ini.LoadFile(configPath)
 		c.Assert(err, IsNil)
 
-		connectionParameters, err = extractConnectionOptions(yf)
+		connectionParameters, err = extractConnectionOptions(file)
 		c.Assert(err, IsNil)
 
 		connectionPoolOptions := pgx.ConnectionPoolOptions{MaxConnections: 1, AfterConnect: afterConnect}

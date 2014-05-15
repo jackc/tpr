@@ -1,6 +1,0 @@
-address: 127.0.0.1
-port: 5000
-database:
-  socket: /private/tmp/.s.PGSQL.5432
-  database: tpr_test
-  user: jack

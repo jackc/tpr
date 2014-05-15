@@ -11,7 +11,7 @@ import (
 	"github.com/JackC/cli"
 	"github.com/JackC/pgx"
 	qv "github.com/JackC/quo_vadis"
-	"github.com/kylelemons/go-gypsy/yaml"
+	"github.com/vaughan0/go-ini"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -32,24 +32,33 @@ var config struct {
 	staticURL     string
 }
 
-func extractConnectionOptions(config *yaml.File) (connectionOptions pgx.ConnectionParameters, err error) {
-	connectionOptions.Host, _ = config.Get("database.host")
-	connectionOptions.Socket, _ = config.Get("database.socket")
+func extractConnectionOptions(file ini.File) (connectionOptions pgx.ConnectionParameters, err error) {
+	connectionOptions.Host, _ = file.Get("database", "host")
+	connectionOptions.Socket, _ = file.Get("database", "socket")
 	if connectionOptions.Host == "" && connectionOptions.Socket == "" {
 		err = errors.New("Config must contain database.host or database.socket but it does not")
 		return
 	}
-	port, _ := config.GetInt("database.port")
-	connectionOptions.Port = uint16(port)
-	if connectionOptions.Database, err = config.Get("database.database"); err != nil {
+
+	if p, ok := file.Get("database", "port"); ok {
+		n, err := strconv.ParseUint(p, 10, 16)
+		connectionOptions.Port = uint16(n)
+		if err != nil {
+			return connectionOptions, err
+		}
+	}
+
+	var ok bool
+
+	if connectionOptions.Database, ok = file.Get("database", "database"); !ok {
 		err = errors.New("Config must contain database.database but it does not")
 		return
 	}
-	if connectionOptions.User, err = config.Get("database.user"); err != nil {
+	if connectionOptions.User, ok = file.Get("database", "user"); !ok {
 		err = errors.New("Config must contain database.user but it does not")
 		return
 	}
-	connectionOptions.Password, _ = config.Get("database.password")
+	connectionOptions.Password, _ = file.Get("database", "password")
 	return
 }
 
@@ -408,7 +417,7 @@ func main() {
 			Flags: []cli.Flag{
 				cli.StringFlag{"address, a", "127.0.0.1", "address to listen on"},
 				cli.StringFlag{"port, p", "8080", "port to listen on"},
-				cli.StringFlag{"config, c", "config.yml", "path to config file"},
+				cli.StringFlag{"config, c", "config.conf", "path to config file"},
 				cli.StringFlag{"static-url", "", "reverse proxy static asset requests to URL"},
 			},
 			Action: Serve,
@@ -421,7 +430,6 @@ func main() {
 
 func Serve(c *cli.Context) {
 	var err error
-	var yf *yaml.File
 
 	config.listenAddress = c.String("address")
 	config.listenPort = c.String("port")
@@ -433,25 +441,30 @@ func Serve(c *cli.Context) {
 		os.Exit(1)
 	}
 
-	if yf, err = yaml.ReadFile(config.configPath); err != nil {
+	file, err := ini.LoadFile(config.configPath)
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 
+	var ok bool
+
 	if !c.IsSet("address") {
-		if address, err := yf.Get("address"); err == nil {
-			config.listenAddress = address
+		if config.listenAddress, ok = file.Get("server", "address"); !ok {
+			fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(1)
 		}
 	}
 
 	if !c.IsSet("port") {
-		if port, err := yf.Get("port"); err == nil {
-			config.listenPort = port
+		if config.listenPort, ok = file.Get("server", "port"); !ok {
+			fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(1)
 		}
 	}
 
 	var connectionParameters pgx.ConnectionParameters
-	if connectionParameters, err = extractConnectionOptions(yf); err != nil {
+	if connectionParameters, err = extractConnectionOptions(file); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}

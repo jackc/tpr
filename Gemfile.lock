@@ -38,6 +38,7 @@ GEM
       tilt
     hike (1.2.3)
     i18n (0.6.9)
+    inifile (2.0.2)
     json (1.8.1)
     kramdown (1.3.2)
     launchy (2.4.2)
@@ -148,6 +149,7 @@ DEPENDENCIES
   capybara
   ejs
   ffaker
+  inifile
   launchy
   md2man
   middleman

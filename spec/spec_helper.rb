@@ -2,13 +2,13 @@ require 'capybara/rspec'
 require 'capybara/poltergeist'
 require 'sequel'
 require 'pry'
-require 'yaml'
+require 'inifile'
 
 Dir["#{File.dirname(__FILE__)}/support/**/*.rb"].each {|f| require f}
 
-config = YAML.load File.read('config.test.yml')
+config = IniFile.load 'tpr.test.conf'
 host = if config['database']['socket']
-  config['database']['socket'].sub(/\/[^\/]+$/, '')
+  config['database']['socket']
 else
   config['database']['host']
 end
@@ -19,7 +19,7 @@ DB = Sequel.postgres host: host,
   database: config['database']['database']
 
 Capybara.default_driver = :poltergeist
-Capybara.app_host = "http://#{config['address']}:#{config['port']}"
+Capybara.app_host = "http://#{config['server']['address']}:#{config['server']['port']}"
 
 RSpec.configure do |config|
   config.include FactoryHelper
