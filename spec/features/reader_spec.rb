@@ -23,6 +23,8 @@ feature 'Reader' do
 
     click_on 'Mark All Read'
 
+    expect(page).to have_content 'Refresh'
+
     # Add another item
     another_item_id = create_item feed_id: feed_id, title: 'Third Post'
     DB[:unread_items].insert user_id: user_id, feed_id: feed_id, item_id: another_item_id
