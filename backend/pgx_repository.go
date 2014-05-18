@@ -210,7 +210,7 @@ func (repo *pgxRepository) DeleteSession(id []byte) error {
 func (repo *pgxRepository) empty() error {
 	tables := []string{"feeds", "items", "sessions", "subscriptions", "unread_items", "users"}
 	for _, table := range tables {
-		_, err := repo.pool.Execute(fmt.Sprintf("truncate %s cascade", table))
+		_, err := repo.pool.Execute(fmt.Sprintf("delete from %s", table))
 		if err != nil {
 			return err
 		}
