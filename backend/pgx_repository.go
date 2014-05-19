@@ -12,12 +12,12 @@ import (
 )
 
 type pgxRepository struct {
-	pool *pgx.ConnectionPool
+	pool *pgx.ConnPool
 }
 
-func NewPgxRepository(parameters pgx.ConnectionParameters, options pgx.ConnectionPoolOptions) (*pgxRepository, error) {
-	parameters.MsgBufSize = 16 * 1024
-	pool, err := pgx.NewConnectionPool(parameters, options)
+func NewPgxRepository(connPoolConfig pgx.ConnPoolConfig) (*pgxRepository, error) {
+	connPoolConfig.MsgBufSize = 16 * 1024
+	pool, err := pgx.NewConnPool(connPoolConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +87,7 @@ func (repo *pgxRepository) GetFeedsUncheckedSince(since time.Time) (feeds []Feed
 }
 
 func (repo *pgxRepository) UpdateFeedWithFetchSuccess(feedID int32, update *parsedFeed, etag box.String, fetchTime time.Time) (err error) {
-	var conn *pgx.Connection
+	var conn *pgx.Conn
 
 	conn, err = repo.pool.Acquire()
 	if err != nil {
@@ -269,7 +269,7 @@ func (repo *pgxRepository) buildNewItemsSQL(feedID int32, items []parsedItem) (s
 }
 
 // afterConnect creates the prepared statements that this application uses
-func afterConnect(conn *pgx.Connection) (err error) {
+func afterConnect(conn *pgx.Conn) (err error) {
 	err = conn.Prepare("getUnreadItems", `
     select coalesce(json_agg(row_to_json(t)), '[]'::json)
     from (

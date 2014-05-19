@@ -26,33 +26,33 @@ var config struct {
 	staticURL     string
 }
 
-func extractConnectionOptions(file ini.File) (connectionOptions pgx.ConnectionParameters, err error) {
-	connectionOptions.Host, _ = file.Get("database", "host")
-	connectionOptions.Socket, _ = file.Get("database", "socket")
-	if connectionOptions.Host == "" && connectionOptions.Socket == "" {
+func extractConnConfig(file ini.File) (connConfig pgx.ConnConfig, err error) {
+	connConfig.Host, _ = file.Get("database", "host")
+	connConfig.Socket, _ = file.Get("database", "socket")
+	if connConfig.Host == "" && connConfig.Socket == "" {
 		err = errors.New("Config must contain database.host or database.socket but it does not")
 		return
 	}
 
 	if p, ok := file.Get("database", "port"); ok {
 		n, err := strconv.ParseUint(p, 10, 16)
-		connectionOptions.Port = uint16(n)
+		connConfig.Port = uint16(n)
 		if err != nil {
-			return connectionOptions, err
+			return connConfig, err
 		}
 	}
 
 	var ok bool
 
-	if connectionOptions.Database, ok = file.Get("database", "database"); !ok {
+	if connConfig.Database, ok = file.Get("database", "database"); !ok {
 		err = errors.New("Config must contain database.database but it does not")
 		return
 	}
-	if connectionOptions.User, ok = file.Get("database", "user"); !ok {
+	if connConfig.User, ok = file.Get("database", "user"); !ok {
 		err = errors.New("Config must contain database.user but it does not")
 		return
 	}
-	connectionOptions.Password, _ = file.Get("database", "password")
+	connConfig.Password, _ = file.Get("database", "password")
 	return
 }
 
@@ -120,17 +120,14 @@ func Serve(c *cli.Context) {
 		}
 	}
 
-	var connectionParameters pgx.ConnectionParameters
-	if connectionParameters, err = extractConnectionOptions(file); err != nil {
+	poolConfig := pgx.ConnPoolConfig{MaxConnections: 10, AfterConnect: afterConnect}
+	if poolConfig.ConnConfig, err = extractConnConfig(file); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
-	pgxLogger := &PackageLogger{logger: logger, pkg: "pgx"}
-	connectionParameters.Logger = pgxLogger
+	poolConfig.Logger = &PackageLogger{logger: logger, pkg: "pgx"}
 
-	poolOptions := pgx.ConnectionPoolOptions{MaxConnections: 10, AfterConnect: afterConnect, Logger: pgxLogger}
-
-	repo, err = NewPgxRepository(connectionParameters, poolOptions)
+	repo, err = NewPgxRepository(poolConfig)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to create pgx repository: %v\n", err)
 		os.Exit(1)

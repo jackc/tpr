@@ -14,18 +14,16 @@ func getFreshPgxRepository(c *C) repository {
 	var err error
 
 	if sharedPgxRepository == nil {
-		var connectionParameters pgx.ConnectionParameters
-		var file ini.File
+		connPoolConfig := pgx.ConnPoolConfig{MaxConnections: 1, AfterConnect: afterConnect}
 
 		configPath := "../tpr.test.conf"
-		file, err = ini.LoadFile(configPath)
+		file, err := ini.LoadFile(configPath)
 		c.Assert(err, IsNil)
 
-		connectionParameters, err = extractConnectionOptions(file)
+		connPoolConfig.ConnConfig, err = extractConnConfig(file)
 		c.Assert(err, IsNil)
 
-		connectionPoolOptions := pgx.ConnectionPoolOptions{MaxConnections: 1, AfterConnect: afterConnect}
-		sharedPgxRepository, err = NewPgxRepository(connectionParameters, connectionPoolOptions)
+		sharedPgxRepository, err = NewPgxRepository(connPoolConfig)
 		c.Assert(err, IsNil)
 	}
 
