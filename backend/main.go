@@ -15,7 +15,7 @@ import (
 	"strconv"
 )
 
-const version = "0.5.1"
+const version = "0.6.0pre"
 
 var repo repository
 
@@ -74,10 +74,21 @@ func main() {
 			Flags: []cli.Flag{
 				cli.StringFlag{"address, a", "127.0.0.1", "address to listen on"},
 				cli.StringFlag{"port, p", "8080", "port to listen on"},
-				cli.StringFlag{"config, c", "config.conf", "path to config file"},
+				cli.StringFlag{"config, c", "tpr.conf", "path to config file"},
 				cli.StringFlag{"static-url", "", "reverse proxy static asset requests to URL"},
 			},
 			Action: Serve,
+		},
+		{
+			Name:        "reset-password",
+			Usage:       "reset a user's password",
+			Synopsis:    "[command options] username",
+			Description: "reset a user's password",
+			Flags: []cli.Flag{
+				cli.StringFlag{"config, c", "tpr.conf", "path to config file"},
+				cli.StringFlag{"password, p", "", "password to set"},
+			},
+			Action: ResetPassword,
 		},
 	}
 
@@ -85,7 +96,7 @@ func main() {
 
 }
 
-func Serve(c *cli.Context) {
+func configure(c *cli.Context) error {
 	var err error
 
 	config.listenAddress = c.String("address")
@@ -94,42 +105,46 @@ func Serve(c *cli.Context) {
 	config.staticURL = c.String("static-url")
 
 	if config.configPath, err = filepath.Abs(config.configPath); err != nil {
-		fmt.Fprintf(os.Stderr, "Invalid config path: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("Invalid config path: %v", err)
 	}
 
 	file, err := ini.LoadFile(config.configPath)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
+		return fmt.Errorf("Failed to load config file: %v", err)
 	}
 
 	var ok bool
 
 	if !c.IsSet("address") {
 		if config.listenAddress, ok = file.Get("server", "address"); !ok {
-			fmt.Fprintln(os.Stderr, err.Error())
-			os.Exit(1)
+			return errors.New("Missing server address")
 		}
 	}
 
 	if !c.IsSet("port") {
 		if config.listenPort, ok = file.Get("server", "port"); !ok {
-			fmt.Fprintln(os.Stderr, err.Error())
-			os.Exit(1)
+			return errors.New("Missing server port")
 		}
 	}
 
 	poolConfig := pgx.ConnPoolConfig{MaxConnections: 10, AfterConnect: afterConnect}
 	if poolConfig.ConnConfig, err = extractConnConfig(file); err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
+		return fmt.Errorf("Error reading database connection: %v", err.Error())
 	}
 	poolConfig.Logger = &PackageLogger{logger: logger, pkg: "pgx"}
 
 	repo, err = NewPgxRepository(poolConfig)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to create pgx repository: %v\n", err)
+		return fmt.Errorf("Unable to create pgx repository: %v", err)
+	}
+
+	return nil
+}
+
+func Serve(c *cli.Context) {
+	err := configure(c)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
@@ -165,4 +180,46 @@ func Serve(c *cli.Context) {
 		os.Stderr.WriteString("Could not start web server!\n")
 		os.Exit(1)
 	}
+}
+
+func ResetPassword(c *cli.Context) {
+	if len(c.Args()) != 1 {
+		cli.ShowCommandHelp(c, c.Command.Name)
+		os.Exit(1)
+	}
+
+	name := c.Args()[0]
+
+	err := configure(c)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	password, err := genRandPassword()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	digest, salt, err := digestPassword(password)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	user, err := repo.GetUserByName(name)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	err = repo.UpdateUser(user.ID.MustGet(), &User{PasswordDigest: digest, PasswordSalt: salt})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	fmt.Println("User:", name)
+	fmt.Println("Password:", password)
 }

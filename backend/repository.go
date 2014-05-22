@@ -22,6 +22,7 @@ type repository interface {
 	CreateUser(user *User) (userID int32, err error)
 	GetUser(userID int32) (*User, error)
 	GetUserByName(name string) (*User, error)
+	UpdateUser(userID int32, attributes *User) error
 
 	GetFeedsUncheckedSince(since time.Time) (feeds []Feed, err error)
 	UpdateFeedWithFetchSuccess(feedID int32, update *parsedFeed, etag box.String, fetchTime time.Time) error

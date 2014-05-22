@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"github.com/JackC/box"
 	. "gopkg.in/check.v1"
 	"testing"
@@ -101,6 +102,76 @@ func (s *RepositorySuite) BenchmarkGetUserByName(c *C) {
 	for i := 0; i < c.N; i++ {
 		_, err := s.repo.GetUserByName(user.Name.MustGet())
 		c.Assert(err, IsNil)
+	}
+}
+
+func (s *RepositorySuite) TestUpdateUser(c *C) {
+	err := s.repo.UpdateUser(42, &User{Name: box.NewString("john")})
+	c.Check(err, Equals, notFound)
+
+	tests := []struct {
+		update *User
+	}{
+		{
+			update: &User{Name: box.NewString("john")},
+		},
+		{
+			update: &User{Email: box.NewString("john@example.com")},
+		},
+		{
+			update: &User{
+				PasswordDigest: []byte("newdigest"),
+				PasswordSalt:   []byte("newsalt"),
+			},
+		},
+		{
+			update: &User{
+				Name:           box.NewString("bill"),
+				Email:          box.NewString("bill@example.com"),
+				PasswordDigest: []byte("newdigest"),
+				PasswordSalt:   []byte("newsalt"),
+			},
+		},
+	}
+
+	for i, t := range tests {
+		userID, err := s.repo.CreateUser(&User{
+			Name:           box.NewString(fmt.Sprintf("test%d", i)),
+			Email:          box.NewString(fmt.Sprintf("test%d@example.com", i)),
+			PasswordDigest: []byte("digest"),
+			PasswordSalt:   []byte("salt"),
+		})
+		c.Check(err, IsNil, Commentf("%d", i))
+
+		err = s.repo.UpdateUser(userID, t.update)
+		c.Check(err, IsNil, Commentf("%d", i))
+
+		user, err := s.repo.GetUser(userID)
+		c.Check(err, IsNil, Commentf("%d", i))
+
+		if id, ok := t.update.ID.Get(); ok {
+			c.Check(user.ID.MustGet(), Equals, id, Commentf("%d", i))
+		}
+
+		if name, ok := t.update.Name.Get(); ok {
+			c.Check(user.Name.MustGet(), Equals, name, Commentf("%d", i))
+		}
+
+		if email, ok := t.update.Email.Get(); ok {
+			c.Check(user.Email.MustGet(), Equals, email, Commentf("%d", i))
+		}
+
+		if t.update.PasswordDigest != nil {
+			if bytes.Compare(t.update.PasswordDigest, user.PasswordDigest) != 0 {
+				c.Errorf("%d. PasswordDigest was %v, expected %v", i, user.PasswordDigest, t.update.PasswordDigest)
+			}
+		}
+
+		if t.update.PasswordSalt != nil {
+			if bytes.Compare(t.update.PasswordSalt, user.PasswordSalt) != 0 {
+				c.Errorf("%d. PasswordSalt was %v, expected %v", i, user.PasswordSalt, t.update.PasswordSalt)
+			}
+		}
 	}
 }
 

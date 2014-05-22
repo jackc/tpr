@@ -73,6 +73,38 @@ func (repo *pgxRepository) GetUserByName(name string) (*User, error) {
 	return &user, err
 }
 
+func (repo *pgxRepository) UpdateUser(userID int32, attributes *User) error {
+	var sets []string
+	args := pgx.QueryArgs(make([]interface{}, 0, 6))
+
+	if v, ok := attributes.ID.Get(); ok {
+		sets = append(sets, "id="+args.Append(v))
+	}
+	if v, ok := attributes.Name.Get(); ok {
+		sets = append(sets, "name="+args.Append(v))
+	}
+	if v, ok := attributes.Email.Get(); ok {
+		sets = append(sets, "email="+args.Append(v))
+	}
+	if attributes.PasswordDigest != nil {
+		sets = append(sets, "password_digest="+args.Append(attributes.PasswordDigest))
+	}
+	if attributes.PasswordSalt != nil {
+		sets = append(sets, "password_salt="+args.Append(attributes.PasswordSalt))
+	}
+
+	sql := "update users set " + strings.Join(sets, ", ") + " where id=" + args.Append(userID)
+
+	commandTag, err := repo.pool.Execute(sql, args...)
+	if err != nil {
+		return err
+	}
+	if commandTag.RowsAffected() != 1 {
+		return notFound
+	}
+	return nil
+}
+
 func (repo *pgxRepository) GetFeedsUncheckedSince(since time.Time) (feeds []Feed, err error) {
 	err = repo.pool.SelectFunc("getFeedsUncheckedSince", func(r *pgx.DataRowReader) (err error) {
 		var feed Feed

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"code.google.com/p/go.crypto/scrypt"
 	"crypto/rand"
+	"encoding/hex"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -25,12 +26,32 @@ func init() {
 	maxConcurrentFeedFetches = 25
 }
 
-func CreateUser(name, email, password string) (userID int32, err error) {
-	salt := make([]byte, 8)
-	_, _ = rand.Read(salt)
+func genRandPassword() (string, error) {
+	pwBytes := make([]byte, 6)
+	_, err := rand.Read(pwBytes)
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(pwBytes), nil
+}
 
-	var digest []byte
-	digest, err = scrypt.Key([]byte(password), salt, 16384, 8, 1, 32)
+func digestPassword(password string) ([]byte, []byte, error) {
+	salt := make([]byte, 8)
+	_, err := rand.Read(salt)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	digest, err := scrypt.Key([]byte(password), salt, 16384, 8, 1, 32)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return digest, salt, nil
+}
+
+func CreateUser(name, email, password string) (userID int32, err error) {
+	digest, salt, err := digestPassword(password)
 	if err != nil {
 		return
 	}
