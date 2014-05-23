@@ -67,16 +67,10 @@ feature 'Reader' do
     expect(page).to_not have_content 'First Post'
     expect(page).to have_content 'Second Post'
 
-    # Can't test for Shift+m :(
-    #
-    # Failure/Error: page.find('body').native.send_keys([:shift, "m"])
-    # Capybara::Poltergeist::Error:
-    #   PhantomJS behaviour for key modifiers is currently broken, we will add this in later versions
-
-    # Press Shift+m
-    # page.find('body').native.send_keys([:shift, "m"])
+    # Press Shift+a
+    page.find('body').native.send_keys([:shift, "a"])
 
     # After marking all read the second post is no longer visible
-    # expect(page).to_not have_content 'Second Post'
+    expect(page).to_not have_content 'Second Post'
   end
 end
