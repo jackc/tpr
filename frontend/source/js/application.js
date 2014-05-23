@@ -1,4 +1,3 @@
-//= require polyfill.js
 //= require date.js
 //= require vendor/signals.min.js
 //= require_tree ./templates
