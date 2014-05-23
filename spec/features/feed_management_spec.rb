@@ -21,8 +21,10 @@ feature 'Feed Management' do
 
     click_on 'Feeds'
 
-    attach_file 'OPML File', 'spec/fixtures/opml.xml'
+    attach_file 'OPML File', File.expand_path('spec/fixtures/opml.xml')
     click_on 'Import'
+
+    page.driver.browser.switch_to.alert.accept
 
     within '.feeds > ul' do
       expect(page).to have_content 'http://localhost/rss'

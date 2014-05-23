@@ -1,5 +1,4 @@
 require 'capybara/rspec'
-require 'capybara/poltergeist'
 require 'sequel'
 require 'pry'
 require 'inifile'
@@ -18,7 +17,7 @@ DB = Sequel.postgres host: host,
   user: config['database']['user'],
   database: config['database']['database']
 
-Capybara.default_driver = :poltergeist
+Capybara.default_driver = :selenium
 Capybara.app_host = "http://#{config['server']['address']}:#{config['server']['port']}"
 
 RSpec.configure do |config|

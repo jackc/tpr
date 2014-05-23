@@ -14,6 +14,7 @@
       home: "home",
       register: "register",
       feeds: "feeds",
+      account: "account",
     },
 
     login: function() {
@@ -40,6 +41,15 @@
       }
 
       this.changePage(App.Views.FeedsPage);
+    },
+
+    account: function() {
+      if(!State.Session.isAuthenticated()) {
+        this.navigate("login");
+        return;
+      }
+
+      this.changePage(App.Views.AccountPage);
     },
 
     changePage: function(pageClass, options) {

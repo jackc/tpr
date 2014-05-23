@@ -160,6 +160,7 @@ func Serve(c *cli.Context) {
 	router.Get("/items/unread", ApiSecureHandlerFunc(GetUnreadItemsHandler))
 	router.Post("/items/unread/mark_multiple_read", ApiSecureHandlerFunc(MarkMultipleItemsReadHandler))
 	router.Delete("/items/unread/:id", ApiSecureHandlerFunc(MarkItemReadHandler))
+	router.Patch("/account", ApiSecureHandlerFunc(UpdateAccountHandler))
 	http.Handle("/api/", http.StripPrefix("/api", router))
 
 	if config.staticURL != "" {

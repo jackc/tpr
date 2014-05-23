@@ -60,7 +60,8 @@ feature 'Reader' do
       expect(page).to have_content 'Second Post'
     end
 
-    visit(current_url)
+    click_on 'Feeds'
+    click_on 'Home'
 
     # After reloading the page the first post should no longer be visible, but the second should
     expect(page).to_not have_content 'First Post'

@@ -87,6 +87,10 @@
       this.ajax(url, "POST", options);
     },
 
+    patch: function(url, options) {
+      this.ajax(url, "PATCH", options);
+    },
+
     delete: function(url, options) {
       this.ajax(url, "DELETE", options);
     },
@@ -123,6 +127,16 @@
       options = this.mergeCallbacks(options, callbacks);
 
       return this.post("/api/register", options);
+    },
+
+    updateAccount: function(update, callbacks) {
+      var options = {
+        data: JSON.stringify(update)
+      };
+
+      options = this.mergeCallbacks(options, callbacks);
+
+      return this.patch("/api/account", options);
     },
 
     getFeeds: function(callbacks) {

@@ -10,11 +10,11 @@ gem 'middleman'
 gem 'middleman-core'
 gem 'oj' # faster JS compiles
 gem 'pg'
-gem 'poltergeist'
 gem 'pry'
 gem 'rake'
 gem 'rerun'
 gem 'rspec'
-gem 'sequel'
 gem 'scrypt'
+gem 'selenium-webdriver'
+gem 'sequel'
 gem 'therubyracer' # faster JS compiles

@@ -348,3 +348,38 @@ func GetFeedsHandler(w http.ResponseWriter, req *http.Request, env *environment)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
+
+func UpdateAccountHandler(w http.ResponseWriter, req *http.Request, env *environment) {
+	var update struct {
+		ExistingPassword string `json:"existingPassword"`
+		NewPassword      string `json:"newPassword"`
+	}
+
+	decoder := json.NewDecoder(req.Body)
+	if err := decoder.Decode(&update); err != nil {
+		w.WriteHeader(422)
+		fmt.Fprintf(w, "Error decoding request: %v", err)
+		return
+	}
+
+	// TODO - extract this from here and Register
+	if len(update.NewPassword) < 8 {
+		w.WriteHeader(422)
+		fmt.Fprintln(w, `"password" must be at least than 8 characters`)
+		return
+	}
+
+	digest, salt, err := digestPassword(update.NewPassword)
+	if err != nil {
+		w.WriteHeader(500)
+		fmt.Fprintln(w, `Internal server error`)
+		logger.Error("tpr", fmt.Sprintf(`Digest password: %v`, err))
+	}
+
+	err = repo.UpdateUser(env.CurrentAccount().id, &User{PasswordDigest: digest, PasswordSalt: salt})
+	if err != nil {
+		w.WriteHeader(500)
+		fmt.Fprintln(w, `Internal server error`)
+		logger.Error("tpr", fmt.Sprintf(`UpdateUser: %v`, err))
+	}
+}

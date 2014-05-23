@@ -14,6 +14,32 @@ p.noUnread {
   color: $dark-contrast-color;
 }
 
+form {
+  margin: 1em;
+  padding: 1em;
+  background-color: $light-contrast-color;
+  border-radius: 8px;
+  border: 2px solid $primary-color;
+
+  dl, dd {
+    margin: 0;
+  }
+
+  label {
+    color: $primary-color;
+  }
+
+  input[type=text], input[type=password] {
+    width: 100%;
+    font-size: 1.5em;
+    margin-bottom: 0.5em;
+  }
+
+  input[type=file] {
+    margin-bottom: 0.5em;
+  }
+}
+
 #working_notice {
   position: fixed;
   left: 50%;
@@ -151,32 +177,6 @@ input[type=submit] {
 }
 
 #view > .feeds {
-  form {
-    margin: 1em;
-    padding: 1em;
-    background-color: $light-contrast-color;
-    border-radius: 8px;
-    border: 2px solid $primary-color;
-
-    dl, dd {
-      margin: 0;
-    }
-
-    label {
-      color: $primary-color;
-    }
-
-    input[type=text] {
-      width: 100%;
-      font-size: 1.5em;
-      margin-bottom: 0.5em;
-    }
-
-    input[type=file] {
-      margin-bottom: 0.5em;
-    }
-  }
-
   ul {
     padding: 0 1em 0 1em;
     li {
@@ -197,5 +197,11 @@ input[type=submit] {
         color: $error-color;
       }
     }
+  }
+}
+
+#view > .account {
+  input[type=text], input[type=password] {
+    max-width: 20em;
   }
 }
