@@ -65,10 +65,9 @@ func (env *environment) CurrentAccount() *currentAccount {
 
 func RegisterHandler(w http.ResponseWriter, req *http.Request) {
 	var registration struct {
-		Name                 string `json:"name"`
-		Email                string `json:"email"`
-		Password             string `json:"password"`
-		PasswordConfirmation string `json:"passwordConfirmation"`
+		Name     string `json:"name"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 
 	decoder := json.NewDecoder(req.Body)
@@ -90,15 +89,10 @@ func RegisterHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if len(registration.Password) < 8 {
+	err := validatePassword(registration.Password)
+	if err != nil {
 		w.WriteHeader(422)
-		fmt.Fprintln(w, `"password" must be at least than 8 characters`)
-		return
-	}
-
-	if registration.Password != registration.PasswordConfirmation {
-		w.WriteHeader(422)
-		fmt.Fprintln(w, `"passwordConfirmation" must equal "password"`)
+		fmt.Fprintln(w, err)
 		return
 	}
 
@@ -362,10 +356,10 @@ func UpdateAccountHandler(w http.ResponseWriter, req *http.Request, env *environ
 		return
 	}
 
-	// TODO - extract this from here and Register
-	if len(update.NewPassword) < 8 {
+	err := validatePassword(update.NewPassword)
+	if err != nil {
 		w.WriteHeader(422)
-		fmt.Fprintln(w, `"password" must be at least than 8 characters`)
+		fmt.Fprintln(w, err)
 		return
 	}
 

@@ -26,6 +26,14 @@ func init() {
 	maxConcurrentFeedFetches = 25
 }
 
+func validatePassword(password string) error {
+	if len(password) < 8 {
+		return errors.New("password must be at least 8 characters")
+	}
+
+	return nil
+}
+
 func genRandPassword() (string, error) {
 	pwBytes := make([]byte, 6)
 	_, err := rand.Read(pwBytes)

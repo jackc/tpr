@@ -23,11 +23,16 @@
   p.register = function(e) {
     e.preventDefault()
     var form = e.target
+
+    if(form.elements.password.value != form.elements.passwordConfirmation.value) {
+      alert("Password and confirmation must match.")
+      return
+    }
+
     var registration = {
       name: form.elements.name.value,
       email: form.elements.email.value,
-      password: form.elements.password.value,
-      passwordConfirmation: form.elements.passwordConfirmation.value
+      password: form.elements.password.value
     }
     conn.register(registration, {
       succeeded: this.onRegistrationSuccess,
