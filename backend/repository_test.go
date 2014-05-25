@@ -22,9 +22,9 @@ func (s *RepositorySuite) SetUpTest(c *C) {
 }
 
 type SubscriptionFromJSON struct {
-	ID   int32  `json:id`
-	Name string `json:name`
-	URL  string `json:url`
+	FeedID int32  `json:"feed_id"`
+	Name   string `json:"name"`
+	URL    string `json:"url"`
 }
 
 func (s *RepositorySuite) newUser() *User {
@@ -244,7 +244,7 @@ func (s *RepositorySuite) TestUpdateFeedWithFetchSuccess(c *C) {
 	var subscriptions []SubscriptionFromJSON
 	err = json.Unmarshal(buffer.Bytes(), &subscriptions)
 	c.Assert(err, IsNil)
-	feedID := subscriptions[0].ID
+	feedID := subscriptions[0].FeedID
 
 	update := &parsedFeed{name: "baz", items: []parsedItem{
 		{url: "http://baz/bar", title: "Baz", publicationTime: box.NewTime(now)},
@@ -297,7 +297,7 @@ func (s *RepositorySuite) TestUpdateFeedWithFetchSuccessWithoutPublicationTime(c
 	var subscriptions []SubscriptionFromJSON
 	err = json.Unmarshal(buffer.Bytes(), &subscriptions)
 	c.Assert(err, IsNil)
-	feedID := subscriptions[0].ID
+	feedID := subscriptions[0].FeedID
 
 	update := &parsedFeed{name: "baz", items: []parsedItem{
 		{url: "http://baz/bar", title: "Baz"},
@@ -359,7 +359,7 @@ func (s *RepositorySuite) TestDeleteSubscription(c *C) {
 	var subscriptions []SubscriptionFromJSON
 	err = json.Unmarshal(buffer.Bytes(), &subscriptions)
 	c.Assert(err, IsNil)
-	feedID := subscriptions[0].ID
+	feedID := subscriptions[0].FeedID
 
 	update := &parsedFeed{name: "baz", items: []parsedItem{
 		{url: "http://baz/bar", title: "Baz", publicationTime: box.NewTime(time.Now())},

@@ -330,7 +330,7 @@ func afterConnect(conn *pgx.Conn) (err error) {
 	err = conn.Prepare("getFeedsForUser", `
     select coalesce(json_agg(row_to_json(t)), '[]'::json)
     from (
-      select feeds.id,
+      select feeds.id as feed_id,
         name,
         feeds.url,
         extract(epoch from last_fetch_time::timestamptz(0)) as last_fetch_time,

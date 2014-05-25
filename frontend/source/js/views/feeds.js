@@ -170,7 +170,7 @@
   p.unsubscribe = function(e) {
     e.preventDefault()
     if(confirm("Are you sure you want to unsubscribe from " + this.model.name + "?")) {
-      conn.deleteSubscription(this.model.id)
+      conn.deleteSubscription(this.model.feed_id)
       this.remove()
     }
   }
