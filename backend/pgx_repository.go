@@ -186,6 +186,26 @@ func (repo *pgxRepository) CreateSubscription(userID int32, feedURL string) erro
 	return err
 }
 
+func (repo *pgxRepository) GetSubscriptions(userID int32) ([]Subscription, error) {
+	subs := make([]Subscription, 0, 16)
+	err := repo.pool.SelectFunc("getSubscriptions", func(r *pgx.DataRowReader) (err error) {
+		var s Subscription
+		s.FeedID.Set(r.ReadValue().(int32))
+		s.Name.Set(r.ReadValue().(string))
+		s.URL.Set(r.ReadValue().(string))
+		s.LastFetchTime.SetCoerceNil(r.ReadValue(), box.Empty)
+		s.LastFailure.SetCoerceNil(r.ReadValue(), box.Empty)
+		s.LastFailureTime.SetCoerceNil(r.ReadValue(), box.Empty)
+		s.FailureCount.Set(r.ReadValue().(int32))
+		s.ItemCount.Set(r.ReadValue().(int64))
+		s.LastPublicationTime.SetCoerceNil(r.ReadValue(), box.Empty)
+		subs = append(subs, s)
+		return
+	}, userID)
+
+	return subs, err
+}
+
 func (repo *pgxRepository) DeleteSubscription(userID, feedID int32) error {
 	conn, err := repo.pool.Acquire()
 	if err != nil {
@@ -415,6 +435,26 @@ func afterConnect(conn *pgx.Conn) (err error) {
 	}
 
 	err = conn.Prepare("createSubscription", `select create_subscription($1::integer, $2::varchar)`)
+	if err != nil {
+		return
+	}
+
+	err = conn.Prepare("getSubscriptions", `
+    select feeds.id as feed_id,
+      name,
+      feeds.url,
+      last_fetch_time,
+      last_failure,
+      last_failure_time,
+      failure_count,
+      count(items.id) as item_count,
+      max(items.publication_time::timestamptz) as last_publication_time
+    from feeds
+      join subscriptions on feeds.id=subscriptions.feed_id
+      left join items on feeds.id=items.feed_id
+    where user_id=$1
+    group by feeds.id
+    order by name`)
 	if err != nil {
 		return
 	}

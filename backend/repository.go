@@ -35,6 +35,7 @@ type repository interface {
 	MarkItemRead(userID, itemID int32) error
 
 	CreateSubscription(userID int32, feedURL string) (err error)
+	GetSubscriptions(userID int32) ([]Subscription, error)
 	DeleteSubscription(userID, feedID int32) (err error)
 
 	CreateSession(id []byte, userID int32) (err error)
@@ -60,6 +61,18 @@ type Feed struct {
 	LastFailureTime box.Time
 	FailureCount    box.Int32
 	CreationTime    box.Time
+}
+
+type Subscription struct {
+	FeedID              box.Int32
+	Name                box.String
+	URL                 box.String
+	LastFetchTime       box.Time
+	LastFailure         box.String
+	LastFailureTime     box.Time
+	FailureCount        box.Int32
+	ItemCount           box.Int64
+	LastPublicationTime box.Time
 }
 
 type staleFeed struct {

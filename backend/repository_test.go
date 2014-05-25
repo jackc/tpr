@@ -21,12 +21,6 @@ func (s *RepositorySuite) SetUpTest(c *C) {
 	s.repo = s.GetFreshRepository(c)
 }
 
-type SubscriptionFromJSON struct {
-	FeedID int32  `json:"feed_id"`
-	Name   string `json:"name"`
-	URL    string `json:"url"`
-}
-
 func (s *RepositorySuite) newUser() *User {
 	return &User{
 		Name:           box.NewString("test"),
@@ -237,14 +231,10 @@ func (s *RepositorySuite) TestUpdateFeedWithFetchSuccess(c *C) {
 	err = s.repo.CreateSubscription(userID, url)
 	c.Assert(err, IsNil)
 
-	buffer := &bytes.Buffer{}
-	err = s.repo.CopySubscriptionsForUserAsJSON(buffer, userID)
+	subscriptions, err := s.repo.GetSubscriptions(userID)
 	c.Assert(err, IsNil)
-
-	var subscriptions []SubscriptionFromJSON
-	err = json.Unmarshal(buffer.Bytes(), &subscriptions)
-	c.Assert(err, IsNil)
-	feedID := subscriptions[0].FeedID
+	c.Assert(subscriptions, HasLen, 1)
+	feedID := subscriptions[0].FeedID.MustGet()
 
 	update := &parsedFeed{name: "baz", items: []parsedItem{
 		{url: "http://baz/bar", title: "Baz", publicationTime: box.NewTime(now)},
@@ -252,7 +242,7 @@ func (s *RepositorySuite) TestUpdateFeedWithFetchSuccess(c *C) {
 	err = s.repo.UpdateFeedWithFetchSuccess(feedID, update, box.String{}, now)
 	c.Assert(err, IsNil)
 
-	buffer.Reset()
+	buffer := &bytes.Buffer{}
 	err = s.repo.CopyUnreadItemsAsJSONByUserID(buffer, userID)
 	c.Assert(err, IsNil)
 
@@ -290,14 +280,10 @@ func (s *RepositorySuite) TestUpdateFeedWithFetchSuccessWithoutPublicationTime(c
 	err = s.repo.CreateSubscription(userID, url)
 	c.Assert(err, IsNil)
 
-	buffer := &bytes.Buffer{}
-	err = s.repo.CopySubscriptionsForUserAsJSON(buffer, userID)
+	subscriptions, err := s.repo.GetSubscriptions(userID)
 	c.Assert(err, IsNil)
-
-	var subscriptions []SubscriptionFromJSON
-	err = json.Unmarshal(buffer.Bytes(), &subscriptions)
-	c.Assert(err, IsNil)
-	feedID := subscriptions[0].FeedID
+	c.Assert(subscriptions, HasLen, 1)
+	feedID := subscriptions[0].FeedID.MustGet()
 
 	update := &parsedFeed{name: "baz", items: []parsedItem{
 		{url: "http://baz/bar", title: "Baz"},
@@ -305,7 +291,7 @@ func (s *RepositorySuite) TestUpdateFeedWithFetchSuccessWithoutPublicationTime(c
 	err = s.repo.UpdateFeedWithFetchSuccess(feedID, update, box.String{}, now)
 	c.Assert(err, IsNil)
 
-	buffer.Reset()
+	buffer := &bytes.Buffer{}
 	err = s.repo.CopyUnreadItemsAsJSONByUserID(buffer, userID)
 	c.Assert(err, IsNil)
 
@@ -339,10 +325,10 @@ func (s *RepositorySuite) TestSubscriptions(c *C) {
 	err = s.repo.CreateSubscription(userID, url)
 	c.Assert(err, IsNil)
 
-	buffer := &bytes.Buffer{}
-	err = s.repo.CopySubscriptionsForUserAsJSON(buffer, userID)
+	subscriptions, err := s.repo.GetSubscriptions(userID)
 	c.Assert(err, IsNil)
-	c.Check(bytes.Contains(buffer.Bytes(), []byte("foo")), Equals, true)
+	c.Assert(subscriptions, HasLen, 1)
+	c.Assert(subscriptions[0].URL.MustGet(), Equals, url)
 }
 
 func (s *RepositorySuite) TestDeleteSubscription(c *C) {
@@ -352,14 +338,10 @@ func (s *RepositorySuite) TestDeleteSubscription(c *C) {
 	err = s.repo.CreateSubscription(userID, "http://foo")
 	c.Assert(err, IsNil)
 
-	buffer := &bytes.Buffer{}
-	err = s.repo.CopySubscriptionsForUserAsJSON(buffer, userID)
+	subscriptions, err := s.repo.GetSubscriptions(userID)
 	c.Assert(err, IsNil)
-
-	var subscriptions []SubscriptionFromJSON
-	err = json.Unmarshal(buffer.Bytes(), &subscriptions)
-	c.Assert(err, IsNil)
-	feedID := subscriptions[0].FeedID
+	c.Assert(subscriptions, HasLen, 1)
+	feedID := subscriptions[0].FeedID.MustGet()
 
 	update := &parsedFeed{name: "baz", items: []parsedItem{
 		{url: "http://baz/bar", title: "Baz", publicationTime: box.NewTime(time.Now())},
@@ -370,11 +352,7 @@ func (s *RepositorySuite) TestDeleteSubscription(c *C) {
 	err = s.repo.DeleteSubscription(userID, feedID)
 	c.Assert(err, IsNil)
 
-	buffer.Reset()
-	err = s.repo.CopySubscriptionsForUserAsJSON(buffer, userID)
-	c.Assert(err, IsNil)
-
-	err = json.Unmarshal(buffer.Bytes(), &subscriptions)
+	subscriptions, err = s.repo.GetSubscriptions(userID)
 	c.Assert(err, IsNil)
 	c.Check(subscriptions, HasLen, 0)
 
