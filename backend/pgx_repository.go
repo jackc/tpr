@@ -45,16 +45,16 @@ func (repo *pgxRepository) CreateUser(user *User) (int32, error) {
 	return v.(int32), nil
 }
 
-func (repo *pgxRepository) GetUser(userID int32) (*User, error) {
+func (repo *pgxRepository) getUser(sql string, arg interface{}) (*User, error) {
 	user := User{}
-	err := repo.pool.SelectFunc("getUser", func(r *pgx.DataRowReader) (err error) {
+	err := repo.pool.SelectFunc(sql, func(r *pgx.DataRowReader) (err error) {
 		user.ID.Set(r.ReadValue().(int32))
 		user.Name.Set(r.ReadValue().(string))
 		user.Email.SetCoerceNil(r.ReadValue(), box.Empty)
 		user.PasswordDigest = r.ReadValue().([]byte)
 		user.PasswordSalt = r.ReadValue().([]byte)
 		return
-	}, userID)
+	}, arg)
 	if err != nil {
 		return nil, err
 	}
@@ -66,25 +66,12 @@ func (repo *pgxRepository) GetUser(userID int32) (*User, error) {
 	return &user, nil
 }
 
+func (repo *pgxRepository) GetUser(userID int32) (*User, error) {
+	return repo.getUser("getUser", userID)
+}
+
 func (repo *pgxRepository) GetUserByName(name string) (*User, error) {
-	user := User{}
-	err := repo.pool.SelectFunc("getUserByName", func(r *pgx.DataRowReader) (err error) {
-		user.ID.Set(r.ReadValue().(int32))
-		user.Name.Set(r.ReadValue().(string))
-		user.Email.SetCoerceNil(r.ReadValue(), box.Empty)
-		user.PasswordDigest = r.ReadValue().([]byte)
-		user.PasswordSalt = r.ReadValue().([]byte)
-		return
-	}, name)
-	if err != nil {
-		return nil, err
-	}
-
-	if _, ok := user.ID.Get(); !ok {
-		return nil, notFound
-	}
-
-	return &user, nil
+	return repo.getUser("getUserByName", name)
 }
 
 func (repo *pgxRepository) UpdateUser(userID int32, attributes *User) error {
@@ -250,24 +237,7 @@ func (repo *pgxRepository) CreateSession(id []byte, userID int32) (err error) {
 }
 
 func (repo *pgxRepository) GetUserBySessionID(id []byte) (*User, error) {
-	user := User{}
-	err := repo.pool.SelectFunc("getUserBySessionID", func(r *pgx.DataRowReader) (err error) {
-		user.ID.Set(r.ReadValue().(int32))
-		user.Name.Set(r.ReadValue().(string))
-		user.Email.SetCoerceNil(r.ReadValue(), box.Empty)
-		user.PasswordDigest = r.ReadValue().([]byte)
-		user.PasswordSalt = r.ReadValue().([]byte)
-		return
-	}, id)
-	if err != nil {
-		return nil, err
-	}
-
-	if _, ok := user.ID.Get(); !ok {
-		return nil, notFound
-	}
-
-	return &user, nil
+	return repo.getUser("getUserBySessionID", id)
 }
 
 func (repo *pgxRepository) DeleteSession(id []byte) error {
