@@ -250,7 +250,8 @@ func TestFetchFeed(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	rawFeed, err := fetchFeed(ts.URL, box.String{})
+	u := NewFeedUpdater(nil)
+	rawFeed, err := u.fetchFeed(ts.URL, box.String{})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -267,20 +268,17 @@ func TestFetchFeed(t *testing.T) {
 }
 
 func TestFetchFeedResponseHeaderTimeout(t *testing.T) {
-	origClient := client
-	transport := &http.Transport{ResponseHeaderTimeout: time.Duration(1 * time.Millisecond)}
-	client = &http.Client{Transport: transport}
-	defer func() {
-		client = origClient
-	}()
-
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(2 * time.Millisecond)
 		fmt.Fprintln(w, "Too Late!")
 	}))
 	defer ts.Close()
 
-	_, err := fetchFeed(ts.URL, box.String{})
+	u := NewFeedUpdater(nil)
+	transport := &http.Transport{ResponseHeaderTimeout: time.Duration(1 * time.Millisecond)}
+	u.client = &http.Client{Transport: transport}
+
+	_, err := u.fetchFeed(ts.URL, box.String{})
 	if err == nil {
 		t.Fatal("Expected but did not receive error")
 	}
@@ -290,12 +288,6 @@ func TestFetchFeedResponseHeaderTimeout(t *testing.T) {
 }
 
 func TestFetchFeedResponseBodyTimeout(t *testing.T) {
-	origBodyResponseTimeout := bodyResponseTimeout
-	bodyResponseTimeout = 1 * time.Millisecond
-	defer func() {
-		bodyResponseTimeout = origBodyResponseTimeout
-	}()
-
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 		w.(http.Flusher).Flush()
@@ -303,7 +295,10 @@ func TestFetchFeedResponseBodyTimeout(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	_, err := fetchFeed(ts.URL, box.String{})
+	u := NewFeedUpdater(nil)
+	u.bodyResponseTimeout = 1 * time.Millisecond
+
+	_, err := u.fetchFeed(ts.URL, box.String{})
 	if err == nil {
 		t.Fatal("Expected but did not receive error")
 	}

@@ -162,7 +162,8 @@ func Serve(c *cli.Context) {
 	listenAt := fmt.Sprintf("%s:%s", config.listenAddress, config.listenPort)
 	fmt.Printf("Starting to listen on: %s\n", listenAt)
 
-	go KeepFeedsFresh()
+	feedUpdater := NewFeedUpdater(repo)
+	go feedUpdater.KeepFeedsFresh()
 
 	if err := http.ListenAndServe(listenAt, nil); err != nil {
 		os.Stderr.WriteString("Could not start web server!\n")
