@@ -165,7 +165,7 @@ func CreateSubscriptionHandler(w http.ResponseWriter, req *http.Request, env *en
 		return
 	}
 
-	if err := Subscribe(env.CurrentAccount().id, subscription.URL); err != nil {
+	if err := repo.CreateSubscription(env.CurrentAccount().id, subscription.URL); err != nil {
 		w.WriteHeader(422)
 		fmt.Fprintln(w, `Bad user name or password`)
 		return
@@ -346,7 +346,7 @@ func ImportFeedsHandler(w http.ResponseWriter, req *http.Request, env *environme
 	for _, outline := range doc.Body.Outlines {
 		go func(outline OpmlOutline) {
 			r := subscriptionResult{Title: outline.Title, URL: outline.URL}
-			err := Subscribe(env.CurrentAccount().id, outline.URL)
+			err := repo.CreateSubscription(env.CurrentAccount().id, outline.URL)
 			r.Success = err == nil
 			resultsChan <- r
 		}(outline)

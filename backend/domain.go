@@ -54,7 +54,3 @@ func CreateUser(name, email, password string) (userID int32, err error) {
 
 	return repo.CreateUser(user)
 }
-
-func Subscribe(userID int32, feedURL string) (err error) {
-	return repo.CreateSubscription(userID, feedURL)
-}
