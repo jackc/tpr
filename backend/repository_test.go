@@ -388,14 +388,14 @@ func (s *RepositorySuite) TestSessions(c *C) {
 	err = s.repo.CreateSession(sessionID, userID)
 	c.Assert(err, IsNil)
 
-	userID2, err := s.repo.GetUserIDBySessionID(sessionID)
+	user, err := s.repo.GetUserBySessionID(sessionID)
 	c.Assert(err, IsNil)
-	c.Check(userID2, Equals, userID)
+	c.Check(user.ID.MustGet(), Equals, userID)
 
 	err = s.repo.DeleteSession(sessionID)
 	c.Assert(err, IsNil)
 
-	_, err = s.repo.GetUserIDBySessionID(sessionID)
+	_, err = s.repo.GetUserBySessionID(sessionID)
 	c.Assert(err, Equals, notFound)
 
 	err = s.repo.DeleteSession(sessionID)

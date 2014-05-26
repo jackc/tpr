@@ -55,8 +55,15 @@ func (repo *pgxRepository) GetUser(userID int32) (*User, error) {
 		user.PasswordSalt = r.ReadValue().([]byte)
 		return
 	}, userID)
+	if err != nil {
+		return nil, err
+	}
 
-	return &user, err
+	if _, ok := user.ID.Get(); !ok {
+		return nil, notFound
+	}
+
+	return &user, nil
 }
 
 func (repo *pgxRepository) GetUserByName(name string) (*User, error) {
@@ -69,8 +76,15 @@ func (repo *pgxRepository) GetUserByName(name string) (*User, error) {
 		user.PasswordSalt = r.ReadValue().([]byte)
 		return
 	}, name)
+	if err != nil {
+		return nil, err
+	}
 
-	return &user, err
+	if _, ok := user.ID.Get(); !ok {
+		return nil, notFound
+	}
+
+	return &user, nil
 }
 
 func (repo *pgxRepository) UpdateUser(userID int32, attributes *User) error {
@@ -235,15 +249,25 @@ func (repo *pgxRepository) CreateSession(id []byte, userID int32) (err error) {
 	return err
 }
 
-func (repo *pgxRepository) GetUserIDBySessionID(id []byte) (userID int32, err error) {
-	v, err := repo.pool.SelectValue("getUserIDBySessionID", id)
-	if _, ok := err.(pgx.NotSingleRowError); ok {
-		return 0, notFound
-	}
+func (repo *pgxRepository) GetUserBySessionID(id []byte) (*User, error) {
+	user := User{}
+	err := repo.pool.SelectFunc("getUserBySessionID", func(r *pgx.DataRowReader) (err error) {
+		user.ID.Set(r.ReadValue().(int32))
+		user.Name.Set(r.ReadValue().(string))
+		user.Email.SetCoerceNil(r.ReadValue(), box.Empty)
+		user.PasswordDigest = r.ReadValue().([]byte)
+		user.PasswordSalt = r.ReadValue().([]byte)
+		return
+	}, id)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return v.(int32), err
+
+	if _, ok := user.ID.Get(); !ok {
+		return nil, notFound
+	}
+
+	return &user, nil
 }
 
 func (repo *pgxRepository) DeleteSession(id []byte) error {
@@ -477,7 +501,11 @@ func afterConnect(conn *pgx.Conn) (err error) {
 		return
 	}
 
-	err = conn.Prepare("getUserIDBySessionID", `select user_id from sessions where id=$1`)
+	err = conn.Prepare("getUserBySessionID", `
+    select users.id, name, email, password_digest, password_salt
+    from sessions
+      join users on sessions.user_id=users.id
+    where sessions.id=$1`)
 	if err != nil {
 		return
 	}

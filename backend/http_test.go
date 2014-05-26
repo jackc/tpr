@@ -63,7 +63,7 @@ func TestExportOPML(t *testing.T) {
 	}
 
 	env := CreateEnvironment(req)
-	env.currentAccount = &currentAccount{id: userID, name: "test"}
+	env.user = &User{ID: box.NewInt32(userID), Name: box.NewString("test")}
 
 	w := httptest.NewRecorder()
 	ExportFeedsHandler(w, req, env)

@@ -24,6 +24,10 @@ type repository interface {
 	GetUserByName(name string) (*User, error)
 	UpdateUser(userID int32, attributes *User) error
 
+	CreateSession(id []byte, userID int32) (err error)
+	DeleteSession(id []byte) (err error)
+	GetUserBySessionID(id []byte) (*User, error)
+
 	GetFeedsUncheckedSince(since time.Time) (feeds []Feed, err error)
 	UpdateFeedWithFetchSuccess(feedID int32, update *parsedFeed, etag box.String, fetchTime time.Time) error
 	UpdateFeedWithFetchUnchanged(feedID int32, fetchTime time.Time) error
@@ -37,10 +41,6 @@ type repository interface {
 	CreateSubscription(userID int32, feedURL string) (err error)
 	GetSubscriptions(userID int32) ([]Subscription, error)
 	DeleteSubscription(userID, feedID int32) (err error)
-
-	CreateSession(id []byte, userID int32) (err error)
-	GetUserIDBySessionID(id []byte) (userID int32, err error)
-	DeleteSession(id []byte) (err error)
 }
 
 type User struct {
