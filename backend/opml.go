@@ -1,8 +1,14 @@
 package main
 
+import (
+	"encoding/xml"
+)
+
 type OpmlDocument struct {
-	Head OpmlHead `xml:"head"`
-	Body OpmlBody `xml:"body"`
+	XMLName xml.Name `xml:"opml"`
+	Version string   `xml:"version,attr"`
+	Head    OpmlHead `xml:"head"`
+	Body    OpmlBody `xml:"body"`
 }
 
 type OpmlHead struct {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/JackC/cli"
 	"github.com/JackC/pgx"
-	qv "github.com/JackC/quo_vadis"
 	"github.com/vaughan0/go-ini"
 	"net/http"
 	"net/http/httputil"
@@ -148,20 +147,8 @@ func Serve(c *cli.Context) {
 		os.Exit(1)
 	}
 
-	router := qv.NewRouter()
-
-	router.Post("/register", http.HandlerFunc(RegisterHandler))
-	router.Post("/sessions", http.HandlerFunc(CreateSessionHandler))
-	router.Delete("/sessions/:id", http.HandlerFunc(DeleteSessionHandler))
-	router.Post("/subscriptions", ApiSecureHandlerFunc(CreateSubscriptionHandler))
-	router.Delete("/subscriptions/:id", ApiSecureHandlerFunc(DeleteSubscriptionHandler))
-	router.Get("/feeds", ApiSecureHandlerFunc(GetFeedsHandler))
-	router.Post("/feeds/import", ApiSecureHandlerFunc(ImportFeedsHandler))
-	router.Get("/items/unread", ApiSecureHandlerFunc(GetUnreadItemsHandler))
-	router.Post("/items/unread/mark_multiple_read", ApiSecureHandlerFunc(MarkMultipleItemsReadHandler))
-	router.Delete("/items/unread/:id", ApiSecureHandlerFunc(MarkItemReadHandler))
-	router.Patch("/account", ApiSecureHandlerFunc(UpdateAccountHandler))
-	http.Handle("/api/", http.StripPrefix("/api", router))
+	apiHandler := NewAPIHandler()
+	http.Handle("/api/", http.StripPrefix("/api", apiHandler))
 
 	if config.staticURL != "" {
 		staticURL, err := url.Parse(config.staticURL)

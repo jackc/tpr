@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	qv "github.com/JackC/quo_vadis"
 	"net/http"
 	"strconv"
 	"time"
@@ -34,6 +35,25 @@ type environment struct {
 	currentAccount *currentAccount
 }
 
+func NewAPIHandler() http.Handler {
+	router := qv.NewRouter()
+
+	router.Post("/register", http.HandlerFunc(RegisterHandler))
+	router.Post("/sessions", http.HandlerFunc(CreateSessionHandler))
+	router.Delete("/sessions/:id", http.HandlerFunc(DeleteSessionHandler))
+	router.Post("/subscriptions", ApiSecureHandlerFunc(CreateSubscriptionHandler))
+	router.Delete("/subscriptions/:id", ApiSecureHandlerFunc(DeleteSubscriptionHandler))
+	router.Get("/feeds", ApiSecureHandlerFunc(GetFeedsHandler))
+	router.Post("/feeds/import", ApiSecureHandlerFunc(ImportFeedsHandler))
+	router.Get("/feeds.xml", ApiSecureHandlerFunc(ExportFeedsHandler))
+	router.Get("/items/unread", ApiSecureHandlerFunc(GetUnreadItemsHandler))
+	router.Post("/items/unread/mark_multiple_read", ApiSecureHandlerFunc(MarkMultipleItemsReadHandler))
+	router.Delete("/items/unread/:id", ApiSecureHandlerFunc(MarkItemReadHandler))
+	router.Patch("/account", ApiSecureHandlerFunc(UpdateAccountHandler))
+
+	return router
+}
+
 func CreateEnvironment(req *http.Request) *environment {
 	return &environment{request: req}
 }
@@ -44,8 +64,13 @@ func (env *environment) CurrentAccount() *currentAccount {
 		var err error
 		var present bool
 
+		token := env.request.Header.Get("X-Authentication")
+		if token == "" {
+			token = env.request.FormValue("session")
+		}
+
 		var sessionID []byte
-		sessionID, err = hex.DecodeString(env.request.Header.Get("X-Authentication"))
+		sessionID, err = hex.DecodeString(token)
 		if err != nil {
 			logger.Warning("tpr", fmt.Sprintf(`Bad or missing to X-Authenticaton header "%s": %v`, env.request.Header.Get("X-Authentication"), err))
 			return nil
@@ -334,6 +359,30 @@ func ImportFeedsHandler(w http.ResponseWriter, req *http.Request, env *environme
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(results)
+}
+
+func ExportFeedsHandler(w http.ResponseWriter, req *http.Request, env *environment) {
+	subs, err := repo.GetSubscriptions(env.CurrentAccount().id)
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+	}
+
+	doc := OpmlDocument{Version: "1.0"}
+	doc.Head.Title = "The Pithy Reader Export for " + env.CurrentAccount().name
+
+	for _, s := range subs {
+		doc.Body.Outlines = append(doc.Body.Outlines, OpmlOutline{
+			Text:  s.Name.MustGet(),
+			Title: s.Name.MustGet(),
+			Type:  "rss",
+			URL:   s.URL.MustGet(),
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/xml")
+	w.Header().Set("Content-Disposition", `attachment; filename="opml.xml"`)
+	fmt.Fprint(w, xml.Header)
+	xml.NewEncoder(w).Encode(doc)
 }
 
 func GetFeedsHandler(w http.ResponseWriter, req *http.Request, env *environment) {
