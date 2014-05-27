@@ -29,7 +29,7 @@ form {
     color: $primary-color;
   }
 
-  input[type=text], input[type=password] {
+  input[type=text], input[type=password], input[type=email] {
     width: 100%;
     font-size: 1.5em;
     margin-bottom: 0.5em;
@@ -201,7 +201,7 @@ input[type=submit] {
 }
 
 #view > .account {
-  input[type=text], input[type=password] {
+  input[type=text], input[type=password], input[type=email] {
     max-width: 20em;
   }
 }

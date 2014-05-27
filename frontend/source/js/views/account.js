@@ -10,6 +10,8 @@
 
     this.form = this.createChild(App.Views.AccountForm)
     this.form.render()
+
+    this.fetch()
   }
 
   App.Views.AccountPage.prototype = Object.create(view.View.prototype)
@@ -23,8 +25,19 @@
     return this.el
   }
 
+  p.fetch = function() {
+    conn.getAccount({
+      succeeded: function(data) {
+        this.form.model = data
+        this.form.render()
+      }.bind(this)
+    })
+  }
+
   App.Views.AccountForm = function() {
     view.View.call(this, "form")
+    this.model = {}
+    this.el.addEventListener("submit", this.update.bind(this))
   }
 
   App.Views.AccountForm.prototype = Object.create(view.View.prototype)
@@ -34,12 +47,15 @@
 
   p.render = function() {
     this.el.innerHTML = this.template()
-    this.listen()
-    return this.el
-  }
+    var email
+    if(this.model.email) {
+      email = this.model.email
+    } else {
+      email = ""
+    }
+    this.el.querySelector("#email").value = email
 
-  p.listen = function() {
-    this.el.addEventListener("submit", this.update.bind(this))
+    return this.el
   }
 
   p.update = function(e) {
@@ -52,6 +68,7 @@
     }
 
     var update = {}
+    update.email = form.elements.email.value
     update.existingPassword = form.elements.existingPassword.value
     update.newPassword = form.elements.newPassword.value
 
@@ -60,7 +77,7 @@
         form.elements.existingPassword.value = ""
         form.elements.newPassword.value = ""
         form.elements.passwordConfirmation.value = ""
-        alert("Password changed")
+        alert("Update succeeded")
       }.bind(this),
       failed: function(data) {
         alert(data)

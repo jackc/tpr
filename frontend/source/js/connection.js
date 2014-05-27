@@ -129,6 +129,12 @@
       return this.post("/api/register", options);
     },
 
+    getAccount: function(callbacks) {
+      var options = this.mergeCallbacks({}, callbacks);
+
+      return this.get("/api/account", options);
+    },
+
     updateAccount: function(update, callbacks) {
       var options = {
         data: JSON.stringify(update)

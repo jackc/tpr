@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"github.com/JackC/box"
 	qv "github.com/JackC/quo_vadis"
 	"net/http"
 	"strconv"
@@ -44,6 +45,7 @@ func NewAPIHandler() http.Handler {
 	router.Get("/items/unread", ApiSecureHandlerFunc(GetUnreadItemsHandler))
 	router.Post("/items/unread/mark_multiple_read", ApiSecureHandlerFunc(MarkMultipleItemsReadHandler))
 	router.Delete("/items/unread/:id", ApiSecureHandlerFunc(MarkItemReadHandler))
+	router.Get("/account", ApiSecureHandlerFunc(GetAccountHandler))
 	router.Patch("/account", ApiSecureHandlerFunc(UpdateAccountHandler))
 
 	return router
@@ -194,13 +196,20 @@ func AuthenticateUser(name, password string) (*User, error) {
 		return nil, err
 	}
 
-	var digest []byte
-	digest, _ = scrypt.Key([]byte(password), user.PasswordSalt, 16384, 8, 1, 32)
-
-	if !bytes.Equal(digest, user.PasswordDigest) {
-		err = fmt.Errorf("Bad user name or password")
+	if !isUserPassword(user, password) {
+		return nil, fmt.Errorf("Bad user name or password")
 	}
-	return user, err
+
+	return user, nil
+}
+
+func isUserPassword(user *User, password string) bool {
+	digest, err := scrypt.Key([]byte(password), user.PasswordSalt, 16384, 8, 1, 32)
+	if err != nil {
+		return false
+	}
+
+	return bytes.Equal(digest, user.PasswordDigest)
 }
 
 func CreateSessionHandler(w http.ResponseWriter, req *http.Request) {
@@ -399,8 +408,24 @@ func GetFeedsHandler(w http.ResponseWriter, req *http.Request, env *environment)
 	}
 }
 
+func GetAccountHandler(w http.ResponseWriter, req *http.Request, env *environment) {
+	var user struct {
+		ID    box.Int32  `json:"id"`
+		Name  box.String `json:"name"`
+		Email box.String `json:"email"`
+	}
+
+	user.ID = env.user.ID
+	user.Name = env.user.Name
+	user.Email = env.user.Email
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(user)
+}
+
 func UpdateAccountHandler(w http.ResponseWriter, req *http.Request, env *environment) {
 	var update struct {
+		Email            string `json:"email"`
 		ExistingPassword string `json:"existingPassword"`
 		NewPassword      string `json:"newPassword"`
 	}
@@ -412,21 +437,35 @@ func UpdateAccountHandler(w http.ResponseWriter, req *http.Request, env *environ
 		return
 	}
 
-	err := validatePassword(update.NewPassword)
-	if err != nil {
-		w.WriteHeader(422)
-		fmt.Fprintln(w, err)
-		return
+	user := &User{}
+	user.Email.SetCoerceZero(update.Email, box.Empty)
+
+	if update.NewPassword != "" {
+		if !isUserPassword(env.user, update.ExistingPassword) {
+			w.WriteHeader(422)
+			fmt.Fprintln(w, "Bad existing password")
+			return
+		}
+
+		err := validatePassword(update.NewPassword)
+		if err != nil {
+			w.WriteHeader(422)
+			fmt.Fprintln(w, err)
+			return
+		}
+
+		digest, salt, err := digestPassword(update.NewPassword)
+		if err != nil {
+			w.WriteHeader(500)
+			fmt.Fprintln(w, `Internal server error`)
+			logger.Error("tpr", fmt.Sprintf(`Digest password: %v`, err))
+		}
+
+		user.PasswordDigest = digest
+		user.PasswordSalt = salt
 	}
 
-	digest, salt, err := digestPassword(update.NewPassword)
-	if err != nil {
-		w.WriteHeader(500)
-		fmt.Fprintln(w, `Internal server error`)
-		logger.Error("tpr", fmt.Sprintf(`Digest password: %v`, err))
-	}
-
-	err = repo.UpdateUser(env.user.ID.MustGet(), &User{PasswordDigest: digest, PasswordSalt: salt})
+	err := repo.UpdateUser(env.user.ID.MustGet(), user)
 	if err != nil {
 		w.WriteHeader(500)
 		fmt.Fprintln(w, `Internal server error`)
