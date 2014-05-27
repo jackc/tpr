@@ -324,10 +324,6 @@ func MarkMultipleItemsReadHandler(w http.ResponseWriter, req *http.Request, env 
 	}
 }
 
-func createSessionCookie(sessionId []byte) *http.Cookie {
-	return &http.Cookie{Name: "sessionId", Value: hex.EncodeToString(sessionId)}
-}
-
 func ImportFeedsHandler(w http.ResponseWriter, req *http.Request, env *environment) {
 	file, _, err := req.FormFile("file")
 	if err != nil {
