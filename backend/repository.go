@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bytes"
+	"code.google.com/p/go.crypto/scrypt"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"github.com/JackC/box"
@@ -49,6 +52,33 @@ type User struct {
 	Email          box.String
 	PasswordDigest []byte
 	PasswordSalt   []byte
+}
+
+func (u *User) SetPassword(password string) error {
+	salt := make([]byte, 8)
+	_, err := rand.Read(salt)
+	if err != nil {
+		return err
+	}
+
+	digest, err := scrypt.Key([]byte(password), salt, 16384, 8, 1, 32)
+	if err != nil {
+		return err
+	}
+
+	u.PasswordDigest = digest
+	u.PasswordSalt = salt
+
+	return nil
+}
+
+func (u *User) IsPassword(password string) bool {
+	digest, err := scrypt.Key([]byte(password), u.PasswordSalt, 16384, 8, 1, 32)
+	if err != nil {
+		return false
+	}
+
+	return bytes.Equal(digest, u.PasswordDigest)
 }
 
 type Feed struct {

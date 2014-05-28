@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"code.google.com/p/go.crypto/scrypt"
 	"encoding/hex"
 	"encoding/json"
 	"encoding/xml"
@@ -193,23 +191,14 @@ func DeleteSubscriptionHandler(w http.ResponseWriter, req *http.Request, env *en
 func AuthenticateUser(name, password string) (*User, error) {
 	user, err := repo.GetUserByName(name)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Bad user name or password")
 	}
 
-	if !isUserPassword(user, password) {
+	if !user.IsPassword(password) {
 		return nil, fmt.Errorf("Bad user name or password")
 	}
 
 	return user, nil
-}
-
-func isUserPassword(user *User, password string) bool {
-	digest, err := scrypt.Key([]byte(password), user.PasswordSalt, 16384, 8, 1, 32)
-	if err != nil {
-		return false
-	}
-
-	return bytes.Equal(digest, user.PasswordDigest)
 }
 
 func CreateSessionHandler(w http.ResponseWriter, req *http.Request) {
@@ -441,7 +430,7 @@ func UpdateAccountHandler(w http.ResponseWriter, req *http.Request, env *environ
 	user.Email.SetCoerceZero(update.Email, box.Empty)
 
 	if update.NewPassword != "" {
-		if !isUserPassword(env.user, update.ExistingPassword) {
+		if !env.user.IsPassword(update.ExistingPassword) {
 			w.WriteHeader(422)
 			fmt.Fprintln(w, "Bad existing password")
 			return
