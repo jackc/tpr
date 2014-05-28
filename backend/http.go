@@ -25,8 +25,7 @@ func (f ApiSecureHandlerFunc) ServeHTTP(w http.ResponseWriter, req *http.Request
 }
 
 type environment struct {
-	request *http.Request
-	user    *User
+	user *User
 }
 
 func NewAPIHandler() http.Handler {
@@ -50,16 +49,16 @@ func NewAPIHandler() http.Handler {
 }
 
 func CreateEnvironment(req *http.Request) *environment {
-	env := &environment{request: req}
-	token := env.request.Header.Get("X-Authentication")
+	env := &environment{}
+	token := req.Header.Get("X-Authentication")
 	if token == "" {
-		token = env.request.FormValue("session")
+		token = req.FormValue("session")
 	}
 
 	var sessionID []byte
 	sessionID, err := hex.DecodeString(token)
 	if err != nil {
-		logger.Warning("tpr", fmt.Sprintf(`Bad or missing to X-Authenticaton header "%s": %v`, env.request.Header.Get("X-Authentication"), err))
+		logger.Warning("tpr", fmt.Sprintf(`Bad or missing to X-Authenticaton header "%s": %v`, req.Header.Get("X-Authentication"), err))
 		return nil
 	}
 
