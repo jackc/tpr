@@ -16,8 +16,6 @@ import (
 
 const version = "0.6.0pre"
 
-var repo repository
-
 var config struct {
 	configPath    string
 	listenAddress string
@@ -95,7 +93,7 @@ func main() {
 
 }
 
-func configure(c *cli.Context) error {
+func configure(c *cli.Context) (repository, error) {
 	var err error
 
 	config.listenAddress = c.String("address")
@@ -104,50 +102,50 @@ func configure(c *cli.Context) error {
 	config.staticURL = c.String("static-url")
 
 	if config.configPath, err = filepath.Abs(config.configPath); err != nil {
-		return fmt.Errorf("Invalid config path: %v", err)
+		return nil, fmt.Errorf("Invalid config path: %v", err)
 	}
 
 	file, err := ini.LoadFile(config.configPath)
 	if err != nil {
-		return fmt.Errorf("Failed to load config file: %v", err)
+		return nil, fmt.Errorf("Failed to load config file: %v", err)
 	}
 
 	var ok bool
 
 	if !c.IsSet("address") {
 		if config.listenAddress, ok = file.Get("server", "address"); !ok {
-			return errors.New("Missing server address")
+			return nil, errors.New("Missing server address")
 		}
 	}
 
 	if !c.IsSet("port") {
 		if config.listenPort, ok = file.Get("server", "port"); !ok {
-			return errors.New("Missing server port")
+			return nil, errors.New("Missing server port")
 		}
 	}
 
 	poolConfig := pgx.ConnPoolConfig{MaxConnections: 10, AfterConnect: afterConnect}
 	if poolConfig.ConnConfig, err = extractConnConfig(file); err != nil {
-		return fmt.Errorf("Error reading database connection: %v", err.Error())
+		return nil, fmt.Errorf("Error reading database connection: %v", err.Error())
 	}
 	poolConfig.Logger = &PackageLogger{logger: logger, pkg: "pgx"}
 
-	repo, err = NewPgxRepository(poolConfig)
+	repo, err := NewPgxRepository(poolConfig)
 	if err != nil {
-		return fmt.Errorf("Unable to create pgx repository: %v", err)
+		return nil, fmt.Errorf("Unable to create pgx repository: %v", err)
 	}
 
-	return nil
+	return repo, nil
 }
 
 func Serve(c *cli.Context) {
-	err := configure(c)
+	repo, err := configure(c)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	apiHandler := NewAPIHandler()
+	apiHandler := NewAPIHandler(repo)
 	http.Handle("/api/", http.StripPrefix("/api", apiHandler))
 
 	if config.staticURL != "" {
@@ -179,7 +177,7 @@ func ResetPassword(c *cli.Context) {
 
 	name := c.Args()[0]
 
-	err := configure(c)
+	repo, err := configure(c)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

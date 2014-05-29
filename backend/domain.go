@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/JackC/box"
 	"io"
 )
 
@@ -51,19 +50,4 @@ func digestPassword(password string) ([]byte, []byte, error) {
 	}
 
 	return digest, salt, nil
-}
-
-func CreateUser(name, email, password string) (userID int32, err error) {
-	digest, salt, err := digestPassword(password)
-	if err != nil {
-		return
-	}
-
-	user := &User{}
-	user.Name.SetCoerceZero(name, box.Empty)
-	user.Email.SetCoerceZero(email, box.Empty)
-	user.PasswordDigest = digest
-	user.PasswordSalt = salt
-
-	return repo.CreateUser(user)
 }

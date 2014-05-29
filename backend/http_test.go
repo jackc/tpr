@@ -41,7 +41,7 @@ func newRepository(t *testing.T) repository {
 }
 
 func TestExportOPML(t *testing.T) {
-	repo = newRepository(t)
+	repo := newRepository(t)
 	userID, err := repo.CreateUser(&User{
 		Name:           box.NewString("test"),
 		Email:          box.NewString("test@example.com"),
@@ -62,10 +62,12 @@ func TestExportOPML(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	env := CreateEnvironment(req)
+	env := &environment{}
 	env.user = &User{ID: box.NewInt32(userID), Name: box.NewString("test")}
+	env.repo = repo
 
 	w := httptest.NewRecorder()
+
 	ExportFeedsHandler(w, req, env)
 
 	if w.Code != 200 {

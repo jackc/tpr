@@ -12,44 +12,53 @@ import (
 	"time"
 )
 
-type ApiSecureHandlerFunc func(w http.ResponseWriter, req *http.Request, env *environment)
+type EnvHandlerFunc func(w http.ResponseWriter, req *http.Request, env *environment)
 
-func (f ApiSecureHandlerFunc) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	env := CreateEnvironment(req)
-	if env.user == nil {
-		w.WriteHeader(http.StatusForbidden)
-		fmt.Fprint(w, "Bad or missing X-Authentication header")
-		return
-	}
-	f(w, req, env)
+func EnvHandler(repo repository, f EnvHandlerFunc) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		user := getUserFromSession(req, repo)
+		env := &environment{user: user, repo: repo}
+		f(w, req, env)
+	})
+}
+
+func AuthenticatedHandler(f EnvHandlerFunc) EnvHandlerFunc {
+	return EnvHandlerFunc(func(w http.ResponseWriter, req *http.Request, env *environment) {
+		if env.user == nil {
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, "Bad or missing X-Authentication header")
+			return
+		}
+		f(w, req, env)
+	})
 }
 
 type environment struct {
 	user *User
+	repo repository
 }
 
-func NewAPIHandler() http.Handler {
+func NewAPIHandler(repo repository) http.Handler {
 	router := qv.NewRouter()
 
-	router.Post("/register", http.HandlerFunc(RegisterHandler))
-	router.Post("/sessions", http.HandlerFunc(CreateSessionHandler))
-	router.Delete("/sessions/:id", http.HandlerFunc(DeleteSessionHandler))
-	router.Post("/subscriptions", ApiSecureHandlerFunc(CreateSubscriptionHandler))
-	router.Delete("/subscriptions/:id", ApiSecureHandlerFunc(DeleteSubscriptionHandler))
-	router.Get("/feeds", ApiSecureHandlerFunc(GetFeedsHandler))
-	router.Post("/feeds/import", ApiSecureHandlerFunc(ImportFeedsHandler))
-	router.Get("/feeds.xml", ApiSecureHandlerFunc(ExportFeedsHandler))
-	router.Get("/items/unread", ApiSecureHandlerFunc(GetUnreadItemsHandler))
-	router.Post("/items/unread/mark_multiple_read", ApiSecureHandlerFunc(MarkMultipleItemsReadHandler))
-	router.Delete("/items/unread/:id", ApiSecureHandlerFunc(MarkItemReadHandler))
-	router.Get("/account", ApiSecureHandlerFunc(GetAccountHandler))
-	router.Patch("/account", ApiSecureHandlerFunc(UpdateAccountHandler))
+	router.Post("/register", EnvHandler(repo, RegisterHandler))
+	router.Post("/sessions", EnvHandler(repo, CreateSessionHandler))
+	router.Delete("/sessions/:id", EnvHandler(repo, AuthenticatedHandler(DeleteSessionHandler)))
+	router.Post("/subscriptions", EnvHandler(repo, AuthenticatedHandler(CreateSubscriptionHandler)))
+	router.Delete("/subscriptions/:id", EnvHandler(repo, AuthenticatedHandler(DeleteSubscriptionHandler)))
+	router.Get("/feeds", EnvHandler(repo, AuthenticatedHandler(GetFeedsHandler)))
+	router.Post("/feeds/import", EnvHandler(repo, AuthenticatedHandler(ImportFeedsHandler)))
+	router.Get("/feeds.xml", EnvHandler(repo, AuthenticatedHandler(ExportFeedsHandler)))
+	router.Get("/items/unread", EnvHandler(repo, AuthenticatedHandler(GetUnreadItemsHandler)))
+	router.Post("/items/unread/mark_multiple_read", EnvHandler(repo, AuthenticatedHandler(MarkMultipleItemsReadHandler)))
+	router.Delete("/items/unread/:id", EnvHandler(repo, AuthenticatedHandler(MarkItemReadHandler)))
+	router.Get("/account", EnvHandler(repo, AuthenticatedHandler(GetAccountHandler)))
+	router.Patch("/account", EnvHandler(repo, AuthenticatedHandler(UpdateAccountHandler)))
 
 	return router
 }
 
-func CreateEnvironment(req *http.Request) *environment {
-	env := &environment{}
+func getUserFromSession(req *http.Request, repo repository) *User {
 	token := req.Header.Get("X-Authentication")
 	if token == "" {
 		token = req.FormValue("session")
@@ -64,14 +73,14 @@ func CreateEnvironment(req *http.Request) *environment {
 
 	// TODO - this could be an error from no records found -- or the connection could be dead or we could have a syntax error...
 	user, err := repo.GetUserBySessionID(sessionID)
-	if err == nil {
-		env.user = user
+	if err != nil {
+		return nil
 	}
 
-	return env
+	return user
 }
 
-func RegisterHandler(w http.ResponseWriter, req *http.Request) {
+func RegisterHandler(w http.ResponseWriter, req *http.Request, env *environment) {
 	var registration struct {
 		Name     string `json:"name"`
 		Email    string `json:"email"`
@@ -104,7 +113,12 @@ func RegisterHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	userID, err := CreateUser(registration.Name, registration.Email, registration.Password)
+	user := &User{}
+	user.Name.SetCoerceZero(registration.Name, box.Empty)
+	user.Email.SetCoerceZero(registration.Email, box.Empty)
+	user.SetPassword(registration.Password)
+
+	userID, err := env.repo.CreateUser(user)
 	if err != nil {
 		if err, ok := err.(DuplicationError); ok {
 			w.WriteHeader(422)
@@ -122,7 +136,7 @@ func RegisterHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	err = repo.CreateSession(sessionID, userID)
+	err = env.repo.CreateSession(sessionID, userID)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -161,7 +175,7 @@ func CreateSubscriptionHandler(w http.ResponseWriter, req *http.Request, env *en
 		return
 	}
 
-	if err := repo.CreateSubscription(env.user.ID.MustGet(), subscription.URL); err != nil {
+	if err := env.repo.CreateSubscription(env.user.ID.MustGet(), subscription.URL); err != nil {
 		w.WriteHeader(422)
 		fmt.Fprintln(w, `Bad user name or password`)
 		return
@@ -178,7 +192,7 @@ func DeleteSubscriptionHandler(w http.ResponseWriter, req *http.Request, env *en
 		return
 	}
 
-	if err := repo.DeleteSubscription(env.user.ID.MustGet(), int32(feedID)); err != nil {
+	if err := env.repo.DeleteSubscription(env.user.ID.MustGet(), int32(feedID)); err != nil {
 		w.WriteHeader(422)
 		fmt.Fprintf(w, "Error deleting subscription: %v", err)
 		return
@@ -187,20 +201,7 @@ func DeleteSubscriptionHandler(w http.ResponseWriter, req *http.Request, env *en
 	w.WriteHeader(http.StatusOK)
 }
 
-func AuthenticateUser(name, password string) (*User, error) {
-	user, err := repo.GetUserByName(name)
-	if err != nil {
-		return nil, fmt.Errorf("Bad user name or password")
-	}
-
-	if !user.IsPassword(password) {
-		return nil, fmt.Errorf("Bad user name or password")
-	}
-
-	return user, nil
-}
-
-func CreateSessionHandler(w http.ResponseWriter, req *http.Request) {
+func CreateSessionHandler(w http.ResponseWriter, req *http.Request, env *environment) {
 	var credentials struct {
 		Name     string `json:"name"`
 		Password string `json:"password"`
@@ -225,10 +226,16 @@ func CreateSessionHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	user, err := AuthenticateUser(credentials.Name, credentials.Password)
+	user, err := env.repo.GetUserByName(credentials.Name)
 	if err != nil {
 		w.WriteHeader(422)
-		fmt.Fprintln(w, `Bad user name or password`)
+		fmt.Fprintln(w, "Bad user name or password")
+		return
+	}
+
+	if !user.IsPassword(credentials.Password) {
+		w.WriteHeader(422)
+		fmt.Fprintln(w, "Bad user name or password")
 		return
 	}
 
@@ -238,7 +245,7 @@ func CreateSessionHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	err = repo.CreateSession(sessionID, user.ID.MustGet())
+	err = env.repo.CreateSession(sessionID, user.ID.MustGet())
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -260,13 +267,13 @@ func CreateSessionHandler(w http.ResponseWriter, req *http.Request) {
 
 }
 
-func DeleteSessionHandler(w http.ResponseWriter, req *http.Request) {
+func DeleteSessionHandler(w http.ResponseWriter, req *http.Request, env *environment) {
 	sessionID, err := hex.DecodeString(req.FormValue("id"))
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	err = repo.DeleteSession(sessionID)
+	err = env.repo.DeleteSession(sessionID)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -278,7 +285,7 @@ func DeleteSessionHandler(w http.ResponseWriter, req *http.Request) {
 
 func GetUnreadItemsHandler(w http.ResponseWriter, req *http.Request, env *environment) {
 	w.Header().Set("Content-Type", "application/json")
-	if err := repo.CopyUnreadItemsAsJSONByUserID(w, env.user.ID.MustGet()); err != nil {
+	if err := env.repo.CopyUnreadItemsAsJSONByUserID(w, env.user.ID.MustGet()); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
@@ -291,7 +298,7 @@ func MarkItemReadHandler(w http.ResponseWriter, req *http.Request, env *environm
 		return
 	}
 
-	err = repo.MarkItemRead(env.user.ID.MustGet(), int32(itemID))
+	err = env.repo.MarkItemRead(env.user.ID.MustGet(), int32(itemID))
 	if err == notFound {
 		http.NotFound(w, req)
 		return
@@ -314,7 +321,7 @@ func MarkMultipleItemsReadHandler(w http.ResponseWriter, req *http.Request, env 
 	}
 
 	for _, itemID := range request.ItemIDs {
-		err := repo.MarkItemRead(env.user.ID.MustGet(), itemID)
+		err := env.repo.MarkItemRead(env.user.ID.MustGet(), itemID)
 		if err != nil && err != notFound {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 		}
@@ -350,7 +357,7 @@ func ImportFeedsHandler(w http.ResponseWriter, req *http.Request, env *environme
 	for _, outline := range doc.Body.Outlines {
 		go func(outline OpmlOutline) {
 			r := subscriptionResult{Title: outline.Title, URL: outline.URL}
-			err := repo.CreateSubscription(env.user.ID.MustGet(), outline.URL)
+			err := env.repo.CreateSubscription(env.user.ID.MustGet(), outline.URL)
 			r.Success = err == nil
 			resultsChan <- r
 		}(outline)
@@ -366,7 +373,7 @@ func ImportFeedsHandler(w http.ResponseWriter, req *http.Request, env *environme
 }
 
 func ExportFeedsHandler(w http.ResponseWriter, req *http.Request, env *environment) {
-	subs, err := repo.GetSubscriptions(env.user.ID.MustGet())
+	subs, err := env.repo.GetSubscriptions(env.user.ID.MustGet())
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
@@ -391,7 +398,7 @@ func ExportFeedsHandler(w http.ResponseWriter, req *http.Request, env *environme
 
 func GetFeedsHandler(w http.ResponseWriter, req *http.Request, env *environment) {
 	w.Header().Set("Content-Type", "application/json")
-	if err := repo.CopySubscriptionsForUserAsJSON(w, env.user.ID.MustGet()); err != nil {
+	if err := env.repo.CopySubscriptionsForUserAsJSON(w, env.user.ID.MustGet()); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
@@ -453,7 +460,7 @@ func UpdateAccountHandler(w http.ResponseWriter, req *http.Request, env *environ
 		user.PasswordSalt = salt
 	}
 
-	err := repo.UpdateUser(env.user.ID.MustGet(), user)
+	err := env.repo.UpdateUser(env.user.ID.MustGet(), user)
 	if err != nil {
 		w.WriteHeader(500)
 		fmt.Fprintln(w, `Internal server error`)
