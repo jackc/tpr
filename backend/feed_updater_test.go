@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/JackC/box"
 	"net/http"
 	"net/http/httptest"
@@ -268,11 +267,16 @@ func TestFetchFeed(t *testing.T) {
 }
 
 func TestFetchFeedResponseHeaderTimeout(t *testing.T) {
+	// Work around race -- https://code.google.com/p/go/issues/detail?id=7264
+	block := make(chan bool)
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(2 * time.Millisecond)
-		fmt.Fprintln(w, "Too Late!")
+		block <- true
 	}))
-	defer ts.Close()
+	defer func() {
+		<-block
+		ts.Close()
+	}()
 
 	u := NewFeedUpdater(nil)
 	transport := &http.Transport{ResponseHeaderTimeout: time.Duration(1 * time.Millisecond)}
@@ -288,12 +292,18 @@ func TestFetchFeedResponseHeaderTimeout(t *testing.T) {
 }
 
 func TestFetchFeedResponseBodyTimeout(t *testing.T) {
+	// Work around race -- https://code.google.com/p/go/issues/detail?id=7264
+	block := make(chan bool)
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 		w.(http.Flusher).Flush()
-		time.Sleep(2 * time.Millisecond)
+		block <- true
 	}))
-	defer ts.Close()
+	defer func() {
+		<-block
+		ts.Close()
+	}()
 
 	u := NewFeedUpdater(nil)
 	u.bodyResponseTimeout = 1 * time.Millisecond
