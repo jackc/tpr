@@ -43,6 +43,7 @@ feature 'Account' do
 
     click_on 'Account'
 
+    fill_in 'Existing Password', with: 'secret'
     fill_in 'Email', with: 'john@example.com'
     click_on 'Update'
 

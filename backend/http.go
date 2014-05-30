@@ -432,32 +432,22 @@ func UpdateAccountHandler(w http.ResponseWriter, req *http.Request, env *environ
 		return
 	}
 
+	if !env.user.IsPassword(update.ExistingPassword) {
+		w.WriteHeader(422)
+		fmt.Fprintln(w, "Bad existing password")
+		return
+	}
+
 	user := &User{}
 	user.Email.SetCoerceZero(update.Email, box.Empty)
 
 	if update.NewPassword != "" {
-		if !env.user.IsPassword(update.ExistingPassword) {
-			w.WriteHeader(422)
-			fmt.Fprintln(w, "Bad existing password")
-			return
-		}
-
-		err := validatePassword(update.NewPassword)
+		err := user.SetPassword(update.NewPassword)
 		if err != nil {
 			w.WriteHeader(422)
 			fmt.Fprintln(w, err)
 			return
 		}
-
-		digest, salt, err := digestPassword(update.NewPassword)
-		if err != nil {
-			w.WriteHeader(500)
-			fmt.Fprintln(w, `Internal server error`)
-			logger.Error("tpr", fmt.Sprintf(`Digest password: %v`, err))
-		}
-
-		user.PasswordDigest = digest
-		user.PasswordSalt = salt
 	}
 
 	err := env.repo.UpdateUser(env.user.ID.MustGet(), user)

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"code.google.com/p/go.crypto/scrypt"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -35,19 +34,4 @@ func genSessionID() ([]byte, error) {
 	}
 
 	return sessionID, err
-}
-
-func digestPassword(password string) ([]byte, []byte, error) {
-	salt := make([]byte, 8)
-	_, err := rand.Read(salt)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	digest, err := scrypt.Key([]byte(password), salt, 16384, 8, 1, 32)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return digest, salt, nil
 }

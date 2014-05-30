@@ -183,25 +183,22 @@ func ResetPassword(c *cli.Context) {
 		os.Exit(1)
 	}
 
-	password, err := genRandPassword()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-
-	digest, salt, err := digestPassword(password)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-
 	user, err := repo.GetUserByName(name)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	err = repo.UpdateUser(user.ID.MustGet(), &User{PasswordDigest: digest, PasswordSalt: salt})
+	password, err := genRandPassword()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	update := &User{}
+	update.SetPassword(password)
+
+	err = repo.UpdateUser(user.ID.MustGet(), update)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
