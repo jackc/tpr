@@ -6,6 +6,7 @@ import (
 	"github.com/JackC/cli"
 	"github.com/JackC/pgx"
 	"github.com/vaughan0/go-ini"
+	log "gopkg.in/inconshreveable/log15.v2"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -16,41 +17,10 @@ import (
 
 const version = "0.6.0pre"
 
-var config struct {
-	configPath    string
+type httpConfig struct {
 	listenAddress string
 	listenPort    string
 	staticURL     string
-}
-
-func extractConnConfig(file ini.File) (connConfig pgx.ConnConfig, err error) {
-	connConfig.Host, _ = file.Get("database", "host")
-	connConfig.Socket, _ = file.Get("database", "socket")
-	if connConfig.Host == "" && connConfig.Socket == "" {
-		err = errors.New("Config must contain database.host or database.socket but it does not")
-		return
-	}
-
-	if p, ok := file.Get("database", "port"); ok {
-		n, err := strconv.ParseUint(p, 10, 16)
-		connConfig.Port = uint16(n)
-		if err != nil {
-			return connConfig, err
-		}
-	}
-
-	var ok bool
-
-	if connConfig.Database, ok = file.Get("database", "database"); !ok {
-		err = errors.New("Config must contain database.database but it does not")
-		return
-	}
-	if connConfig.User, ok = file.Get("database", "user"); !ok {
-		err = errors.New("Config must contain database.user but it does not")
-		return
-	}
-	connConfig.Password, _ = file.Get("database", "password")
-	return
 }
 
 func main() {
@@ -93,42 +63,82 @@ func main() {
 
 }
 
-func configure(c *cli.Context) (repository, error) {
-	var err error
-
-	config.listenAddress = c.String("address")
-	config.listenPort = c.String("port")
-	config.configPath = c.String("config")
-	config.staticURL = c.String("static-url")
-
-	if config.configPath, err = filepath.Abs(config.configPath); err != nil {
+func loadConfig(path string) (ini.File, error) {
+	path, err := filepath.Abs(path)
+	if err != nil {
 		return nil, fmt.Errorf("Invalid config path: %v", err)
 	}
 
-	file, err := ini.LoadFile(config.configPath)
+	file, err := ini.LoadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to load config file: %v", err)
 	}
 
+	return file, nil
+}
+
+func newLogger(conf ini.File) (log.Logger, error) {
+	level, _ := conf.Get("log", "level")
+	if level == "" {
+		level = "warn"
+	}
+
+	logger := log.New()
+	setFilterHandler(level, logger, log.StdoutHandler)
+
+	return logger, nil
+}
+
+func setFilterHandler(level string, logger log.Logger, handler log.Handler) error {
+	if level == "none" {
+		logger.SetHandler(log.DiscardHandler())
+		return nil
+	}
+
+	lvl, err := log.LvlFromString(level)
+	if err != nil {
+		return fmt.Errorf("Bad log level: %v", err)
+	}
+	logger.SetHandler(log.LvlFilterHandler(lvl, handler))
+
+	return nil
+}
+
+func newRepo(conf ini.File, logger log.Logger) (repository, error) {
+	logger = logger.New("module", "pgx")
+	if level, ok := conf.Get("log", "pgx_level"); ok {
+		setFilterHandler(level, logger, log.StdoutHandler)
+	}
+
+	connConfig := pgx.ConnConfig{Logger: logger}
+
+	connConfig.Host, _ = conf.Get("database", "host")
+	connConfig.Socket, _ = conf.Get("database", "socket")
+	if connConfig.Host == "" && connConfig.Socket == "" {
+		return nil, errors.New("Config must contain database.host or database.socket but it does not")
+	}
+
+	if p, ok := conf.Get("database", "port"); ok {
+		n, err := strconv.ParseUint(p, 10, 16)
+		connConfig.Port = uint16(n)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	var ok bool
 
-	if !c.IsSet("address") {
-		if config.listenAddress, ok = file.Get("server", "address"); !ok {
-			return nil, errors.New("Missing server address")
-		}
+	if connConfig.Database, ok = conf.Get("database", "database"); !ok {
+		return nil, errors.New("Config must contain database.database but it does not")
 	}
+	connConfig.User, _ = conf.Get("database", "user")
+	connConfig.Password, _ = conf.Get("database", "password")
 
-	if !c.IsSet("port") {
-		if config.listenPort, ok = file.Get("server", "port"); !ok {
-			return nil, errors.New("Missing server port")
-		}
+	poolConfig := pgx.ConnPoolConfig{
+		ConnConfig:     connConfig,
+		MaxConnections: 10,
+		AfterConnect:   afterConnect,
 	}
-
-	poolConfig := pgx.ConnPoolConfig{MaxConnections: 10, AfterConnect: afterConnect}
-	if poolConfig.ConnConfig, err = extractConnConfig(file); err != nil {
-		return nil, fmt.Errorf("Error reading database connection: %v", err.Error())
-	}
-	poolConfig.Logger = &PackageLogger{logger: logger, pkg: "pgx"}
 
 	repo, err := NewPgxRepository(poolConfig)
 	if err != nil {
@@ -138,29 +148,69 @@ func configure(c *cli.Context) (repository, error) {
 	return repo, nil
 }
 
+func loadHTTPConfig(c *cli.Context, conf ini.File) (httpConfig, error) {
+	config := httpConfig{}
+	config.listenAddress = c.String("address")
+	config.listenPort = c.String("port")
+	config.staticURL = c.String("static-url")
+
+	var ok bool
+	if !c.IsSet("address") {
+		if config.listenAddress, ok = conf.Get("server", "address"); !ok {
+			return config, errors.New("Missing server address")
+		}
+	}
+
+	if !c.IsSet("port") {
+		if config.listenPort, ok = conf.Get("server", "port"); !ok {
+			return config, errors.New("Missing server port")
+		}
+	}
+
+	return config, nil
+}
+
 func Serve(c *cli.Context) {
-	repo, err := configure(c)
+	conf, err := loadConfig(c.String("config"))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	apiHandler := NewAPIHandler(repo)
+	httpConfig, err := loadHTTPConfig(c, conf)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	logger, err := newLogger(conf)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	repo, err := newRepo(conf, logger)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	apiHandler := NewAPIHandler(repo, logger.New("module", "http"))
 	http.Handle("/api/", http.StripPrefix("/api", apiHandler))
 
-	if config.staticURL != "" {
-		staticURL, err := url.Parse(config.staticURL)
+	if httpConfig.staticURL != "" {
+		staticURL, err := url.Parse(httpConfig.staticURL)
 		if err != nil {
-			logger.Fatal("tpr", fmt.Sprintf("Bad static-url: %v", err))
+			logger.Crit(fmt.Sprintf("Bad static-url: %v", err))
 			os.Exit(1)
 		}
 		http.Handle("/", httputil.NewSingleHostReverseProxy(staticURL))
 	}
 
-	listenAt := fmt.Sprintf("%s:%s", config.listenAddress, config.listenPort)
+	listenAt := fmt.Sprintf("%s:%s", httpConfig.listenAddress, httpConfig.listenPort)
 	fmt.Printf("Starting to listen on: %s\n", listenAt)
 
-	feedUpdater := NewFeedUpdater(repo)
+	feedUpdater := NewFeedUpdater(repo, logger.New("module", "feedUpdater"))
 	go feedUpdater.KeepFeedsFresh()
 
 	if err := http.ListenAndServe(listenAt, nil); err != nil {
@@ -177,7 +227,19 @@ func ResetPassword(c *cli.Context) {
 
 	name := c.Args()[0]
 
-	repo, err := configure(c)
+	conf, err := loadConfig(c.String("config"))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	logger, err := newLogger(conf)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	repo, err := newRepo(conf, logger)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

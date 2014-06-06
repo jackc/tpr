@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"github.com/JackC/box"
-	"github.com/JackC/pgx"
 	"github.com/vaughan0/go-ini"
 	"net/http"
 	"net/http/httptest"
@@ -15,23 +14,23 @@ func newRepository(t *testing.T) repository {
 	var err error
 
 	if sharedPgxRepository == nil {
-		connPoolConfig := pgx.ConnPoolConfig{MaxConnections: 1, AfterConnect: afterConnect}
-
 		configPath := "../tpr.test.conf"
-		file, err := ini.LoadFile(configPath)
+		conf, err := ini.LoadFile(configPath)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		connPoolConfig.ConnConfig, err = extractConnConfig(file)
+		logger, err := newLogger(conf)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		sharedPgxRepository, err = NewPgxRepository(connPoolConfig)
+		repo, err := newRepo(conf, logger)
 		if err != nil {
 			t.Fatal(err)
 		}
+
+		sharedPgxRepository = repo.(*pgxRepository)
 	}
 
 	err = sharedPgxRepository.empty()

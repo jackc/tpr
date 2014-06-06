@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/JackC/box"
+	log "gopkg.in/inconshreveable/log15.v2"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -250,7 +251,7 @@ func TestFetchFeed(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	u := NewFeedUpdater(nil)
+	u := NewFeedUpdater(nil, log.Root())
 	rawFeed, err := u.fetchFeed(ts.URL, box.String{})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -274,7 +275,7 @@ func TestFetchFeedResponseHeaderTimeout(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	u := NewFeedUpdater(nil)
+	u := NewFeedUpdater(nil, log.Root())
 	transport := &http.Transport{ResponseHeaderTimeout: time.Duration(1 * time.Millisecond)}
 	u.client = &http.Client{Transport: transport}
 
@@ -295,7 +296,7 @@ func TestFetchFeedResponseBodyTimeout(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	u := NewFeedUpdater(nil)
+	u := NewFeedUpdater(nil, log.Root())
 	u.bodyResponseTimeout = 1 * time.Millisecond
 
 	_, err := u.fetchFeed(ts.URL, box.String{})

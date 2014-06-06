@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/JackC/box"
 	qv "github.com/JackC/quo_vadis"
+	log "gopkg.in/inconshreveable/log15.v2"
 	"net/http"
 	"strconv"
 	"time"
@@ -14,10 +15,10 @@ import (
 
 type EnvHandlerFunc func(w http.ResponseWriter, req *http.Request, env *environment)
 
-func EnvHandler(repo repository, f EnvHandlerFunc) http.Handler {
+func EnvHandler(repo repository, logger log.Logger, f EnvHandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		user := getUserFromSession(req, repo)
-		env := &environment{user: user, repo: repo}
+		env := &environment{user: user, repo: repo, logger: logger}
 		f(w, req, env)
 	})
 }
@@ -34,26 +35,27 @@ func AuthenticatedHandler(f EnvHandlerFunc) EnvHandlerFunc {
 }
 
 type environment struct {
-	user *User
-	repo repository
+	user   *User
+	repo   repository
+	logger log.Logger
 }
 
-func NewAPIHandler(repo repository) http.Handler {
+func NewAPIHandler(repo repository, logger log.Logger) http.Handler {
 	router := qv.NewRouter()
 
-	router.Post("/register", EnvHandler(repo, RegisterHandler))
-	router.Post("/sessions", EnvHandler(repo, CreateSessionHandler))
-	router.Delete("/sessions/:id", EnvHandler(repo, AuthenticatedHandler(DeleteSessionHandler)))
-	router.Post("/subscriptions", EnvHandler(repo, AuthenticatedHandler(CreateSubscriptionHandler)))
-	router.Delete("/subscriptions/:id", EnvHandler(repo, AuthenticatedHandler(DeleteSubscriptionHandler)))
-	router.Get("/feeds", EnvHandler(repo, AuthenticatedHandler(GetFeedsHandler)))
-	router.Post("/feeds/import", EnvHandler(repo, AuthenticatedHandler(ImportFeedsHandler)))
-	router.Get("/feeds.xml", EnvHandler(repo, AuthenticatedHandler(ExportFeedsHandler)))
-	router.Get("/items/unread", EnvHandler(repo, AuthenticatedHandler(GetUnreadItemsHandler)))
-	router.Post("/items/unread/mark_multiple_read", EnvHandler(repo, AuthenticatedHandler(MarkMultipleItemsReadHandler)))
-	router.Delete("/items/unread/:id", EnvHandler(repo, AuthenticatedHandler(MarkItemReadHandler)))
-	router.Get("/account", EnvHandler(repo, AuthenticatedHandler(GetAccountHandler)))
-	router.Patch("/account", EnvHandler(repo, AuthenticatedHandler(UpdateAccountHandler)))
+	router.Post("/register", EnvHandler(repo, logger, RegisterHandler))
+	router.Post("/sessions", EnvHandler(repo, logger, CreateSessionHandler))
+	router.Delete("/sessions/:id", EnvHandler(repo, logger, AuthenticatedHandler(DeleteSessionHandler)))
+	router.Post("/subscriptions", EnvHandler(repo, logger, AuthenticatedHandler(CreateSubscriptionHandler)))
+	router.Delete("/subscriptions/:id", EnvHandler(repo, logger, AuthenticatedHandler(DeleteSubscriptionHandler)))
+	router.Get("/feeds", EnvHandler(repo, logger, AuthenticatedHandler(GetFeedsHandler)))
+	router.Post("/feeds/import", EnvHandler(repo, logger, AuthenticatedHandler(ImportFeedsHandler)))
+	router.Get("/feeds.xml", EnvHandler(repo, logger, AuthenticatedHandler(ExportFeedsHandler)))
+	router.Get("/items/unread", EnvHandler(repo, logger, AuthenticatedHandler(GetUnreadItemsHandler)))
+	router.Post("/items/unread/mark_multiple_read", EnvHandler(repo, logger, AuthenticatedHandler(MarkMultipleItemsReadHandler)))
+	router.Delete("/items/unread/:id", EnvHandler(repo, logger, AuthenticatedHandler(MarkItemReadHandler)))
+	router.Get("/account", EnvHandler(repo, logger, AuthenticatedHandler(GetAccountHandler)))
+	router.Patch("/account", EnvHandler(repo, logger, AuthenticatedHandler(UpdateAccountHandler)))
 
 	return router
 }
@@ -67,7 +69,6 @@ func getUserFromSession(req *http.Request, repo repository) *User {
 	var sessionID []byte
 	sessionID, err := hex.DecodeString(token)
 	if err != nil {
-		logger.Warning("tpr", fmt.Sprintf(`Bad or missing to X-Authenticaton header "%s": %v`, req.Header.Get("X-Authentication"), err))
 		return nil
 	}
 
@@ -454,6 +455,6 @@ func UpdateAccountHandler(w http.ResponseWriter, req *http.Request, env *environ
 	if err != nil {
 		w.WriteHeader(500)
 		fmt.Fprintln(w, `Internal server error`)
-		logger.Error("tpr", fmt.Sprintf(`UpdateUser: %v`, err))
+		env.logger.Error("UpdateUser", "err", err)
 	}
 }

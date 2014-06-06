@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/JackC/box"
+	log "gopkg.in/inconshreveable/log15.v2"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -17,11 +18,13 @@ type FeedUpdater struct {
 	bodyResponseTimeout      time.Duration
 	maxConcurrentFeedFetches int
 	repo                     repository
+	logger                   log.Logger
 }
 
-func NewFeedUpdater(repo repository) *FeedUpdater {
+func NewFeedUpdater(repo repository, logger log.Logger) *FeedUpdater {
 	feedUpdater := &FeedUpdater{}
 	feedUpdater.repo = repo
+	feedUpdater.logger = logger
 	transport := &http.Transport{ResponseHeaderTimeout: time.Duration(10 * time.Second)}
 	feedUpdater.client = &http.Client{Transport: transport}
 	feedUpdater.bodyResponseTimeout = 60 * time.Second
@@ -35,7 +38,7 @@ func (u *FeedUpdater) KeepFeedsFresh() {
 		startTime := time.Now()
 
 		if staleFeeds, err := u.repo.GetFeedsUncheckedSince(startTime.Add(-10 * time.Minute)); err == nil {
-			logger.Info("tpr", fmt.Sprintf("Found %d stale feeds", len(staleFeeds)))
+			u.logger.Info("GetFeedsUncheckedSince succeeded", "n", len(staleFeeds))
 
 			staleFeedChan := make(chan Feed)
 			finishChan := make(chan bool)
@@ -61,7 +64,7 @@ func (u *FeedUpdater) KeepFeedsFresh() {
 			}
 
 		} else {
-			logger.Error("tpr", fmt.Sprintf("repo.GetFeedsUncheckedSince failed: %v", err))
+			u.logger.Error("GetFeedsUncheckedSince failed", "error", err)
 		}
 
 		sleepUntil(startTime.Add(time.Minute))
@@ -124,25 +127,25 @@ func (u *FeedUpdater) fetchFeed(feedURL string, etag box.String) (*rawFeed, erro
 func (u *FeedUpdater) RefreshFeed(staleFeed Feed) {
 	rawFeed, err := u.fetchFeed(staleFeed.URL.MustGet(), staleFeed.ETag)
 	if err != nil {
-		logger.Error("tpr", fmt.Sprintf("fetchFeed %s failed: %v", staleFeed.URL.MustGet(), err))
+		u.logger.Error("fetchFeed failed", "url", staleFeed.URL.MustGet(), "error", err)
 		u.repo.UpdateFeedWithFetchFailure(staleFeed.ID.MustGet(), err.Error(), time.Now())
 		return
 	}
 	// 304 unchanged
 	if rawFeed == nil {
-		logger.Info("tpr", fmt.Sprintf("fetchFeed %s 304 unchanged", staleFeed.URL.MustGet()))
+		u.logger.Info("fetchFeed 304 unchanged", "url", staleFeed.URL.MustGet())
 		u.repo.UpdateFeedWithFetchUnchanged(staleFeed.ID.MustGet(), time.Now())
 		return
 	}
 
 	feed, err := parseFeed(rawFeed.body)
 	if err != nil {
-		logger.Error("tpr", fmt.Sprintf("parseFeed %s failed: %v", staleFeed.URL.MustGet(), err))
+		u.logger.Error("parseFeed failed", "url", staleFeed.URL.MustGet(), "error", err)
 		u.repo.UpdateFeedWithFetchFailure(staleFeed.ID.MustGet(), fmt.Sprintf("Unable to parse feed: %v", err), time.Now())
 		return
 	}
 
-	logger.Info("tpr", fmt.Sprintf("refreshFeed %s (%d) succeeded", staleFeed.URL.MustGet(), staleFeed.ID.MustGet()))
+	u.logger.Info("refreshFeed succeeded", "url", staleFeed.URL.MustGet(), "id", staleFeed.ID.MustGet())
 	u.repo.UpdateFeedWithFetchSuccess(staleFeed.ID.MustGet(), feed, rawFeed.etag, time.Now())
 }
 
