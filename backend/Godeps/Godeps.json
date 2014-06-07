@@ -1,0 +1,46 @@
+{
+	"ImportPath": "github.com/JackC/tpr/backend",
+	"GoVersion": "go1.2.2",
+	"Deps": [
+		{
+			"ImportPath": "code.google.com/p/go.crypto/pbkdf2",
+			"Comment": "null-185",
+			"Rev": "6478cc9340cbbe6c04511280c5007722269108e9"
+		},
+		{
+			"ImportPath": "code.google.com/p/go.crypto/scrypt",
+			"Comment": "null-185",
+			"Rev": "6478cc9340cbbe6c04511280c5007722269108e9"
+		},
+		{
+			"ImportPath": "github.com/JackC/box",
+			"Rev": "b125d072babd47d5a9ae0627a45753cc922c0e7a"
+		},
+		{
+			"ImportPath": "github.com/JackC/cli",
+			"Comment": "1.0.0-69-g2bb83f4",
+			"Rev": "2bb83f44aaf313148c8730ae2074fc055e563195"
+		},
+		{
+			"ImportPath": "github.com/JackC/pgx",
+			"Rev": "b982aeb1028630d1df92e1a1b389dc76b6e0822f"
+		},
+		{
+			"ImportPath": "github.com/JackC/quo_vadis",
+			"Rev": "d1031e8ac7381963dabd9816f6166a1f272003b7"
+		},
+		{
+			"ImportPath": "github.com/vaughan0/go-ini",
+			"Rev": "a98ad7ee00ec53921f08832bc06ecf7fd600e6a1"
+		},
+		{
+			"ImportPath": "gopkg.in/check.v1",
+			"Rev": "871360013c92e1c715c2de6d06b54899468a8a2d"
+		},
+		{
+			"ImportPath": "gopkg.in/inconshreveable/log15.v2",
+			"Comment": "v2.2",
+			"Rev": "6496dcc0b79933520138fe7ab8bb208877c1e2cd"
+		}
+	]
+}

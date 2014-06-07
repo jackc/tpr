@@ -33,7 +33,7 @@ namespace :build do
 end
 
 file "build/tpr" => ["build:directory", *FileList["backend/*.go"]] do |t|
-  sh "go build -o build/tpr github.com/JackC/tpr/backend"
+  sh "cd backend; godep go build -o ../build/tpr github.com/JackC/tpr/backend"
 end
 
 file "build/tpr.1.gz" => "man/tpr.md" do
@@ -76,7 +76,7 @@ task spec: :spec_server
 
 desc "Run go tests"
 task :test do
-  sh "cd backend; go test"
+  sh "cd backend; godep go test"
 end
 
 task :default => [:test, :spec]
