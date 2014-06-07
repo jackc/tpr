@@ -13,8 +13,6 @@ require "md2man/roff/engine"
 
 CLOBBER.include("build")
 
-VERSION = File.readlines("backend/main.go").grep(/const version = ".+"/).first[/\d+\.\d+\.\d+/]
-
 namespace :build do
   task :directory do
     Dir.mkdir("build") unless Dir.exists?("build")
@@ -80,36 +78,3 @@ task :test do
 end
 
 task :default => [:test, :spec]
-
-file "tpr_#{VERSION}.deb" => :build do
-  pkg_dir = "tpr_#{VERSION}"
-  sh "sudo rm -rf #{pkg_dir}"
-
-  FileUtils.cp_r "deploy/ubuntu/template", "#{pkg_dir}"
-
-  control_template = File.read("#{pkg_dir}/DEBIAN/control")
-  control = ERB.new(control_template).result binding
-  File.write "#{pkg_dir}/DEBIAN/control", control
-
-  FileUtils.rm "#{pkg_dir}/usr/bin/.gitignore"
-  FileUtils.rm "#{pkg_dir}/usr/share/tpr/.gitignore"
-  FileUtils.rm "#{pkg_dir}/usr/share/man/man1/.gitignore"
-
-  FileUtils.cp "build/tpr", "#{pkg_dir}/usr/bin"
-  FileUtils.cp "build/tpr.1.gz", "#{pkg_dir}/usr/share/man/man1"
-  FileUtils.cp_r "build/assets", "#{pkg_dir}/usr/share/tpr"
-  FileUtils.cp_r "migrate", "#{pkg_dir}/usr/share/tpr/migrate"
-
-  sh "chmod 0755 #{pkg_dir}/usr/bin/tpr"
-  sh "chmod 0755 #{pkg_dir}/etc #{pkg_dir}/etc/init #{pkg_dir}/etc/tpr #{pkg_dir}/usr #{pkg_dir}/usr/bin"
-  sh "find #{pkg_dir}/etc -type d -exec chmod 0755 {} \\;"
-  sh "find #{pkg_dir}/etc -type f -exec chmod 0644 {} \\;"
-  sh "find #{pkg_dir}/usr/share -type d -exec chmod 0755 {} \\;"
-  sh "find #{pkg_dir}/usr/share -type f -exec chmod 0644 {} \\;"
-  sh "sudo chown -R 0:0 #{pkg_dir}"
-
-  sh "dpkg --build #{pkg_dir}"
-  sh "lintian #{pkg_dir}.deb"
-end
-
-task deb: "tpr_#{VERSION}.deb"
