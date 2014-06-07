@@ -17,7 +17,15 @@ func validatePassword(password string) error {
 }
 
 func genRandPassword() (string, error) {
-	pwBytes := make([]byte, 6)
+	return genRandToken(6)
+}
+
+func genLostPasswordToken() (string, error) {
+	return genRandToken(24)
+}
+
+func genRandToken(byteCount int) (string, error) {
+	pwBytes := make([]byte, byteCount)
 	_, err := rand.Read(pwBytes)
 	if err != nil {
 		return "", err

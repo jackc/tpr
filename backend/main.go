@@ -9,6 +9,7 @@ import (
 	log "gopkg.in/inconshreveable/log15.v2"
 	"net/http"
 	"net/http/httputil"
+	"net/smtp"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -170,6 +171,49 @@ func loadHTTPConfig(c *cli.Context, conf ini.File) (httpConfig, error) {
 	return config, nil
 }
 
+func newMailer(conf ini.File, logger log.Logger) (Mailer, error) {
+	mailConf := conf.Section("mail")
+	if len(mailConf) == 0 {
+		return nil, nil
+	}
+
+	smtpAddr, ok := mailConf["smtp_server"]
+	if !ok {
+		return nil, errors.New("Missing mail -- smtp_server")
+	}
+	smtpPort, _ := mailConf["port"]
+	if smtpPort == "" {
+		smtpPort = "587"
+	}
+
+	fromAddr, ok := mailConf["from_address"]
+	if !ok {
+		return nil, errors.New("Missing mail -- from_address")
+	}
+
+	rootURL, ok := mailConf["root_url"]
+	if !ok {
+		return nil, errors.New("Missing mail -- root_url")
+	}
+
+	username, _ := mailConf["username"]
+	password, _ := mailConf["password"]
+
+	auth := smtp.PlainAuth("", username, password, smtpAddr)
+
+	logger = logger.New("module", "mail")
+
+	mailer := &SMTPMailer{
+		ServerAddr: smtpAddr + ":" + smtpPort,
+		Auth:       auth,
+		From:       fromAddr,
+		rootURL:    rootURL,
+		logger:     logger,
+	}
+
+	return mailer, nil
+}
+
 func Serve(c *cli.Context) {
 	conf, err := loadConfig(c.String("config"))
 	if err != nil {
@@ -195,7 +239,13 @@ func Serve(c *cli.Context) {
 		os.Exit(1)
 	}
 
-	apiHandler := NewAPIHandler(repo, logger.New("module", "http"))
+	mailer, err := newMailer(conf, logger)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	apiHandler := NewAPIHandler(repo, mailer, logger.New("module", "http"))
 	http.Handle("/api/", http.StripPrefix("/api", apiHandler))
 
 	if httpConfig.staticURL != "" {

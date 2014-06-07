@@ -74,6 +74,10 @@ func (repo *pgxRepository) GetUserByName(name string) (*User, error) {
 	return repo.getUser("getUserByName", name)
 }
 
+func (repo *pgxRepository) GetUserByEmail(email string) (*User, error) {
+	return repo.getUser("getUserByEmail", email)
+}
+
 func (repo *pgxRepository) UpdateUser(userID int32, attributes *User) error {
 	var sets []string
 	args := pgx.QueryArgs(make([]interface{}, 0, 6))
@@ -252,9 +256,114 @@ func (repo *pgxRepository) DeleteSession(id []byte) error {
 	return nil
 }
 
+func (repo *pgxRepository) CreatePasswordReset(attrs *PasswordReset) error {
+	columns := make([]string, 0, 7)
+	placeholders := make([]string, 0, 7)
+	args := pgx.QueryArgs(make([]interface{}, 0, 7))
+
+	if v, ok := attrs.Token.Get(); ok {
+		columns = append(columns, "token")
+		placeholders = append(placeholders, args.Append(v))
+	}
+	if v, ok := attrs.Email.Get(); ok {
+		columns = append(columns, "email")
+		placeholders = append(placeholders, args.Append(v))
+	}
+	if v, ok := attrs.RequestIP.Get(); ok {
+		columns = append(columns, "request_ip")
+		placeholders = append(placeholders, args.Append(v))
+	}
+	if v, ok := attrs.RequestTime.Get(); ok {
+		columns = append(columns, "request_time")
+		placeholders = append(placeholders, args.Append(v))
+	}
+	if v, ok := attrs.UserID.Get(); ok {
+		columns = append(columns, "user_id")
+		placeholders = append(placeholders, args.Append(v))
+	}
+	if v, ok := attrs.CompletionTime.Get(); ok {
+		columns = append(columns, "completion_time")
+		placeholders = append(placeholders, args.Append(v))
+	}
+	if v, ok := attrs.CompletionIP.Get(); ok {
+		columns = append(columns, "completion_ip")
+		placeholders = append(placeholders, args.Append(v))
+	}
+
+	sql := "insert into password_resets(" + strings.Join(columns, ", ") + ") values(" + strings.Join(placeholders, ", ") + ")"
+
+	_, err := repo.pool.Execute(sql, args...)
+	if err != nil {
+		if strings.Contains(err.Error(), "password_resets_pkey") {
+			return DuplicationError{Field: "token"}
+		}
+		return err
+	}
+
+	return nil
+}
+
+func (repo *pgxRepository) GetPasswordReset(token string) (*PasswordReset, error) {
+	pwr := &PasswordReset{}
+	err := repo.pool.SelectFunc("getPasswordReset", func(r *pgx.DataRowReader) (err error) {
+		pwr.Token.Set(r.ReadValue().(string))
+		pwr.Email.Set(r.ReadValue().(string))
+		pwr.RequestIP.SetCoerceNil(r.ReadValue(), box.Unknown)
+		pwr.RequestTime.Set(r.ReadValue().(time.Time))
+		pwr.UserID.SetCoerceNil(r.ReadValue(), box.Empty)
+		pwr.CompletionIP.SetCoerceNil(r.ReadValue(), box.Empty)
+		pwr.CompletionTime.SetCoerceNil(r.ReadValue(), box.Empty)
+		return
+	}, token)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, ok := pwr.Token.Get(); !ok {
+		return nil, notFound
+	}
+
+	return pwr, nil
+}
+
+func (repo *pgxRepository) UpdatePasswordReset(token string, attrs *PasswordReset) error {
+	sets := make([]string, 0, 7)
+	args := pgx.QueryArgs(make([]interface{}, 0, 7))
+
+	if v, ok := attrs.Token.Get(); ok {
+		sets = append(sets, "token="+args.Append(v))
+	}
+	if v, ok := attrs.Email.Get(); ok {
+		sets = append(sets, "email="+args.Append(v))
+	}
+	if v, ok := attrs.RequestIP.Get(); ok {
+		sets = append(sets, "request_ip="+args.Append(v))
+	}
+	if v, ok := attrs.RequestTime.Get(); ok {
+		sets = append(sets, "request_time="+args.Append(v))
+	}
+	if v, ok := attrs.CompletionTime.Get(); ok {
+		sets = append(sets, "completion_time="+args.Append(v))
+	}
+	if v, ok := attrs.CompletionIP.Get(); ok {
+		sets = append(sets, "completion_ip="+args.Append(v))
+	}
+
+	sql := "update password_resets set " + strings.Join(sets, ", ") + " where token=" + args.Append(token)
+
+	commandTag, err := repo.pool.Execute(sql, args...)
+	if err != nil {
+		return err
+	}
+	if commandTag.RowsAffected() != 1 {
+		return notFound
+	}
+	return nil
+}
+
 // Empty all data in the entire repository
 func (repo *pgxRepository) empty() error {
-	tables := []string{"feeds", "items", "sessions", "subscriptions", "unread_items", "users"}
+	tables := []string{"feeds", "items", "password_resets", "sessions", "subscriptions", "unread_items", "users"}
 	for _, table := range tables {
 		_, err := repo.pool.Execute(fmt.Sprintf("delete from %s", table))
 		if err != nil {
@@ -491,6 +600,19 @@ func afterConnect(conn *pgx.Conn) (err error) {
 	}
 
 	err = conn.Prepare("getUserByName", `select id, name, email, password_digest, password_salt from users where name=$1`)
+	if err != nil {
+		return
+	}
+
+	err = conn.Prepare("getUserByEmail", `select id, name, email, password_digest, password_salt from users where email=$1`)
+	if err != nil {
+		return
+	}
+
+	err = conn.Prepare("getPasswordReset", `
+    select token, email, request_ip, request_time, user_id, completion_ip, completion_time
+    from password_resets
+    where token=$1`)
 	if err != nil {
 		return
 	}

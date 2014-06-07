@@ -129,6 +129,28 @@
       return this.post("/api/register", options);
     },
 
+    requestPasswordReset: function(email, callbacks) {
+      var options = {
+        contentType: "application/json",
+        data: JSON.stringify({"email": email})
+      };
+
+      options = this.mergeCallbacks(options, callbacks);
+
+      return this.post("/api/request_password_reset", options);
+    },
+
+    resetPassword: function(reset, callbacks) {
+      var options = {
+        contentType: "application/json",
+        data: JSON.stringify(reset)
+      };
+
+      options = this.mergeCallbacks(options, callbacks);
+
+      this.post("/api/reset_password", options);
+    },
+
     getAccount: function(callbacks) {
       var options = this.mergeCallbacks({}, callbacks);
 

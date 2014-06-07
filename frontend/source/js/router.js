@@ -11,14 +11,24 @@
   App.Router.prototype = {
     routes: {
       login: "login",
-      home: "home",
       register: "register",
+      lostPassword: "lostPassword",
+      resetPassword: "resetPassword",
+      home: "home",
       feeds: "feeds",
       account: "account",
     },
 
     login: function() {
       this.changePage(App.Views.LoginPage);
+    },
+
+    lostPassword: function() {
+      this.changePage(App.Views.LostPasswordPage);
+    },
+
+    resetPassword: function() {
+      this.changePage(App.Views.ResetPasswordPage);
     },
 
     home: function() {
@@ -72,17 +82,19 @@
     },
 
     change: function() {
-      var handler = this.routes[window.location.hash.slice(1)];
+      var hash = window.location.hash.slice(1)
+      var route = hash.split("?")[0]
+      var handler = this.routes[route]
       if(!handler) {
-        this.navigate("login");
-        return;
+        this.navigate("login")
+        return
       }
 
-      return this[handler]();
+      return this[handler]()
     },
 
     navigate: function(route) {
-      window.location.hash = "#" + route;
+      window.location.hash = "#" + route
     }
   }
 })();

@@ -8,6 +8,7 @@ import (
 	"github.com/JackC/box"
 	qv "github.com/JackC/quo_vadis"
 	log "gopkg.in/inconshreveable/log15.v2"
+	"net"
 	"net/http"
 	"strconv"
 	"time"
@@ -15,10 +16,10 @@ import (
 
 type EnvHandlerFunc func(w http.ResponseWriter, req *http.Request, env *environment)
 
-func EnvHandler(repo repository, logger log.Logger, f EnvHandlerFunc) http.Handler {
+func EnvHandler(repo repository, mailer Mailer, logger log.Logger, f EnvHandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		user := getUserFromSession(req, repo)
-		env := &environment{user: user, repo: repo, logger: logger}
+		env := &environment{user: user, repo: repo, mailer: mailer, logger: logger}
 		f(w, req, env)
 	})
 }
@@ -38,24 +39,27 @@ type environment struct {
 	user   *User
 	repo   repository
 	logger log.Logger
+	mailer Mailer
 }
 
-func NewAPIHandler(repo repository, logger log.Logger) http.Handler {
+func NewAPIHandler(repo repository, mailer Mailer, logger log.Logger) http.Handler {
 	router := qv.NewRouter()
 
-	router.Post("/register", EnvHandler(repo, logger, RegisterHandler))
-	router.Post("/sessions", EnvHandler(repo, logger, CreateSessionHandler))
-	router.Delete("/sessions/:id", EnvHandler(repo, logger, AuthenticatedHandler(DeleteSessionHandler)))
-	router.Post("/subscriptions", EnvHandler(repo, logger, AuthenticatedHandler(CreateSubscriptionHandler)))
-	router.Delete("/subscriptions/:id", EnvHandler(repo, logger, AuthenticatedHandler(DeleteSubscriptionHandler)))
-	router.Get("/feeds", EnvHandler(repo, logger, AuthenticatedHandler(GetFeedsHandler)))
-	router.Post("/feeds/import", EnvHandler(repo, logger, AuthenticatedHandler(ImportFeedsHandler)))
-	router.Get("/feeds.xml", EnvHandler(repo, logger, AuthenticatedHandler(ExportFeedsHandler)))
-	router.Get("/items/unread", EnvHandler(repo, logger, AuthenticatedHandler(GetUnreadItemsHandler)))
-	router.Post("/items/unread/mark_multiple_read", EnvHandler(repo, logger, AuthenticatedHandler(MarkMultipleItemsReadHandler)))
-	router.Delete("/items/unread/:id", EnvHandler(repo, logger, AuthenticatedHandler(MarkItemReadHandler)))
-	router.Get("/account", EnvHandler(repo, logger, AuthenticatedHandler(GetAccountHandler)))
-	router.Patch("/account", EnvHandler(repo, logger, AuthenticatedHandler(UpdateAccountHandler)))
+	router.Post("/register", EnvHandler(repo, mailer, logger, RegisterHandler))
+	router.Post("/sessions", EnvHandler(repo, mailer, logger, CreateSessionHandler))
+	router.Delete("/sessions/:id", EnvHandler(repo, mailer, logger, AuthenticatedHandler(DeleteSessionHandler)))
+	router.Post("/subscriptions", EnvHandler(repo, mailer, logger, AuthenticatedHandler(CreateSubscriptionHandler)))
+	router.Delete("/subscriptions/:id", EnvHandler(repo, mailer, logger, AuthenticatedHandler(DeleteSubscriptionHandler)))
+	router.Post("/request_password_reset", EnvHandler(repo, mailer, logger, RequestPasswordResetHandler))
+	router.Post("/reset_password", EnvHandler(repo, mailer, logger, ResetPasswordHandler))
+	router.Get("/feeds", EnvHandler(repo, mailer, logger, AuthenticatedHandler(GetFeedsHandler)))
+	router.Post("/feeds/import", EnvHandler(repo, mailer, logger, AuthenticatedHandler(ImportFeedsHandler)))
+	router.Get("/feeds.xml", EnvHandler(repo, mailer, logger, AuthenticatedHandler(ExportFeedsHandler)))
+	router.Get("/items/unread", EnvHandler(repo, mailer, logger, AuthenticatedHandler(GetUnreadItemsHandler)))
+	router.Post("/items/unread/mark_multiple_read", EnvHandler(repo, mailer, logger, AuthenticatedHandler(MarkMultipleItemsReadHandler)))
+	router.Delete("/items/unread/:id", EnvHandler(repo, mailer, logger, AuthenticatedHandler(MarkItemReadHandler)))
+	router.Get("/account", EnvHandler(repo, mailer, logger, AuthenticatedHandler(GetAccountHandler)))
+	router.Patch("/account", EnvHandler(repo, mailer, logger, AuthenticatedHandler(UpdateAccountHandler)))
 
 	return router
 }
@@ -457,4 +461,155 @@ func UpdateAccountHandler(w http.ResponseWriter, req *http.Request, env *environ
 		fmt.Fprintln(w, `Internal server error`)
 		env.logger.Error("UpdateUser", "err", err)
 	}
+}
+
+func RequestPasswordResetHandler(w http.ResponseWriter, req *http.Request, env *environment) {
+	pwr := &PasswordReset{}
+	pwr.RequestTime.Set(time.Now())
+
+	if host, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
+		pwr.RequestIP.Set(host)
+	}
+
+	token, err := genLostPasswordToken()
+	if err != nil {
+		w.WriteHeader(500)
+		fmt.Fprintln(w, `Internal server error`)
+		env.logger.Error("getLostPasswordToken failed", "error", err)
+		return
+	}
+	pwr.Token.Set(token)
+
+	var reset struct {
+		Email string `json:"email"`
+	}
+
+	decoder := json.NewDecoder(req.Body)
+	if err := decoder.Decode(&reset); err != nil {
+		w.WriteHeader(422)
+		fmt.Fprintf(w, "Error decoding request: %v", err)
+		return
+	}
+	if reset.Email == "" {
+		w.WriteHeader(422)
+		fmt.Fprint(w, "Error decoding request: missing email")
+		return
+	}
+
+	pwr.Email.Set(reset.Email)
+
+	user, err := env.repo.GetUserByEmail(reset.Email)
+	switch err {
+	case nil:
+		pwr.UserID = user.ID
+	case notFound:
+	default:
+		w.WriteHeader(500)
+		fmt.Fprintln(w, `Internal server error`)
+		return
+	}
+
+	err = env.repo.CreatePasswordReset(pwr)
+	if err != nil {
+		w.WriteHeader(500)
+		fmt.Fprintln(w, `Internal server error`)
+		env.logger.Error("repo.CreatePasswordReset failed", "error", err)
+		return
+	}
+
+	if user == nil {
+		env.logger.Warn("Password reset requested for missing email", "email", reset.Email)
+		return
+	}
+
+	if env.mailer == nil {
+		w.WriteHeader(500)
+		fmt.Fprintln(w, `Internal server error`)
+		env.logger.Error("Mail is not configured -- cannot send password reset email")
+		return
+	}
+
+	err = env.mailer.SendPasswordResetMail(reset.Email, token)
+	if err != nil {
+		w.WriteHeader(500)
+		fmt.Fprintln(w, `Internal server error`)
+		env.logger.Error("env.mailer.SendPasswordResetMail failed", "error", err)
+		return
+	}
+}
+
+func ResetPasswordHandler(w http.ResponseWriter, req *http.Request, env *environment) {
+	var resetPassword struct {
+		Token    string `json:"token"`
+		Password string `json:"password"`
+	}
+
+	decoder := json.NewDecoder(req.Body)
+	if err := decoder.Decode(&resetPassword); err != nil {
+		w.WriteHeader(422)
+		fmt.Fprintf(w, "Error decoding request: %v", err)
+		return
+	}
+
+	pwr, err := env.repo.GetPasswordReset(resetPassword.Token)
+	if err == notFound {
+		w.WriteHeader(404)
+		return
+	} else if err != nil {
+		w.WriteHeader(500)
+		fmt.Fprintf(w, "Error decoding request: %v", err)
+		return
+	}
+
+	userID, ok := pwr.UserID.Get()
+	if !ok {
+		w.WriteHeader(404)
+		return
+	}
+
+	_, ok = pwr.CompletionTime.Get()
+	if ok {
+		w.WriteHeader(404)
+		return
+	}
+
+	attrs := &User{}
+	attrs.SetPassword(resetPassword.Password)
+
+	err = env.repo.UpdateUser(userID, attrs)
+	if err != nil {
+		w.WriteHeader(500)
+		return
+	}
+
+	user, err := env.repo.GetUser(userID)
+	if err != nil {
+		w.WriteHeader(500)
+		return
+	}
+
+	sessionID, err := genSessionID()
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	err = env.repo.CreateSession(sessionID, user.ID.MustGet())
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	var response struct {
+		Name      string `json:"name"`
+		SessionID string `json:"sessionID"`
+	}
+
+	response.Name = user.Name.MustGet()
+	response.SessionID = hex.EncodeToString(sessionID)
+
+	encoder := json.NewEncoder(w)
+	encoder.Encode(response)
 }

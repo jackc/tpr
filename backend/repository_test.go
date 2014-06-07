@@ -47,6 +47,14 @@ func (s *RepositorySuite) TestUsersLifeCycle(c *C) {
 	c.Check(bytes.Compare(user.PasswordDigest, input.PasswordDigest), Equals, 0)
 	c.Check(bytes.Compare(user.PasswordSalt, input.PasswordSalt), Equals, 0)
 
+	user, err = s.repo.GetUserByEmail(input.Email.MustGet())
+	c.Assert(err, IsNil)
+	c.Check(user.ID.GetCoerceNil(), Equals, userID)
+	c.Check(user.Name.GetCoerceNil(), Equals, input.Name.MustGet())
+	c.Check(user.Email.GetCoerceNil(), Equals, input.Email.MustGet())
+	c.Check(bytes.Compare(user.PasswordDigest, input.PasswordDigest), Equals, 0)
+	c.Check(bytes.Compare(user.PasswordSalt, input.PasswordSalt), Equals, 0)
+
 	user, err = s.repo.GetUser(userID)
 	c.Assert(err, IsNil)
 	c.Check(user.ID.GetCoerceNil(), Equals, userID)
@@ -400,4 +408,45 @@ func (s *RepositorySuite) TestSessions(c *C) {
 
 	err = s.repo.DeleteSession(sessionID)
 	c.Assert(err, Equals, notFound)
+}
+
+func (s *RepositorySuite) TestResetPasswordsLifeCycle(c *C) {
+	input := &PasswordReset{
+		Token:       box.NewString("token"),
+		Email:       box.NewString("test@example.com"),
+		RequestIP:   box.NewString("127.0.0.1"),
+		RequestTime: box.NewTime(time.Date(2014, time.May, 30, 16, 10, 0, 0, time.Local)),
+	}
+	err := s.repo.CreatePasswordReset(input)
+	c.Assert(err, IsNil)
+
+	reset, err := s.repo.GetPasswordReset(input.Token.MustGet())
+	c.Assert(err, IsNil)
+	c.Check(reset.Token.GetCoerceNil(), Equals, input.Token.GetCoerceNil())
+	c.Check(reset.Email.GetCoerceNil(), Equals, input.Email.GetCoerceNil())
+	c.Check(reset.RequestIP.GetCoerceNil(), Equals, input.RequestIP.GetCoerceNil())
+	c.Check(reset.RequestTime.GetCoerceNil(), Equals, input.RequestTime.GetCoerceNil())
+	if _, present := reset.CompletionTime.Get(); present {
+		c.Error("CompletionTime should have been empty, but wasn't")
+	}
+	if _, present := reset.CompletionIP.Get(); present {
+		c.Error("CompletionIP should have been empty, but wasn't")
+	}
+
+	update := &PasswordReset{
+		CompletionIP:   box.NewString("192.168.0.2"),
+		CompletionTime: box.NewTime(time.Date(2014, time.May, 30, 16, 15, 0, 0, time.Local)),
+	}
+
+	err = s.repo.UpdatePasswordReset(input.Token.MustGet(), update)
+	c.Assert(err, IsNil)
+
+	reset, err = s.repo.GetPasswordReset(input.Token.MustGet())
+	c.Assert(err, IsNil)
+	c.Check(reset.Token.GetCoerceNil(), Equals, input.Token.GetCoerceNil())
+	c.Check(reset.Email.GetCoerceNil(), Equals, input.Email.GetCoerceNil())
+	c.Check(reset.RequestIP.GetCoerceNil(), Equals, input.RequestIP.GetCoerceNil())
+	c.Check(reset.RequestTime.GetCoerceNil(), Equals, input.RequestTime.GetCoerceNil())
+	c.Check(reset.CompletionIP.GetCoerceNil(), Equals, update.CompletionIP.GetCoerceNil())
+	c.Check(reset.CompletionTime.GetCoerceNil(), Equals, update.CompletionTime.GetCoerceNil())
 }

@@ -9,6 +9,8 @@
 //= require views/view.js
 //= require views/login.js
 //= require views/register.js
+//= require views/lost_password.js
+//= require views/reset_password.js
 //= require views/header.js
 //= require views/feeds.js
 //= require views/home.js
