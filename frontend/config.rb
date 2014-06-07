@@ -48,6 +48,7 @@
 set :css_dir, 'css'
 
 set :js_dir, 'js'
+ignore /js\/(?!application).*\.js/
 
 set :images_dir, 'img'
 
