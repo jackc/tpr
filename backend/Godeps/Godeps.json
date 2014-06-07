@@ -34,10 +34,6 @@
 			"Rev": "a98ad7ee00ec53921f08832bc06ecf7fd600e6a1"
 		},
 		{
-			"ImportPath": "gopkg.in/check.v1",
-			"Rev": "871360013c92e1c715c2de6d06b54899468a8a2d"
-		},
-		{
 			"ImportPath": "gopkg.in/inconshreveable/log15.v2",
 			"Comment": "v2.2",
 			"Rev": "6496dcc0b79933520138fe7ab8bb208877c1e2cd"

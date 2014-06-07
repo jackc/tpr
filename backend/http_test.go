@@ -27,7 +27,9 @@ func getLogger(t *testing.T) log.Logger {
 	return logger
 }
 
-func newRepository(t *testing.T) repository {
+var sharedPgxRepository *pgxRepository
+
+func newRepository(t testing.TB) repository {
 	var err error
 
 	if sharedPgxRepository == nil {
