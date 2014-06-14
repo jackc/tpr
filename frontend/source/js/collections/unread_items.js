@@ -8,7 +8,7 @@
 
   App.Collections.UnreadItems.prototype = {
     fetch: function() {
-      self = this;
+      var self = this;
       conn.getUnreadItems({ succeeded: function(data) {
         self.items = data.map(function(record) {
           var model = new App.Models.Item;
@@ -22,7 +22,7 @@
     },
 
     markAllRead: function() {
-      self = this;
+      var self = this;
       var itemIDs = this.items.map(function(i) { return i.id; });
       conn.markAllRead(itemIDs, { succeeded: function() {
         self.changed.dispatch();
