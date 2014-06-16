@@ -6,7 +6,7 @@ $error-color: #e22;
 body {
   margin: 0;
   font-family: Verdana, sans-serif;
-  background-color: white;
+  background-color: $primary-color;
   font-size: 16px;
 }
 
@@ -52,6 +52,11 @@ form {
   color: $light-contrast-color;
   font-weight: bold;
   border-radius: 8px 8px 0 0;
+}
+
+#view {
+  background-color: white;
+  padding-bottom: 24px;
 }
 
 #view > div > header {
@@ -203,5 +208,19 @@ input[type=submit] {
 #view > .account {
   input[type=text], input[type=password], input[type=email] {
     max-width: 20em;
+  }
+}
+
+body > footer {
+  background-color: $primary-color;
+  color: $light-contrast-color;
+  padding: 8px 16px 8px 16px;
+  font-size: 0.5em;
+
+  a {
+    color: $light-contrast-color;
+    &:hover {
+      color: $dark-contrast-color;
+    }
   }
 }
