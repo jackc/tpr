@@ -6,12 +6,12 @@ $error-color: #e22;
 body {
   margin: 0;
   font-family: Verdana, sans-serif;
-  background-color: $primary-color;
   font-size: 16px;
+  background-color: #eee;
 }
 
 p.noUnread {
-  color: $dark-contrast-color;
+  color: $primary-color;
 }
 
 form {
@@ -61,7 +61,7 @@ form {
 
 #view > div > header {
   background-color: $primary-color;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 
   h1 {
     font-size: 1.5em;
@@ -86,7 +86,25 @@ form {
 }
 
 #view .pageActions {
+  margin: -1em 0 1em 0;
+  padding: 1em;
+}
+
+.keyboardShortcuts {
   margin-left: 16px;
+  font-size: 0.75em;
+  color: $primary-color;
+  display: inline-block;
+
+  dl, dt, dd {
+    display: inline-block;
+    margin: 0;
+  }
+
+  dd {
+    margin: 0 16px 0 0;
+    font-weight: bold;
+  }
 }
 
 a {
@@ -156,16 +174,17 @@ input[type=submit] {
 #view > .home {
   ul.unreadItems {
     padding: 0;
+    margin: 0;
     li {
       list-style-type: none;
-      padding: 0 16px 0 16px;
-      margin-bottom: 1em;
+      padding: 8px 16px;
 
       &.selected {
-        border-top: 4px solid $primary-color;
-        border-bottom: 4px solid $primary-color;
-        padding: 1em;
         background-color: $light-contrast-color;
+        padding: 7px 16px;
+
+        border-top: 1px solid $primary-color;
+        border-bottom: 1px solid $primary-color;
       }
 
       .title {
@@ -212,15 +231,8 @@ input[type=submit] {
 }
 
 body > footer {
-  background-color: $primary-color;
-  color: $light-contrast-color;
+  text-align: center;
+  color: $primary-color;
   padding: 8px 16px 8px 16px;
-  font-size: 0.5em;
-
-  a {
-    color: $light-contrast-color;
-    &:hover {
-      color: $dark-contrast-color;
-    }
-  }
+  font-size: 0.75em;
 }

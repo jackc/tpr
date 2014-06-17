@@ -1,5 +1,17 @@
 <% if(collection.items.length > 0) { %>
 <a href="#" class="markAllRead button">Mark All Read</a>
+<div class="keyboardShortcuts">
+  <dl>
+    <dt>Move down:</dt>
+    <dd>j</dd>
+    <dt>Move up:</dt>
+    <dd>k</dd>
+    <dt>Open selected:</dt>
+    <dd>v</dd>
+    <dt>Mark all read:</dt>
+    <dd>shift+a</dd>
+  </dl>
+</div>
 <% } else { %>
 <a href="#" class="refresh button">Refresh</a>
 <p class="noUnread">No unread items as of <%= new Date().toTPRString() %>.</p>
