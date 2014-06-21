@@ -19,11 +19,11 @@ The Pithy Reader uses [godep](https://github.com/tools/godep) to manage its depe
 
 Get The Pithy Reader.
 
-    go get github.com/JackC/tpr/backend
+    go get github.com/jackc/tpr/backend
 
 Go to repository you just checked out.
 
-    cd $GOPATH/src/github.com/JackC/tpr
+    cd $GOPATH/src/github.com/jackc/tpr
 
 Install the Ruby dependencies:
 
@@ -40,15 +40,15 @@ For security reasons, The Pithy Reader is designed to run with a limited databas
 
     createuser -P tpr
 
-Database migrations are managed with [tern](https://github.com/JackC/tern). Install tern if you don't already have it.
+Database migrations are managed with [tern](https://github.com/jackc/tern). Install tern if you don't already have it.
 
-    go get github.com/JackC/tern
-    cd $GOPATH/src/github.com/JackC/tern
+    go get github.com/jackc/tern
+    cd $GOPATH/src/github.com/jackc/tern
     godep go install
 
 Go back to The Pithy Reader directory.
 
-    cd $GOPATH/src/github.com/JackC/tpr
+    cd $GOPATH/src/github.com/jackc/tpr
 
 Make a copy of the example config files without the "example".
 

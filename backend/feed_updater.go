@@ -5,7 +5,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"github.com/JackC/box"
+	"github.com/jackc/box"
 	log "gopkg.in/inconshreveable/log15.v2"
 	"io/ioutil"
 	"net/http"

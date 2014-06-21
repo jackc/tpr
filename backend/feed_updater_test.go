@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"github.com/JackC/box"
+	"github.com/jackc/box"
 	log "gopkg.in/inconshreveable/log15.v2"
 	"net/http"
 	"net/http/httptest"

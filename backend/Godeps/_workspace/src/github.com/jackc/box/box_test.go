@@ -2,7 +2,7 @@ package box_test
 
 import (
 	"encoding/json"
-	"github.com/JackC/box"
+	"github.com/jackc/box"
 	. "launchpad.net/gocheck"
 	"testing"
 	"time"

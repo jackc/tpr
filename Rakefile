@@ -31,7 +31,7 @@ namespace :build do
 end
 
 file "build/tpr" => ["build:directory", *FileList["backend/*.go"]] do |t|
-  sh "cd backend; godep go build -o ../build/tpr github.com/JackC/tpr/backend"
+  sh "cd backend; godep go build -o ../build/tpr github.com/jackc/tpr/backend"
 end
 
 file "build/tpr.1.gz" => "man/tpr.md" do

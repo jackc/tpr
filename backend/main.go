@@ -3,8 +3,8 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/JackC/cli"
-	"github.com/JackC/pgx"
+	"github.com/jackc/cli"
+	"github.com/jackc/pgx"
 	"github.com/vaughan0/go-ini"
 	log "gopkg.in/inconshreveable/log15.v2"
 	"net/http"

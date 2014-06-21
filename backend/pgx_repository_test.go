@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/JackC/box"
+	"github.com/jackc/box"
 	"testing"
 	"time"
 )

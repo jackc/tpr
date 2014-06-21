@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/JackC/box"
+	"github.com/jackc/box"
 	"github.com/vaughan0/go-ini"
 	log "gopkg.in/inconshreveable/log15.v2"
 	"net/http"

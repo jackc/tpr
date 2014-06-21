@@ -1,5 +1,5 @@
 {
-	"ImportPath": "github.com/JackC/tpr/backend",
+	"ImportPath": "github.com/jackc/tpr/backend",
 	"GoVersion": "go1.2.2",
 	"Deps": [
 		{
@@ -13,20 +13,20 @@
 			"Rev": "6478cc9340cbbe6c04511280c5007722269108e9"
 		},
 		{
-			"ImportPath": "github.com/JackC/box",
+			"ImportPath": "github.com/jackc/box",
 			"Rev": "b125d072babd47d5a9ae0627a45753cc922c0e7a"
 		},
 		{
-			"ImportPath": "github.com/JackC/cli",
+			"ImportPath": "github.com/jackc/cli",
 			"Comment": "1.0.0-69-g2bb83f4",
 			"Rev": "2bb83f44aaf313148c8730ae2074fc055e563195"
 		},
 		{
-			"ImportPath": "github.com/JackC/pgx",
+			"ImportPath": "github.com/jackc/pgx",
 			"Rev": "5fe3dd7ecf66b8095e0a0c9e4c0f286d521b7c98"
 		},
 		{
-			"ImportPath": "github.com/JackC/quo_vadis",
+			"ImportPath": "github.com/jackc/quo_vadis",
 			"Rev": "d1031e8ac7381963dabd9816f6166a1f272003b7"
 		},
 		{

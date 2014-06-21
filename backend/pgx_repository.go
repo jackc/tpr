@@ -3,8 +3,8 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"github.com/JackC/box"
-	"github.com/JackC/pgx"
+	"github.com/jackc/box"
+	"github.com/jackc/pgx"
 	"io"
 	"strconv"
 	"strings"
