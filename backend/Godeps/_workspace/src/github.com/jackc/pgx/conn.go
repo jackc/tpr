@@ -17,6 +17,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/url"
+	"os"
 	"os/user"
 	"path/filepath"
 	"strconv"
@@ -34,8 +35,7 @@ const (
 
 // ConnConfig contains all the options used to establish a connection.
 type ConnConfig struct {
-	Socket     string // path to unix domain socket directory (e.g. /private/tmp)
-	Host       string // url (e.g. localhost)
+	Host       string // host (e.g. localhost) or path to unix domain socket directory (e.g. /private/tmp)
 	Port       uint16 // default: 5432
 	Database   string
 	User       string // default: OS user name
@@ -49,9 +49,9 @@ type ConnConfig struct {
 // Use ConnPool to manage access to multiple database connections from multiple
 // goroutines.
 type Conn struct {
-	conn               net.Conn          // the underlying TCP or unix domain socket connection
-	reader             *bufio.Reader     // buffered reader to improve read performance
-	writer             *bufio.Writer     // buffered writer to avoid sending tiny packets
+	conn               net.Conn      // the underlying TCP or unix domain socket connection
+	reader             *bufio.Reader // buffered reader to improve read performance
+	wbuf               [1024]byte
 	buf                *bytes.Buffer     // work buffer to avoid constant alloc and dealloc
 	bufSize            int               // desired size of buf
 	Pid                int32             // backend pid
@@ -59,14 +59,15 @@ type Conn struct {
 	RuntimeParams      map[string]string // parameters that have been reported by the server
 	config             ConnConfig        // config used when establishing this connection
 	TxStatus           byte
-	preparedStatements map[string]*preparedStatement
+	preparedStatements map[string]*PreparedStatement
 	notifications      []*Notification
 	alive              bool
 	causeOfDeath       error
 	logger             log.Logger
+	qr                 QueryResult
 }
 
-type preparedStatement struct {
+type PreparedStatement struct {
 	Name              string
 	FieldDescriptions []FieldDescription
 	ParameterOids     []Oid
@@ -83,12 +84,8 @@ type CommandTag string
 // RowsAffected returns the number of rows affected. If the CommandTag was not
 // for a row affecting command (such as "CREATE TABLE") then it returns 0
 func (ct CommandTag) RowsAffected() int64 {
-	words := strings.SplitN(string(ct), " ", 2)
-	if len(words) != 2 {
-		return 0
-	}
-
-	n, _ := strconv.ParseInt(words[1], 10, 64)
+	words := strings.Split(string(ct), " ")
+	n, _ := strconv.ParseInt(words[len(words)-1], 10, 64)
 	return n
 }
 
@@ -120,10 +117,11 @@ func (e ProtocolError) Error() string {
 }
 
 var NotificationTimeoutError = errors.New("Notification Timeout")
+var DeadConnError = errors.New("Connection is dead")
 
-// Connect establishes a connection with a PostgreSQL server using config. One
-// of config.Socket or config.Host must be specified. config.User
-// will default to the OS user name. Other config fields are optional.
+// Connect establishes a connection with a PostgreSQL server using config.
+// config.Host must be specified. config.User will default to the OS user name.
+// Other config fields are optional.
 func Connect(config ConnConfig) (c *Conn, err error) {
 	c = new(Conn)
 
@@ -153,9 +151,11 @@ func Connect(config ConnConfig) (c *Conn, err error) {
 		c.logger.Debug("Using default connection config", "MsgBufSize", c.config.MsgBufSize)
 	}
 
-	if c.config.Socket != "" {
+	// See if host is a valid path, if yes connect with a socket
+	_, err = os.Stat(c.config.Host)
+	if err == nil {
 		// For backward compatibility accept socket file paths -- but directories are now preferred
-		socket := c.config.Socket
+		socket := c.config.Host
 		if !strings.Contains(socket, "/.s.PGSQL.") {
 			socket = filepath.Join(socket, ".s.PGSQL.") + strconv.FormatInt(int64(c.config.Port), 10)
 		}
@@ -166,7 +166,7 @@ func Connect(config ConnConfig) (c *Conn, err error) {
 			c.logger.Error(fmt.Sprintf("Connection failed: %v", err))
 			return nil, err
 		}
-	} else if c.config.Host != "" {
+	} else {
 		c.logger.Info(fmt.Sprintf("Dialing PostgreSQL server at host: %s:%d", c.config.Host, c.config.Port))
 		c.conn, err = net.Dial("tcp", fmt.Sprintf("%s:%d", c.config.Host, c.config.Port))
 		if err != nil {
@@ -185,7 +185,7 @@ func Connect(config ConnConfig) (c *Conn, err error) {
 	c.bufSize = c.config.MsgBufSize
 	c.buf = bytes.NewBuffer(make([]byte, 0, c.bufSize))
 	c.RuntimeParams = make(map[string]string)
-	c.preparedStatements = make(map[string]*preparedStatement)
+	c.preparedStatements = make(map[string]*PreparedStatement)
 	c.alive = true
 
 	if config.TLSConfig != nil {
@@ -197,7 +197,6 @@ func Connect(config ConnConfig) (c *Conn, err error) {
 	}
 
 	c.reader = bufio.NewReader(c.conn)
-	c.writer = bufio.NewWriter(c.conn)
 
 	msg := newStartupMessage()
 	msg.options["user"] = c.config.User
@@ -236,8 +235,14 @@ func Connect(config ConnConfig) (c *Conn, err error) {
 	}
 }
 
+// Close closes a connection. It is safe to call Close on a already closed
+// connection.
 func (c *Conn) Close() (err error) {
-	err = c.txMsg('X', c.getBuf(), true)
+	if !c.IsAlive() {
+		return nil
+	}
+
+	err = c.txMsg('X', c.getBuf())
 	c.die(errors.New("Closed"))
 	c.logger.Info("Closed connection")
 	return err
@@ -271,131 +276,6 @@ func ParseURI(uri string) (ConnConfig, error) {
 	return cp, nil
 }
 
-// SelectFunc executes sql and for each row returned calls onDataRow. sql can be
-// either a prepared statement name or an SQL string. arguments will be sanitized
-// before being interpolated into sql strings. arguments should be referenced
-// positionally from the sql string as $1, $2, etc.
-//
-// SelectFunc calls onDataRow as the rows are received. This means that it does not
-// need to simultaneously store the entire result set in memory. It also means that
-// it is possible to process some rows and then for an error to occur. Callers
-// should be aware of this possibility.
-func (c *Conn) SelectFunc(sql string, onDataRow func(*DataRowReader) error, arguments ...interface{}) error {
-	startTime := time.Now()
-	err := c.selectFunc(sql, onDataRow, arguments...)
-	if err != nil {
-		c.logger.Error("SelectFunc", "sql", sql, "args", arguments, "error", err)
-		return err
-	}
-
-	endTime := time.Now()
-	c.logger.Info("SelectFunc", "sql", sql, "args", arguments, "time", endTime.Sub(startTime))
-	return nil
-}
-
-func (c *Conn) selectFunc(sql string, onDataRow func(*DataRowReader) error, arguments ...interface{}) (err error) {
-	var fields []FieldDescription
-
-	if ps, present := c.preparedStatements[sql]; present {
-		fields = ps.FieldDescriptions
-		err = c.sendPreparedQuery(ps, arguments...)
-	} else {
-		err = c.sendSimpleQuery(sql, arguments...)
-	}
-	if err != nil {
-		return
-	}
-
-	var softErr error
-
-	for {
-		var t byte
-		var r *MessageReader
-		t, r, err = c.rxMsg()
-		if err != nil {
-			return err
-		}
-
-		switch t {
-		case readyForQuery:
-			c.rxReadyForQuery(r)
-			return softErr
-		case rowDescription:
-			fields = c.rxRowDescription(r)
-		case dataRow:
-			if softErr == nil {
-				var drr *DataRowReader
-				drr, softErr = newDataRowReader(r, fields)
-				if softErr == nil {
-					softErr = onDataRow(drr)
-				}
-			}
-		case commandComplete:
-		case bindComplete:
-		default:
-			if e := c.processContextFreeMsg(t, r); e != nil && softErr == nil {
-				softErr = e
-			}
-		}
-	}
-}
-
-// SelectRows executes sql and returns a slice of maps representing the found rows.
-// sql can be either a prepared statement name or an SQL string. arguments will be
-// sanitized before being interpolated into sql strings. arguments should be referenced
-// positionally from the sql string as $1, $2, etc.
-func (c *Conn) SelectRows(sql string, arguments ...interface{}) ([]map[string]interface{}, error) {
-	startTime := time.Now()
-
-	rows := make([]map[string]interface{}, 0, 8)
-	onDataRow := func(r *DataRowReader) error {
-		rows = append(rows, c.rxDataRow(r))
-		return nil
-	}
-	err := c.selectFunc(sql, onDataRow, arguments...)
-	if err != nil {
-		c.logger.Error("SelectRows", "sql", sql, "args", arguments, "error", err)
-		return nil, err
-	}
-
-	endTime := time.Now()
-	c.logger.Info("SelectRows", "sql", sql, "args", arguments, "rowsFound", len(rows), "time", endTime.Sub(startTime))
-	return rows, nil
-}
-
-// SelectRow executes sql and returns a map representing the found row.
-// sql can be either a prepared statement name or an SQL string. arguments will be
-// sanitized before being interpolated into sql strings. arguments should be referenced
-// positionally from the sql string as $1, $2, etc.
-//
-// Returns a NotSingleRowError if exactly one row is not found
-func (c *Conn) SelectRow(sql string, arguments ...interface{}) (map[string]interface{}, error) {
-	startTime := time.Now()
-
-	var numRowsFound int64
-	var row map[string]interface{}
-
-	onDataRow := func(r *DataRowReader) error {
-		numRowsFound++
-		row = c.rxDataRow(r)
-		return nil
-	}
-	err := c.selectFunc(sql, onDataRow, arguments...)
-	if err != nil {
-		c.logger.Error("SelectRow", "sql", sql, "args", arguments, "error", err)
-		return nil, err
-	}
-	if numRowsFound != 1 {
-		err = NotSingleRowError{RowCount: numRowsFound}
-		row = nil
-	}
-
-	endTime := time.Now()
-	c.logger.Info("SelectRow", "sql", sql, "args", arguments, "rowsFound", numRowsFound, "time", endTime.Sub(startTime))
-
-	return row, err
-}
-
 // SelectValue executes sql and returns a single value. sql can be either a prepared
 // statement name or an SQL string. arguments will be sanitized before being
 // interpolated into sql strings. arguments should be referenced positionally from
@@ -409,29 +289,31 @@ func (c *Conn) SelectValue(sql string, arguments ...interface{}) (interface{}, e
 	var numRowsFound int64
 	var v interface{}
 
-	onDataRow := func(r *DataRowReader) error {
-		if len(r.fields) != 1 {
-			return UnexpectedColumnCountError{ExpectedCount: 1, ActualCount: int16(len(r.fields))}
+	qr, _ := c.Query(sql, arguments...)
+	defer qr.Close()
+
+	for qr.NextRow() {
+		if len(qr.fields) != 1 {
+			qr.Close()
+			return nil, UnexpectedColumnCountError{ExpectedCount: 1, ActualCount: int16(len(qr.fields))}
 		}
 
 		numRowsFound++
-		v = r.ReadValue()
-		return nil
+		var rr RowReader
+		v = rr.ReadValue(qr)
 	}
-	err := c.selectFunc(sql, onDataRow, arguments...)
-	if err != nil {
-		c.logger.Error("SelectValue", "sql", sql, "args", arguments, "error", err)
-		return nil, err
+	if qr.Err() != nil {
+		return nil, qr.Err()
 	}
+
 	if numRowsFound != 1 {
-		err = NotSingleRowError{RowCount: numRowsFound}
-		v = nil
+		return nil, NotSingleRowError{RowCount: numRowsFound}
 	}
 
 	endTime := time.Now()
 	c.logger.Info("SelectValue", "sql", sql, "args", arguments, "rowsFound", numRowsFound, "time", endTime.Sub(startTime))
 
-	return v, err
+	return v, nil
 }
 
 // SelectValueTo executes sql that returns a single value and writes that value to w.
@@ -493,7 +375,7 @@ func (c *Conn) SelectValueTo(w io.Writer, sql string, arguments ...interface{}) 
 				return err
 			}
 
-			r := newMessageReader(body)
+			r := (*MessageReader)(body)
 			switch t {
 			case readyForQuery:
 				c.rxReadyForQuery(r)
@@ -511,12 +393,13 @@ func (c *Conn) SelectValueTo(w io.Writer, sql string, arguments ...interface{}) 
 }
 
 func (c *Conn) rxDataRowValueTo(w io.Writer, bodySize int32) (err error) {
-	var columnCount int16
-	err = binary.Read(c.reader, binary.BigEndian, &columnCount)
+	b := make([]byte, 2)
+	_, err = io.ReadFull(c.reader, b)
 	if err != nil {
 		c.die(err)
 		return
 	}
+	columnCount := int16(binary.BigEndian.Uint16(b))
 
 	if columnCount != 1 {
 		// Read the rest of the data row so it can be discarded
@@ -528,12 +411,13 @@ func (c *Conn) rxDataRowValueTo(w io.Writer, bodySize int32) (err error) {
 		return
 	}
 
-	var valueSize int32
-	err = binary.Read(c.reader, binary.BigEndian, &valueSize)
+	b = make([]byte, 4)
+	_, err = io.ReadFull(c.reader, b)
 	if err != nil {
 		c.die(err)
 		return
 	}
+	valueSize := int32(binary.BigEndian.Uint32(b))
 
 	if valueSize == -1 {
 		err = errors.New("SelectValueTo cannot handle null")
@@ -548,38 +432,9 @@ func (c *Conn) rxDataRowValueTo(w io.Writer, bodySize int32) (err error) {
 	return
 }
 
-// SelectValues executes sql and returns a slice of values. sql can be either a prepared
-// statement name or an SQL string. arguments will be sanitized before being
-// interpolated into sql strings. arguments should be referenced positionally from
-// the sql string as $1, $2, etc.
-//
-// Returns a UnexpectedColumnCountError if exactly one column is not found
-func (c *Conn) SelectValues(sql string, arguments ...interface{}) ([]interface{}, error) {
-	startTime := time.Now()
-
-	values := make([]interface{}, 0, 8)
-	onDataRow := func(r *DataRowReader) error {
-		if len(r.fields) != 1 {
-			return UnexpectedColumnCountError{ExpectedCount: 1, ActualCount: int16(len(r.fields))}
-		}
-
-		values = append(values, r.ReadValue())
-		return nil
-	}
-	err := c.selectFunc(sql, onDataRow, arguments...)
-	if err != nil {
-		c.logger.Error("SelectValues", "sql", sql, "args", arguments, "error", err)
-		return nil, err
-	}
-
-	endTime := time.Now()
-	c.logger.Info("SelectValues", "sql", sql, "args", arguments, "valuesFound", len(values), "time", endTime.Sub(startTime))
-	return values, nil
-}
-
 // Prepare creates a prepared statement with name and sql. sql can contain placeholders
 // for bound parameters. These placeholders are referenced positional as $1, $2, etc.
-func (c *Conn) Prepare(name, sql string) (err error) {
+func (c *Conn) Prepare(name, sql string) (ps *PreparedStatement, err error) {
 	defer func() {
 		if err != nil {
 			c.logger.Error(fmt.Sprintf("Prepare `%s` as `%s` failed: %v", name, sql, err))
@@ -588,39 +443,33 @@ func (c *Conn) Prepare(name, sql string) (err error) {
 
 	// parse
 	buf := c.getBuf()
-	w := newMessageWriter(buf)
-	w.WriteCString(name)
-	w.WriteCString(sql)
-	w.Write(int16(0))
-	if w.Err != nil {
-		return w.Err
-	}
-	err = c.txMsg('P', buf, false)
+	buf.WriteString(name)
+	buf.WriteByte(0)
+	buf.WriteString(sql)
+	buf.WriteByte(0)
+	binary.Write(buf, binary.BigEndian, int16(0))
+	err = c.txMsg('P', buf)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	// describe
 	buf = c.getBuf()
-	w = newMessageWriter(buf)
-	w.WriteByte('S')
-	w.WriteCString(name)
-	if w.Err != nil {
-		return w.Err
-	}
-
-	err = c.txMsg('D', buf, false)
+	buf.WriteByte('S')
+	buf.WriteString(name)
+	buf.WriteByte(0)
+	err = c.txMsg('D', buf)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	// sync
-	err = c.txMsg('S', c.getBuf(), true)
+	err = c.txMsg('S', c.getBuf())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	ps := preparedStatement{Name: name}
+	ps = &PreparedStatement{Name: name}
 
 	var softErr error
 
@@ -629,7 +478,7 @@ func (c *Conn) Prepare(name, sql string) (err error) {
 		var r *MessageReader
 		t, r, err := c.rxMsg()
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		switch t {
@@ -640,15 +489,17 @@ func (c *Conn) Prepare(name, sql string) (err error) {
 			ps.FieldDescriptions = c.rxRowDescription(r)
 			for i := range ps.FieldDescriptions {
 				oid := ps.FieldDescriptions[i].DataType
-				if ValueTranscoders[oid] != nil && ValueTranscoders[oid].DecodeBinary != nil {
-					ps.FieldDescriptions[i].FormatCode = 1
+				vt := ValueTranscoders[oid]
+
+				if vt != nil {
+					ps.FieldDescriptions[i].FormatCode = vt.DecodeFormat
 				}
 			}
 		case noData:
 		case readyForQuery:
 			c.rxReadyForQuery(r)
-			c.preparedStatements[name] = &ps
-			return softErr
+			c.preparedStatements[name] = ps
+			return ps, softErr
 		default:
 			if e := c.processContextFreeMsg(t, r); e != nil && softErr == nil {
 				softErr = e
@@ -660,13 +511,13 @@ func (c *Conn) Prepare(name, sql string) (err error) {
 // Deallocate released a prepared statement
 func (c *Conn) Deallocate(name string) (err error) {
 	delete(c.preparedStatements, name)
-	_, err = c.Execute("deallocate " + c.QuoteIdentifier(name))
+	_, err = c.Exec("deallocate " + c.QuoteIdentifier(name))
 	return
 }
 
 // Listen establishes a PostgreSQL listen/notify to channel
 func (c *Conn) Listen(channel string) (err error) {
-	_, err = c.Execute("listen " + channel)
+	_, err = c.Exec("listen " + channel)
 	return
 }
 
@@ -737,6 +588,240 @@ func (c *Conn) CauseOfDeath() error {
 	return c.causeOfDeath
 }
 
+type RowReader struct{}
+
+// TODO - Read*...
+
+func (rr *RowReader) ReadInt32(qr *QueryResult) int32 {
+	fd, size := qr.NextColumn()
+
+	// TODO - do something about nulls
+	if size == -1 {
+		panic("Can't handle nulls")
+	}
+
+	return decodeInt4(qr, fd, size)
+}
+
+func (rr *RowReader) ReadInt64(qr *QueryResult) int64 {
+	fd, size := qr.NextColumn()
+
+	// TODO - do something about nulls
+	if size == -1 {
+		panic("Can't handle nulls")
+	}
+
+	return decodeInt8(qr, fd, size)
+}
+
+func (rr *RowReader) ReadTime(qr *QueryResult) time.Time {
+	fd, size := qr.NextColumn()
+
+	// TODO - do something about nulls
+	if size == -1 {
+		panic("Can't handle nulls")
+	}
+
+	return decodeTimestampTz(qr, fd, size)
+}
+
+func (rr *RowReader) ReadDate(qr *QueryResult) time.Time {
+	fd, size := qr.NextColumn()
+
+	// TODO - do something about nulls
+	if size == -1 {
+		panic("Can't handle nulls")
+	}
+
+	return decodeDate(qr, fd, size)
+}
+
+func (rr *RowReader) ReadString(qr *QueryResult) string {
+	_, size := qr.NextColumn()
+	return qr.mr.ReadString(size)
+}
+
+func (rr *RowReader) ReadValue(qr *QueryResult) interface{} {
+	fd, size := qr.NextColumn()
+
+	if size > -1 {
+		if vt, present := ValueTranscoders[fd.DataType]; present && vt.Decode != nil {
+			return vt.Decode(qr, fd, size)
+		} else {
+			return qr.mr.ReadString(size)
+		}
+	} else {
+		return nil
+	}
+}
+
+type QueryResult struct {
+	pool      *ConnPool
+	conn      *Conn
+	mr        *MessageReader
+	fields    []FieldDescription
+	rowCount  int
+	columnIdx int
+	err       error
+	closed    bool
+}
+
+func (qr *QueryResult) FieldDescriptions() []FieldDescription {
+	return qr.fields
+}
+
+func (qr *QueryResult) MessageReader() *MessageReader {
+	return qr.mr
+}
+
+func (qr *QueryResult) close() {
+	if qr.pool != nil {
+		qr.pool.Release(qr.conn)
+		qr.pool = nil
+	}
+
+	qr.closed = true
+}
+
+func (qr *QueryResult) readUntilReadyForQuery() {
+	for {
+		t, r, err := qr.conn.rxMsg()
+		if err != nil {
+			qr.close()
+			return
+		}
+
+		switch t {
+		case readyForQuery:
+			qr.conn.rxReadyForQuery(r)
+			qr.close()
+			return
+		case rowDescription:
+		case dataRow:
+		case commandComplete:
+		case bindComplete:
+		default:
+			err = qr.conn.processContextFreeMsg(t, r)
+			if err != nil {
+				qr.close()
+				return
+			}
+		}
+	}
+}
+
+func (qr *QueryResult) Close() {
+	if qr.closed {
+		return
+	}
+	qr.readUntilReadyForQuery()
+	qr.close()
+}
+
+func (qr *QueryResult) Err() error {
+	return qr.err
+}
+
+func (qr *QueryResult) Fatal(err error) {
+	qr.err = err
+	qr.Close()
+}
+
+func (qr *QueryResult) NextRow() bool {
+	if qr.closed {
+		return false
+	}
+
+	qr.rowCount++
+	qr.columnIdx = 0
+
+	for {
+		t, r, err := qr.conn.rxMsg()
+		if err != nil {
+			qr.Fatal(err)
+			return false
+		}
+
+		switch t {
+		case readyForQuery:
+			qr.conn.rxReadyForQuery(r)
+			qr.close()
+			return false
+		case dataRow:
+			fieldCount := int(r.ReadInt16())
+			if fieldCount != len(qr.fields) {
+				qr.Fatal(ProtocolError(fmt.Sprintf("Row description field count (%v) and data row field count (%v) do not match", len(qr.fields), fieldCount)))
+				return false
+			}
+
+			qr.mr = r
+			return true
+		case commandComplete:
+		case bindComplete:
+		default:
+			err = qr.conn.processContextFreeMsg(t, r)
+			if err != nil {
+				qr.Fatal(err)
+				return false
+			}
+		}
+	}
+}
+
+func (qr *QueryResult) NextColumn() (*FieldDescription, int32) {
+	fd := &qr.fields[qr.columnIdx]
+	qr.columnIdx++
+	size := qr.mr.ReadInt32()
+
+	return fd, size
+}
+
+// TODO - document
+func (c *Conn) Query(sql string, args ...interface{}) (*QueryResult, error) {
+	c.qr = QueryResult{conn: c}
+	qr := &c.qr
+
+	// TODO - shouldn't be messing with qr.err and qr.closed directly
+	if ps, present := c.preparedStatements[sql]; present {
+		qr.fields = ps.FieldDescriptions
+		qr.err = c.sendPreparedQuery(ps, args...)
+		if qr.err != nil {
+			qr.closed = true
+		}
+		return qr, qr.err
+	}
+
+	qr.err = c.sendSimpleQuery(sql, args...)
+	if qr.err != nil {
+		qr.closed = true
+		return qr, qr.err
+	}
+
+	// Simple queries don't know the field descriptions of the result.
+	// Read until that is known before returning
+	for {
+		t, r, err := c.rxMsg()
+		if err != nil {
+			qr.err = err
+			qr.closed = true
+			return qr, qr.err
+		}
+
+		switch t {
+		case rowDescription:
+			qr.fields = qr.conn.rxRowDescription(r)
+			return qr, nil
+		default:
+			err = qr.conn.processContextFreeMsg(t, r)
+			if err != nil {
+				qr.closed = true
+				qr.err = err
+				return qr, qr.err
+			}
+		}
+	}
+}
+
 func (c *Conn) sendQuery(sql string, arguments ...interface{}) (err error) {
 	if ps, present := c.preparedStatements[sql]; present {
 		return c.sendPreparedQuery(ps, arguments...)
@@ -764,96 +849,80 @@ func (c *Conn) sendSimpleQuery(sql string, arguments ...interface{}) (err error)
 		return
 	}
 
-	return c.txMsg('Q', buf, true)
+	return c.txMsg('Q', buf)
 }
 
-func (c *Conn) sendPreparedQuery(ps *preparedStatement, arguments ...interface{}) (err error) {
+func (c *Conn) sendPreparedQuery(ps *PreparedStatement, arguments ...interface{}) (err error) {
 	if len(ps.ParameterOids) != len(arguments) {
 		return fmt.Errorf("Prepared statement \"%v\" requires %d parameters, but %d were provided", ps.Name, len(ps.ParameterOids), len(arguments))
 	}
 
 	// bind
-	buf := c.getBuf()
-	w := newMessageWriter(buf)
-	w.WriteCString("")
-	w.WriteCString(ps.Name)
-	w.Write(int16(len(ps.ParameterOids)))
+	wbuf := newWriteBuf(c.wbuf[0:0], 'B')
+	wbuf.WriteByte(0)
+	wbuf.WriteCString(ps.Name)
+
+	wbuf.WriteInt16(int16(len(ps.ParameterOids)))
 	for _, oid := range ps.ParameterOids {
 		transcoder := ValueTranscoders[oid]
 		if transcoder == nil {
 			transcoder = defaultTranscoder
 		}
-		w.Write(transcoder.EncodeFormat)
+		wbuf.WriteInt16(transcoder.EncodeFormat)
 	}
 
-	w.Write(int16(len(arguments)))
+	wbuf.WriteInt16(int16(len(arguments)))
 	for i, oid := range ps.ParameterOids {
 		if arguments[i] != nil {
 			transcoder := ValueTranscoders[oid]
 			if transcoder == nil {
 				transcoder = defaultTranscoder
 			}
-			transcoder.EncodeTo(w, arguments[i])
+			err = transcoder.EncodeTo(wbuf, arguments[i])
+			if err != nil {
+				return err
+			}
 		} else {
-			w.Write(int32(-1))
+			wbuf.WriteInt32(int32(-1))
 		}
 	}
 
-	w.Write(int16(len(ps.FieldDescriptions)))
+	wbuf.WriteInt16(int16(len(ps.FieldDescriptions)))
 	for _, fd := range ps.FieldDescriptions {
 		transcoder := ValueTranscoders[fd.DataType]
-		if transcoder != nil && transcoder.DecodeBinary != nil {
-			w.Write(int16(1))
+		if transcoder != nil {
+			wbuf.WriteInt16(transcoder.DecodeFormat)
 		} else {
-			w.Write(int16(0))
+			wbuf.WriteInt16(0)
 		}
-	}
-	if w.Err != nil {
-		return w.Err
-	}
-
-	err = c.txMsg('B', buf, false)
-	if err != nil {
-		return err
 	}
 
 	// execute
-	buf = c.getBuf()
-	w = newMessageWriter(buf)
-	w.WriteCString("")
-	w.Write(int32(0))
-
-	if w.Err != nil {
-		return w.Err
-	}
-
-	err = c.txMsg('E', buf, false)
-	if err != nil {
-		return err
-	}
+	wbuf.startMsg('E')
+	wbuf.WriteByte(0)
+	wbuf.WriteInt32(0)
 
 	// sync
-	err = c.txMsg('S', c.getBuf(), true)
-	if err != nil {
-		return err
-	}
+	wbuf.startMsg('S')
+	wbuf.closeMsg()
 
-	return
+	_, err = c.conn.Write(wbuf.buf)
 
+	return err
 }
 
-// Execute executes sql. sql can be either a prepared statement name or an SQL string.
+// Exec executes sql. sql can be either a prepared statement name or an SQL string.
 // arguments will be sanitized before being interpolated into sql strings. arguments
 // should be referenced positionally from the sql string as $1, $2, etc.
-func (c *Conn) Execute(sql string, arguments ...interface{}) (commandTag CommandTag, err error) {
+func (c *Conn) Exec(sql string, arguments ...interface{}) (commandTag CommandTag, err error) {
 	startTime := time.Now()
 
 	defer func() {
 		if err == nil {
 			endTime := time.Now()
-			c.logger.Info("Execute", "sql", sql, "args", arguments, "time", endTime.Sub(startTime))
+			c.logger.Info("Exec", "sql", sql, "args", arguments, "time", endTime.Sub(startTime))
 		} else {
-			c.logger.Error("Execute", "sql", sql, "args", arguments, "error", err)
+			c.logger.Error("Exec", "sql", sql, "args", arguments, "error", err)
 		}
 	}()
 
@@ -918,17 +987,17 @@ func (c *Conn) transaction(isoLevel string, f func() bool) (committed bool, err 
 		beginSql = fmt.Sprintf("begin isolation level %s", isoLevel)
 	}
 
-	if _, err = c.Execute(beginSql); err != nil {
+	if _, err = c.Exec(beginSql); err != nil {
 		return
 	}
 	defer func() {
 		if committed && c.TxStatus == 'T' {
-			_, err = c.Execute("commit")
+			_, err = c.Exec("commit")
 			if err != nil {
 				committed = false
 			}
 		} else {
-			_, err = c.Execute("rollback")
+			_, err = c.Exec("rollback")
 			committed = false
 		}
 	}()
@@ -967,35 +1036,37 @@ func (c *Conn) rxMsg() (t byte, r *MessageReader, err error) {
 	if body, err = c.rxMsgBody(bodySize); err != nil {
 		return
 	}
-
-	r = newMessageReader(body)
+	r = (*MessageReader)(body)
 	return
 }
 
 func (c *Conn) rxMsgHeader() (t byte, bodySize int32, err error) {
 	if !c.alive {
-		err = errors.New("Connection is dead")
-		return
+		return 0, 0, DeadConnError
 	}
-
-	defer func() {
-		if err != nil {
-			c.die(err)
-		}
-	}()
 
 	t, err = c.reader.ReadByte()
 	if err != nil {
-		return
+		c.die(err)
+		return 0, 0, err
 	}
-	err = binary.Read(c.reader, binary.BigEndian, &bodySize)
+
+	b := make([]byte, 4)
+	_, err = io.ReadFull(c.reader, b)
+	if err != nil {
+		c.die(err)
+		return 0, 0, err
+	}
+
+	bodySize = int32(binary.BigEndian.Uint32(b))
+
 	bodySize -= 4 // remove self from size
-	return
+	return t, bodySize, err
 }
 
 func (c *Conn) rxMsgBody(bodySize int32) (*bytes.Buffer, error) {
 	if !c.alive {
-		return nil, errors.New("Connection is dead")
+		return nil, DeadConnError
 	}
 
 	buf := c.getBuf()
@@ -1047,6 +1118,9 @@ func (c *Conn) rxErrorResponse(r *MessageReader) (err PgError) {
 		case 'M':
 			err.Message = r.ReadCString()
 		case 0: // End of error message
+			if err.Severity == "FATAL" {
+				c.die(err)
+			}
 			return
 		default: // Ignore other error fields
 			r.ReadCString()
@@ -1088,16 +1162,6 @@ func (c *Conn) rxParameterDescription(r *MessageReader) (parameters []Oid) {
 	return
 }
 
-func (c *Conn) rxDataRow(r *DataRowReader) (row map[string]interface{}) {
-	fieldCount := len(r.fields)
-
-	row = make(map[string]interface{}, fieldCount)
-	for i := 0; i < fieldCount; i++ {
-		row[r.fields[i].Name] = r.ReadValue()
-	}
-	return
-}
-
 func (c *Conn) rxCommandComplete(r *MessageReader) string {
 	return r.ReadCString()
 }
@@ -1132,18 +1196,14 @@ func (c *Conn) startTLS() (err error) {
 	return nil
 }
 
-func (c *Conn) txStartupMessage(msg *startupMessage) (err error) {
-	_, err = c.writer.Write(msg.Bytes())
-	if err != nil {
-		return
-	}
-	err = c.writer.Flush()
-	return
+func (c *Conn) txStartupMessage(msg *startupMessage) error {
+	_, err := c.conn.Write(msg.Bytes())
+	return err
 }
 
-func (c *Conn) txMsg(identifier byte, buf *bytes.Buffer, flush bool) (err error) {
+func (c *Conn) txMsg(identifier byte, buf *bytes.Buffer) (err error) {
 	if !c.alive {
-		return errors.New("Connection is dead")
+		return DeadConnError
 	}
 
 	defer func() {
@@ -1152,23 +1212,19 @@ func (c *Conn) txMsg(identifier byte, buf *bytes.Buffer, flush bool) (err error)
 		}
 	}()
 
-	err = binary.Write(c.writer, binary.BigEndian, identifier)
+	err = binary.Write(c.conn, binary.BigEndian, identifier)
 	if err != nil {
 		return
 	}
 
-	err = binary.Write(c.writer, binary.BigEndian, int32(buf.Len()+4))
+	err = binary.Write(c.conn, binary.BigEndian, int32(buf.Len()+4))
 	if err != nil {
 		return
 	}
 
-	_, err = buf.WriteTo(c.writer)
+	_, err = buf.WriteTo(c.conn)
 	if err != nil {
 		return
-	}
-
-	if flush {
-		err = c.writer.Flush()
 	}
 
 	return
@@ -1185,7 +1241,7 @@ func (c *Conn) txPasswordMessage(password string) (err error) {
 	if err != nil {
 		return
 	}
-	err = c.txMsg('p', buf, true)
+	err = c.txMsg('p', buf)
 	return
 }
 
@@ -1204,4 +1260,5 @@ func (c *Conn) getBuf() *bytes.Buffer {
 func (c *Conn) die(err error) {
 	c.alive = false
 	c.causeOfDeath = err
+	c.conn.Close()
 }

@@ -5,8 +5,35 @@ import (
 	"time"
 )
 
+func TestTranscodeError(t *testing.T) {
+	t.Parallel()
+
+	conn := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, conn)
+
+	mustPrepare(t, conn, "testTranscode", "select $1::integer")
+	defer func() {
+		if err := conn.Deallocate("testTranscode"); err != nil {
+			t.Fatalf("Unable to deallocate prepared statement: %v", err)
+		}
+	}()
+
+	_, err := conn.SelectValue("testTranscode", "wrong")
+	switch {
+	case err == nil:
+		t.Error("Expected transcode error to return error, but it didn't")
+	case err.Error() == "Expected integer representable in int32, received string wrong":
+		// Correct behavior
+	default:
+		t.Errorf("Expected transcode error, received %v", err)
+	}
+}
+
 func TestNilTranscode(t *testing.T) {
-	conn := getSharedConnection(t)
+	t.Parallel()
+
+	conn := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, conn)
 
 	var inputNil interface{}
 	inputNil = nil
@@ -30,18 +57,10 @@ func TestNilTranscode(t *testing.T) {
 }
 
 func TestDateTranscode(t *testing.T) {
-	conn := getSharedConnection(t)
+	t.Parallel()
 
-	actualDate := time.Date(2013, 1, 2, 0, 0, 0, 0, time.Local)
-
-	var v interface{}
-	var d time.Time
-
-	v = mustSelectValue(t, conn, "select $1::date", actualDate)
-	d = v.(time.Time)
-	if !actualDate.Equal(d) {
-		t.Errorf("Did not transcode date successfully: %v is not %v", v, actualDate)
-	}
+	conn := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, conn)
 
 	mustPrepare(t, conn, "testTranscode", "select $1::date")
 	defer func() {
@@ -50,15 +69,41 @@ func TestDateTranscode(t *testing.T) {
 		}
 	}()
 
-	v = mustSelectValue(t, conn, "testTranscode", actualDate)
-	d = v.(time.Time)
-	if !actualDate.Equal(d) {
-		t.Errorf("Did not transcode date successfully: %v is not %v", v, actualDate)
+	dates := []time.Time{
+		time.Date(1990, 1, 1, 0, 0, 0, 0, time.Local),
+		time.Date(1999, 12, 31, 0, 0, 0, 0, time.Local),
+		time.Date(2000, 1, 1, 0, 0, 0, 0, time.Local),
+		time.Date(2001, 1, 2, 0, 0, 0, 0, time.Local),
+		time.Date(2004, 2, 29, 0, 0, 0, 0, time.Local),
+		time.Date(2013, 7, 4, 0, 0, 0, 0, time.Local),
+		time.Date(2013, 12, 25, 0, 0, 0, 0, time.Local),
+	}
+
+	for _, actualDate := range dates {
+		var v interface{}
+		var d time.Time
+
+		// Test text format
+		v = mustSelectValue(t, conn, "select $1::date", actualDate)
+		d = v.(time.Time)
+		if !actualDate.Equal(d) {
+			t.Errorf("Did not transcode date successfully: %v is not %v", v, actualDate)
+		}
+
+		// Test binary format
+		v = mustSelectValue(t, conn, "testTranscode", actualDate)
+		d = v.(time.Time)
+		if !actualDate.Equal(d) {
+			t.Errorf("Did not transcode date successfully: %v is not %v", v, actualDate)
+		}
 	}
 }
 
 func TestTimestampTzTranscode(t *testing.T) {
-	conn := getSharedConnection(t)
+	t.Parallel()
+
+	conn := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, conn)
 
 	inputTime := time.Date(2013, 1, 2, 3, 4, 5, 6000, time.Local)
 
@@ -86,6 +131,8 @@ func TestTimestampTzTranscode(t *testing.T) {
 }
 
 func TestInt2SliceTranscode(t *testing.T) {
+	t.Parallel()
+
 	testEqual := func(a, b []int16) {
 		if len(a) != len(b) {
 			t.Errorf("Did not transcode []int16 successfully: %v is not %v", a, b)
@@ -97,7 +144,8 @@ func TestInt2SliceTranscode(t *testing.T) {
 		}
 	}
 
-	conn := getSharedConnection(t)
+	conn := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, conn)
 
 	inputNumbers := []int16{1, 2, 3, 4, 5, 6, 7, 8}
 	var outputNumbers []int16
@@ -117,6 +165,8 @@ func TestInt2SliceTranscode(t *testing.T) {
 }
 
 func TestInt4SliceTranscode(t *testing.T) {
+	t.Parallel()
+
 	testEqual := func(a, b []int32) {
 		if len(a) != len(b) {
 			t.Errorf("Did not transcode []int32 successfully: %v is not %v", a, b)
@@ -128,7 +178,8 @@ func TestInt4SliceTranscode(t *testing.T) {
 		}
 	}
 
-	conn := getSharedConnection(t)
+	conn := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, conn)
 
 	inputNumbers := []int32{1, 2, 3, 4, 5, 6, 7, 8}
 	var outputNumbers []int32
@@ -148,6 +199,8 @@ func TestInt4SliceTranscode(t *testing.T) {
 }
 
 func TestInt8SliceTranscode(t *testing.T) {
+	t.Parallel()
+
 	testEqual := func(a, b []int64) {
 		if len(a) != len(b) {
 			t.Errorf("Did not transcode []int64 successfully: %v is not %v", a, b)
@@ -159,7 +212,8 @@ func TestInt8SliceTranscode(t *testing.T) {
 		}
 	}
 
-	conn := getSharedConnection(t)
+	conn := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, conn)
 
 	inputNumbers := []int64{1, 2, 3, 4, 5, 6, 7, 8}
 	var outputNumbers []int64

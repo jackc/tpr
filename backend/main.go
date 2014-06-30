@@ -114,9 +114,8 @@ func newRepo(conf ini.File, logger log.Logger) (repository, error) {
 	connConfig := pgx.ConnConfig{Logger: logger}
 
 	connConfig.Host, _ = conf.Get("database", "host")
-	connConfig.Socket, _ = conf.Get("database", "socket")
-	if connConfig.Host == "" && connConfig.Socket == "" {
-		return nil, errors.New("Config must contain database.host or database.socket but it does not")
+	if connConfig.Host == "" {
+		return nil, errors.New("Config must contain database.host but it does not")
 	}
 
 	if p, ok := conf.Get("database", "port"); ok {

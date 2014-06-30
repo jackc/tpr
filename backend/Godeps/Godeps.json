@@ -1,20 +1,20 @@
 {
 	"ImportPath": "github.com/jackc/tpr/backend",
-	"GoVersion": "go1.2.2",
+	"GoVersion": "go1.3",
 	"Deps": [
 		{
 			"ImportPath": "code.google.com/p/go.crypto/pbkdf2",
-			"Comment": "null-185",
-			"Rev": "6478cc9340cbbe6c04511280c5007722269108e9"
+			"Comment": "null-212",
+			"Rev": "1064b89a6fb591df0dd65422295b8498916b092f"
 		},
 		{
 			"ImportPath": "code.google.com/p/go.crypto/scrypt",
-			"Comment": "null-185",
-			"Rev": "6478cc9340cbbe6c04511280c5007722269108e9"
+			"Comment": "null-212",
+			"Rev": "1064b89a6fb591df0dd65422295b8498916b092f"
 		},
 		{
 			"ImportPath": "github.com/jackc/box",
-			"Rev": "b125d072babd47d5a9ae0627a45753cc922c0e7a"
+			"Rev": "f4572d8d574c9f00e4833c95266092654323444a"
 		},
 		{
 			"ImportPath": "github.com/jackc/cli",
@@ -23,7 +23,7 @@
 		},
 		{
 			"ImportPath": "github.com/jackc/pgx",
-			"Rev": "5fe3dd7ecf66b8095e0a0c9e4c0f286d521b7c98"
+			"Rev": "718c4dfdc878667d5fa81773d9dac692283261e2"
 		},
 		{
 			"ImportPath": "github.com/jackc/quo_vadis",

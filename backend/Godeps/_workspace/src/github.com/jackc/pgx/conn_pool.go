@@ -1,6 +1,7 @@
 package pgx
 
 import (
+	"errors"
 	log "gopkg.in/inconshreveable/log15.v2"
 	"io"
 	"sync"
@@ -8,7 +9,7 @@ import (
 
 type ConnPoolConfig struct {
 	ConnConfig
-	MaxConnections int // max simultaneous connections to use
+	MaxConnections int // max simultaneous connections to use, default 5, must be at least 2
 	AfterConnect   func(*Conn) error
 }
 
@@ -34,6 +35,13 @@ func NewConnPool(config ConnPoolConfig) (p *ConnPool, err error) {
 	p = new(ConnPool)
 	p.config = config.ConnConfig
 	p.maxConnections = config.MaxConnections
+	if p.maxConnections == 0 {
+		p.maxConnections = 5
+	}
+	if p.maxConnections < 2 {
+		return nil, errors.New("MaxConnections must be at least 2")
+	}
+
 	p.afterConnect = config.AfterConnect
 	if config.Logger != nil {
 		p.logger = config.Logger
@@ -97,7 +105,7 @@ func (p *ConnPool) Acquire() (c *Conn, err error) {
 // Release gives up use of a connection.
 func (p *ConnPool) Release(conn *Conn) {
 	if conn.TxStatus != 'I' {
-		conn.Execute("rollback")
+		conn.Exec("rollback")
 	}
 
 	p.cond.L.Lock()
@@ -158,39 +166,6 @@ func (p *ConnPool) createConnection() (c *Conn, err error) {
 	return
 }
 
-// SelectFunc acquires a connection, delegates the call to that connection, and releases the connection
-func (p *ConnPool) SelectFunc(sql string, onDataRow func(*DataRowReader) error, arguments ...interface{}) (err error) {
-	var c *Conn
-	if c, err = p.Acquire(); err != nil {
-		return
-	}
-	defer p.Release(c)
-
-	return c.SelectFunc(sql, onDataRow, arguments...)
-}
-
-// SelectRows acquires a connection, delegates the call to that connection, and releases the connection
-func (p *ConnPool) SelectRows(sql string, arguments ...interface{}) (rows []map[string]interface{}, err error) {
-	var c *Conn
-	if c, err = p.Acquire(); err != nil {
-		return
-	}
-	defer p.Release(c)
-
-	return c.SelectRows(sql, arguments...)
-}
-
-// SelectRow acquires a connection, delegates the call to that connection, and releases the connection
-func (p *ConnPool) SelectRow(sql string, arguments ...interface{}) (row map[string]interface{}, err error) {
-	var c *Conn
-	if c, err = p.Acquire(); err != nil {
-		return
-	}
-	defer p.Release(c)
-
-	return c.SelectRow(sql, arguments...)
-}
-
 // SelectValue acquires a connection, delegates the call to that connection, and releases the connection
 func (p *ConnPool) SelectValue(sql string, arguments ...interface{}) (v interface{}, err error) {
 	var c *Conn
@@ -213,26 +188,32 @@ func (p *ConnPool) SelectValueTo(w io.Writer, sql string, arguments ...interface
 	return c.SelectValueTo(w, sql, arguments...)
 }
 
-// SelectValues acquires a connection, delegates the call to that connection, and releases the connection
-func (p *ConnPool) SelectValues(sql string, arguments ...interface{}) (values []interface{}, err error) {
+// Exec acquires a connection, delegates the call to that connection, and releases the connection
+func (p *ConnPool) Exec(sql string, arguments ...interface{}) (commandTag CommandTag, err error) {
 	var c *Conn
 	if c, err = p.Acquire(); err != nil {
 		return
 	}
 	defer p.Release(c)
 
-	return c.SelectValues(sql, arguments...)
+	return c.Exec(sql, arguments...)
 }
 
-// Execute acquires a connection, delegates the call to that connection, and releases the connection
-func (p *ConnPool) Execute(sql string, arguments ...interface{}) (commandTag CommandTag, err error) {
-	var c *Conn
-	if c, err = p.Acquire(); err != nil {
-		return
+func (p *ConnPool) Query(sql string, args ...interface{}) (*QueryResult, error) {
+	c, err := p.Acquire()
+	if err != nil {
+		// Because checking for errors can be deferred to the *QueryResult, build one with the error
+		return &QueryResult{closed: true, err: err}, err
 	}
-	defer p.Release(c)
 
-	return c.Execute(sql, arguments...)
+	qr, err := c.Query(sql, args...)
+	if err != nil {
+		p.Release(c)
+		return qr, err
+	}
+
+	qr.pool = p
+	return qr, nil
 }
 
 // Transaction acquires a connection, delegates the call to that connection,

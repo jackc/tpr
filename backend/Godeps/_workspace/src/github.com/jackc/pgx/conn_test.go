@@ -11,6 +11,8 @@ import (
 )
 
 func TestConnect(t *testing.T) {
+	t.Parallel()
+
 	conn, err := pgx.Connect(*defaultConnConfig)
 	if err != nil {
 		t.Fatalf("Unable to establish connection: %v", err)
@@ -28,9 +30,8 @@ func TestConnect(t *testing.T) {
 		t.Error("Backend secret key not stored")
 	}
 
-	var rows []map[string]interface{}
-	rows, err = conn.SelectRows("select current_database()")
-	if err != nil || rows[0]["current_database"] != defaultConnConfig.Database {
+	currentDB, err := conn.SelectValue("select current_database()")
+	if err != nil || currentDB != defaultConnConfig.Database {
 		t.Errorf("Did not connect to specified database (%v)", defaultConnConfig.Database)
 	}
 
@@ -45,6 +46,8 @@ func TestConnect(t *testing.T) {
 }
 
 func TestConnectWithUnixSocketDirectory(t *testing.T) {
+	t.Parallel()
+
 	// /.s.PGSQL.5432
 	if unixSocketConnConfig == nil {
 		return
@@ -62,12 +65,14 @@ func TestConnectWithUnixSocketDirectory(t *testing.T) {
 }
 
 func TestConnectWithUnixSocketFile(t *testing.T) {
+	t.Parallel()
+
 	if unixSocketConnConfig == nil {
 		return
 	}
 
 	connParams := *unixSocketConnConfig
-	connParams.Socket = connParams.Socket + "/.s.PGSQL.5432"
+	connParams.Host = connParams.Host + "/.s.PGSQL.5432"
 	conn, err := pgx.Connect(connParams)
 	if err != nil {
 		t.Fatalf("Unable to establish connection: %v", err)
@@ -80,6 +85,8 @@ func TestConnectWithUnixSocketFile(t *testing.T) {
 }
 
 func TestConnectWithTcp(t *testing.T) {
+	t.Parallel()
+
 	if tcpConnConfig == nil {
 		return
 	}
@@ -96,6 +103,8 @@ func TestConnectWithTcp(t *testing.T) {
 }
 
 func TestConnectWithTLS(t *testing.T) {
+	t.Parallel()
+
 	if tlsConnConfig == nil {
 		return
 	}
@@ -112,6 +121,8 @@ func TestConnectWithTLS(t *testing.T) {
 }
 
 func TestConnectWithInvalidUser(t *testing.T) {
+	t.Parallel()
+
 	if invalidUserConnConfig == nil {
 		return
 	}
@@ -127,6 +138,8 @@ func TestConnectWithInvalidUser(t *testing.T) {
 }
 
 func TestConnectWithPlainTextPassword(t *testing.T) {
+	t.Parallel()
+
 	if plainPasswordConnConfig == nil {
 		return
 	}
@@ -143,6 +156,8 @@ func TestConnectWithPlainTextPassword(t *testing.T) {
 }
 
 func TestConnectWithMD5Password(t *testing.T) {
+	t.Parallel()
+
 	if md5ConnConfig == nil {
 		return
 	}
@@ -159,6 +174,8 @@ func TestConnectWithMD5Password(t *testing.T) {
 }
 
 func TestParseURI(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		url        string
 		connParams pgx.ConnConfig
@@ -215,63 +232,75 @@ func TestParseURI(t *testing.T) {
 	}
 }
 
-func TestExecute(t *testing.T) {
-	conn := getSharedConnection(t)
+func TestExec(t *testing.T) {
+	t.Parallel()
 
-	if results := mustExecute(t, conn, "create temporary table foo(id integer primary key);"); results != "CREATE TABLE" {
-		t.Error("Unexpected results from Execute")
+	conn := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, conn)
+
+	if results := mustExec(t, conn, "create temporary table foo(id integer primary key);"); results != "CREATE TABLE" {
+		t.Error("Unexpected results from Exec")
 	}
 
 	// Accept parameters
-	if results := mustExecute(t, conn, "insert into foo(id) values($1)", 1); results != "INSERT 0 1" {
-		t.Errorf("Unexpected results from Execute: %v", results)
+	if results := mustExec(t, conn, "insert into foo(id) values($1)", 1); results != "INSERT 0 1" {
+		t.Errorf("Unexpected results from Exec: %v", results)
 	}
 
-	if results := mustExecute(t, conn, "drop table foo;"); results != "DROP TABLE" {
-		t.Error("Unexpected results from Execute")
+	if results := mustExec(t, conn, "drop table foo;"); results != "DROP TABLE" {
+		t.Error("Unexpected results from Exec")
 	}
 
 	// Multiple statements can be executed -- last command tag is returned
-	if results := mustExecute(t, conn, "create temporary table foo(id serial primary key); drop table foo;"); results != "DROP TABLE" {
-		t.Error("Unexpected results from Execute")
+	if results := mustExec(t, conn, "create temporary table foo(id serial primary key); drop table foo;"); results != "DROP TABLE" {
+		t.Error("Unexpected results from Exec")
 	}
 
 	// Can execute longer SQL strings than sharedBufferSize
-	if results := mustExecute(t, conn, strings.Repeat("select 42; ", 1000)); results != "SELECT 1" {
-		t.Errorf("Unexpected results from Execute: %v", results)
+	if results := mustExec(t, conn, strings.Repeat("select 42; ", 1000)); results != "SELECT 1" {
+		t.Errorf("Unexpected results from Exec: %v", results)
 	}
 }
 
-func TestExecuteFailure(t *testing.T) {
-	conn, err := pgx.Connect(*defaultConnConfig)
-	if err != nil {
-		t.Fatalf("Unable to establish connection: %v", err)
-	}
-	defer conn.Close()
+func TestExecFailure(t *testing.T) {
+	t.Parallel()
 
-	if _, err := conn.Execute("select;"); err == nil {
+	conn := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, conn)
+
+	if _, err := conn.Exec("select;"); err == nil {
 		t.Fatal("Expected SQL syntax error")
 	}
 
 	if _, err := conn.SelectValue("select 1"); err != nil {
-		t.Fatalf("Execute failure appears to have broken connection: %v", err)
+		t.Fatalf("Exec failure appears to have broken connection: %v", err)
 	}
 }
 
-func TestSelectFunc(t *testing.T) {
-	conn := getSharedConnection(t)
+func TestConnQuery(t *testing.T) {
+	t.Parallel()
+
+	conn := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, conn)
 
 	var sum, rowCount int32
-	onDataRow := func(r *pgx.DataRowReader) error {
+
+	rows, err := conn.Query("select generate_series(1,$1)", 10)
+	if err != nil {
+		t.Fatalf("conn.Query failed: ", err)
+	}
+	defer rows.Close()
+
+	for rows.NextRow() {
+		var rr pgx.RowReader
+		sum += rr.ReadInt32(rows)
 		rowCount++
-		sum += r.ReadValue().(int32)
-		return nil
 	}
 
-	err := conn.SelectFunc("select generate_series(1,$1)", onDataRow, 10)
-	if err != nil {
-		t.Fatal("Select failed: " + err.Error())
+	if rows.Err() != nil {
+		t.Fatalf("conn.Query failed: ", err)
 	}
+
 	if rowCount != 10 {
 		t.Error("Select called onDataRow wrong number of times")
 	}
@@ -280,121 +309,11 @@ func TestSelectFunc(t *testing.T) {
 	}
 }
 
-func TestSelectFuncFailure(t *testing.T) {
-	conn, err := pgx.Connect(*defaultConnConfig)
-	if err != nil {
-		t.Fatalf("Unable to establish connection: %v", err)
-	}
-	defer conn.Close()
-
-	// using SelectValue as it delegates to SelectFunc and is easier to work with
-	if _, err := conn.SelectValue("select;"); err == nil {
-		t.Fatal("Expected SQL syntax error")
-	}
-
-	if _, err := conn.SelectValue("select 1"); err != nil {
-		t.Fatalf("SelectFunc failure appears to have broken connection: %v", err)
-	}
-}
-
-func Example_connectionSelectFunc() {
-	conn, err := pgx.Connect(*defaultConnConfig)
-	if err != nil {
-		fmt.Printf("Unable to establish connection: %v", err)
-		return
-	}
-
-	onDataRow := func(r *pgx.DataRowReader) error {
-		fmt.Println(r.ReadValue())
-		return nil
-	}
-
-	err = conn.SelectFunc("select generate_series(1,$1)", onDataRow, 5)
-	if err != nil {
-		fmt.Println(err)
-	}
-	// Output:
-	// 1
-	// 2
-	// 3
-	// 4
-	// 5
-}
-
-func TestSelectRows(t *testing.T) {
-	conn := getSharedConnection(t)
-
-	rows := mustSelectRows(t, conn, "select $1 as name, null as position", "Jack")
-
-	if len(rows) != 1 {
-		t.Fatal("Received wrong number of rows")
-	}
-
-	if rows[0]["name"] != "Jack" {
-		t.Error("Received incorrect name")
-	}
-
-	if value, presence := rows[0]["position"]; presence {
-		if value != nil {
-			t.Error("Should have received nil for null")
-		}
-	} else {
-		t.Error("Null value should have been present in map as nil")
-	}
-}
-
-func Example_connectionSelectRows() {
-	conn, err := pgx.Connect(*defaultConnConfig)
-	if err != nil {
-		fmt.Printf("Unable to establish connection: %v", err)
-		return
-	}
-
-	var rows []map[string]interface{}
-	if rows, err = conn.SelectRows("select generate_series(1,$1) as number", 5); err != nil {
-		fmt.Printf("Error selecting rows: %v", err)
-		return
-	}
-	for _, r := range rows {
-		fmt.Println(r["number"])
-	}
-	// Output:
-	// 1
-	// 2
-	// 3
-	// 4
-	// 5
-}
-
-func TestSelectRow(t *testing.T) {
-	conn := getSharedConnection(t)
-
-	row := mustSelectRow(t, conn, "select $1 as name, null as position", "Jack")
-	if row["name"] != "Jack" {
-		t.Error("Received incorrect name")
-	}
-
-	if value, presence := row["position"]; presence {
-		if value != nil {
-			t.Error("Should have received nil for null")
-		}
-	} else {
-		t.Error("Null value should have been present in map as nil")
-	}
-
-	_, err := conn.SelectRow("select 'Jack' as name where 1=2")
-	if _, ok := err.(pgx.NotSingleRowError); !ok {
-		t.Error("No matching row should have returned NotSingleRowError")
-	}
-
-	_, err = conn.SelectRow("select * from (values ('Matthew'), ('Mark')) t")
-	if _, ok := err.(pgx.NotSingleRowError); !ok {
-		t.Error("Multiple matching rows should have returned NotSingleRowError")
-	}
-}
-
 func TestConnectionSelectValue(t *testing.T) {
-	conn := getSharedConnection(t)
+	t.Parallel()
+
+	conn := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, conn)
 
 	test := func(sql string, expected interface{}, arguments ...interface{}) {
 		v, err := conn.SelectValue(sql, arguments...)
@@ -407,6 +326,7 @@ func TestConnectionSelectValue(t *testing.T) {
 		}
 	}
 
+	fmt.Println("Starting test")
 	test("select $1", "foo", "foo")
 	test("select 'foo'", "foo")
 	test("select true", true)
@@ -434,7 +354,11 @@ func TestConnectionSelectValue(t *testing.T) {
 }
 
 func TestConnectionSelectValueTo(t *testing.T) {
-	conn := getSharedConnection(t)
+	t.Parallel()
+
+	conn := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, conn)
+
 	var err error
 
 	var buf bytes.Buffer
@@ -480,47 +404,14 @@ func TestConnectionSelectValueTo(t *testing.T) {
 
 }
 
-func TestSelectValues(t *testing.T) {
-	conn := getSharedConnection(t)
-
-	test := func(sql string, expected []interface{}, arguments ...interface{}) {
-		values, err := conn.SelectValues(sql, arguments...)
-		if err != nil {
-			t.Errorf("%v while running %v", err, sql)
-			return
-		}
-		if len(values) != len(expected) {
-			t.Errorf("Expected: %#v Received: %#v", expected, values)
-			return
-		}
-		for i := 0; i < len(values); i++ {
-			if values[i] != expected[i] {
-				t.Errorf("Expected: %#v Received: %#v", expected, values)
-				return
-			}
-		}
-	}
-
-	test("select * from (values ($1)) t", []interface{}{"Matthew"}, "Matthew")
-	test("select * from (values ('Matthew'), ('Mark'), ('Luke'), ('John')) t", []interface{}{"Matthew", "Mark", "Luke", "John"})
-	test("select * from (values ('Matthew'), (null)) t", []interface{}{"Matthew", nil})
-	test("select * from (values (1::int4), (2::int4), (null), (3::int4)) t", []interface{}{int32(1), int32(2), nil, int32(3)})
-
-	_, err := conn.SelectValues("select 'Matthew', 'Mark'")
-	if _, ok := err.(pgx.UnexpectedColumnCountError); !ok {
-		t.Error("Multiple columns should have returned UnexpectedColumnCountError")
-	}
-}
-
 func TestPrepare(t *testing.T) {
-	conn, err := pgx.Connect(*defaultConnConfig)
-	if err != nil {
-		t.Fatalf("Unable to establish connection: %v", err)
-	}
-	defer conn.Close()
+	t.Parallel()
+
+	conn := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, conn)
 
 	testTranscode := func(sql string, value interface{}) {
-		if err = conn.Prepare("testTranscode", sql); err != nil {
+		if _, err := conn.Prepare("testTranscode", sql); err != nil {
 			t.Errorf("Unable to prepare statement: %v", err)
 			return
 		}
@@ -531,8 +422,7 @@ func TestPrepare(t *testing.T) {
 			}
 		}()
 
-		var result interface{}
-		result, err = conn.SelectValue("testTranscode", value)
+		result, err := conn.SelectValue("testTranscode", value)
 		if err != nil {
 			t.Errorf("%v while running %v", err, "testTranscode")
 		} else {
@@ -555,7 +445,7 @@ func TestPrepare(t *testing.T) {
 	// Ensure that unknown types are just treated as strings
 	testTranscode("select $1::point", "(0,0)")
 
-	if err = conn.Prepare("testByteSliceTranscode", "select $1::bytea"); err != nil {
+	if _, err := conn.Prepare("testByteSliceTranscode", "select $1::bytea"); err != nil {
 		t.Errorf("Unable to prepare statement: %v", err)
 		return
 	}
@@ -577,8 +467,8 @@ func TestPrepare(t *testing.T) {
 	} else if sql != `select E'\\x000fff11'` {
 		t.Error("Failed to sanitize []byte")
 	}
-	var result interface{}
-	result, err = conn.SelectValue("testByteSliceTranscode", bytea)
+
+	result, err := conn.SelectValue("testByteSliceTranscode", bytea)
 	if err != nil {
 		t.Errorf("%v while running %v", err, "testByteSliceTranscode")
 	} else {
@@ -587,34 +477,32 @@ func TestPrepare(t *testing.T) {
 		}
 	}
 
-	mustExecute(t, conn, "create temporary table foo(id serial)")
-	if err = conn.Prepare("deleteFoo", "delete from foo"); err != nil {
+	mustExec(t, conn, "create temporary table foo(id serial)")
+	if _, err = conn.Prepare("deleteFoo", "delete from foo"); err != nil {
 		t.Fatalf("Unable to prepare delete: %v", err)
 	}
 }
 
 func TestPrepareFailure(t *testing.T) {
-	conn, err := pgx.Connect(*defaultConnConfig)
-	if err != nil {
-		t.Fatalf("Unable to establish connection: %v", err)
-	}
-	defer conn.Close()
+	t.Parallel()
 
-	if err = conn.Prepare("badSQL", "select foo"); err == nil {
+	conn := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, conn)
+
+	if _, err := conn.Prepare("badSQL", "select foo"); err == nil {
 		t.Fatal("Prepare should have failed with syntax error")
 	}
 
-	if _, err = conn.SelectValue("select 1"); err != nil {
+	if _, err := conn.SelectValue("select 1"); err != nil {
 		t.Fatalf("Prepare failure appears to have broken connection: %v", err)
 	}
 }
 
 func TestTransaction(t *testing.T) {
-	conn, err := pgx.Connect(*defaultConnConfig)
-	if err != nil {
-		t.Fatalf("Unable to establish connection: %v", err)
-	}
-	defer conn.Close()
+	t.Parallel()
+
+	conn := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, conn)
 
 	createSql := `
 		create temporary table foo(
@@ -623,15 +511,13 @@ func TestTransaction(t *testing.T) {
 		);
 	`
 
-	if _, err := conn.Execute(createSql); err != nil {
+	if _, err := conn.Exec(createSql); err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
 
-	var committed bool
-
 	// Transaction happy path -- it executes function and commits
-	committed, err = conn.Transaction(func() bool {
-		mustExecute(t, conn, "insert into foo(id) values (1)")
+	committed, err := conn.Transaction(func() bool {
+		mustExec(t, conn, "insert into foo(id) values (1)")
 		return true
 	})
 	if err != nil {
@@ -647,11 +533,11 @@ func TestTransaction(t *testing.T) {
 		t.Fatalf("Did not receive correct number of rows: %v", n)
 	}
 
-	mustExecute(t, conn, "truncate foo")
+	mustExec(t, conn, "truncate foo")
 
 	// It rolls back when passed function returns false
 	committed, err = conn.Transaction(func() bool {
-		mustExecute(t, conn, "insert into foo(id) values (1)")
+		mustExec(t, conn, "insert into foo(id) values (1)")
 		return false
 	})
 	if err != nil {
@@ -667,9 +553,9 @@ func TestTransaction(t *testing.T) {
 
 	// it rolls back changes when connection is in error state
 	committed, err = conn.Transaction(func() bool {
-		mustExecute(t, conn, "insert into foo(id) values (1)")
-		if _, err := conn.Execute("invalid"); err == nil {
-			t.Fatal("Execute was supposed to error but didn't")
+		mustExec(t, conn, "insert into foo(id) values (1)")
+		if _, err := conn.Exec("invalid"); err == nil {
+			t.Fatal("Exec was supposed to error but didn't")
 		}
 		return true
 	})
@@ -686,8 +572,8 @@ func TestTransaction(t *testing.T) {
 
 	// when commit fails
 	committed, err = conn.Transaction(func() bool {
-		mustExecute(t, conn, "insert into foo(id) values (1)")
-		mustExecute(t, conn, "insert into foo(id) values (1)")
+		mustExec(t, conn, "insert into foo(id) values (1)")
+		mustExec(t, conn, "insert into foo(id) values (1)")
 		return true
 	})
 	if err == nil {
@@ -702,14 +588,14 @@ func TestTransaction(t *testing.T) {
 		t.Fatalf("Did not receive correct number of rows: %v", n)
 	}
 
-	// when something in transaction panicks
+	// when something in transaction panics
 	func() {
 		defer func() {
 			recover()
 		}()
 
 		committed, err = conn.Transaction(func() bool {
-			mustExecute(t, conn, "insert into foo(id) values (1)")
+			mustExec(t, conn, "insert into foo(id) values (1)")
 			panic("stop!")
 		})
 
@@ -721,11 +607,10 @@ func TestTransaction(t *testing.T) {
 }
 
 func TestTransactionIso(t *testing.T) {
-	conn, err := pgx.Connect(*defaultConnConfig)
-	if err != nil {
-		t.Fatalf("Unable to establish connection: %v", err)
-	}
-	defer conn.Close()
+	t.Parallel()
+
+	conn := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, conn)
 
 	isoLevels := []string{pgx.Serializable, pgx.RepeatableRead, pgx.ReadCommitted, pgx.ReadUncommitted}
 	for _, iso := range isoLevels {
@@ -742,18 +627,19 @@ func TestTransactionIso(t *testing.T) {
 }
 
 func TestListenNotify(t *testing.T) {
-	listener, err := pgx.Connect(*defaultConnConfig)
-	if err != nil {
-		t.Fatalf("Unable to establish connection: %v", err)
-	}
-	defer listener.Close()
+	t.Parallel()
+
+	listener := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, listener)
 
 	if err := listener.Listen("chat"); err != nil {
 		t.Fatalf("Unable to start listening: %v", err)
 	}
 
-	notifier := getSharedConnection(t)
-	mustExecute(t, notifier, "notify chat")
+	notifier := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, notifier)
+
+	mustExec(t, notifier, "notify chat")
 
 	// when notification is waiting on the socket to be read
 	notification, err := listener.WaitForNotification(time.Second)
@@ -765,7 +651,7 @@ func TestListenNotify(t *testing.T) {
 	}
 
 	// when notification has already been read during previous query
-	mustExecute(t, notifier, "notify chat")
+	mustExec(t, notifier, "notify chat")
 	mustSelectValue(t, listener, "select 1")
 	notification, err = listener.WaitForNotification(0)
 	if err != nil {
@@ -785,7 +671,7 @@ func TestListenNotify(t *testing.T) {
 	}
 
 	// listener can listen again after a timeout
-	mustExecute(t, notifier, "notify chat")
+	mustExec(t, notifier, "notify chat")
 	notification, err = listener.WaitForNotification(time.Second)
 	if err != nil {
 		t.Fatalf("Unexpected error on WaitForNotification: %v", err)
@@ -796,11 +682,10 @@ func TestListenNotify(t *testing.T) {
 }
 
 func TestFatalRxError(t *testing.T) {
-	conn, err := pgx.Connect(*defaultConnConfig)
-	if err != nil {
-		t.Fatalf("Unable to establish connection: %v", err)
-	}
-	defer conn.Close()
+	t.Parallel()
+
+	conn := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, conn)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -818,7 +703,7 @@ func TestFatalRxError(t *testing.T) {
 	}
 	defer otherConn.Close()
 
-	if _, err := otherConn.Execute("select pg_terminate_backend($1)", conn.Pid); err != nil {
+	if _, err := otherConn.Exec("select pg_terminate_backend($1)", conn.Pid); err != nil {
 		t.Fatalf("Unable to kill backend PostgreSQL process: %v", err)
 	}
 
@@ -830,11 +715,10 @@ func TestFatalRxError(t *testing.T) {
 }
 
 func TestFatalTxError(t *testing.T) {
-	conn, err := pgx.Connect(*defaultConnConfig)
-	if err != nil {
-		t.Fatalf("Unable to establish connection: %v", err)
-	}
-	defer conn.Close()
+	t.Parallel()
+
+	conn := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, conn)
 
 	otherConn, err := pgx.Connect(*defaultConnConfig)
 	if err != nil {
@@ -842,11 +726,13 @@ func TestFatalTxError(t *testing.T) {
 	}
 	defer otherConn.Close()
 
-	if _, err := otherConn.Execute("select pg_terminate_backend($1)", conn.Pid); err != nil {
+	_, err = otherConn.Exec("select pg_terminate_backend($1)", conn.Pid)
+	if err != nil {
 		t.Fatalf("Unable to kill backend PostgreSQL process: %v", err)
 	}
 
-	if _, err := conn.SelectValue("select 1"); err == nil {
+	_, err = conn.SelectValue("select 1")
+	if err == nil {
 		t.Fatal("Expected error but none occurred")
 	}
 
@@ -856,10 +742,13 @@ func TestFatalTxError(t *testing.T) {
 }
 
 func TestCommandTag(t *testing.T) {
+	t.Parallel()
+
 	var tests = []struct {
 		commandTag   pgx.CommandTag
 		rowsAffected int64
 	}{
+		{commandTag: "INSERT 0 5", rowsAffected: 5},
 		{commandTag: "UPDATE 0", rowsAffected: 0},
 		{commandTag: "UPDATE 1", rowsAffected: 1},
 		{commandTag: "DELETE 0", rowsAffected: 0},

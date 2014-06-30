@@ -6,46 +6,31 @@ import (
 	"testing"
 )
 
-var sharedConnection *pgx.Conn
-
-func getSharedConnection(t testing.TB) (c *pgx.Conn) {
-	if sharedConnection == nil || !sharedConnection.IsAlive() {
-		var err error
-		sharedConnection, err = pgx.Connect(*defaultConnConfig)
-		if err != nil {
-			t.Fatalf("Unable to establish connection: %v", err)
-		}
-
+func mustConnect(t testing.TB, config pgx.ConnConfig) *pgx.Conn {
+	conn, err := pgx.Connect(config)
+	if err != nil {
+		t.Fatalf("Unable to establish connection: %v", err)
 	}
-	return sharedConnection
+	return conn
+}
+
+func closeConn(t testing.TB, conn *pgx.Conn) {
+	err := conn.Close()
+	if err != nil {
+		t.Fatalf("conn.Close unexpectedly failed: %v", err)
+	}
 }
 
 func mustPrepare(t testing.TB, conn *pgx.Conn, name, sql string) {
-	if err := conn.Prepare(name, sql); err != nil {
+	if _, err := conn.Prepare(name, sql); err != nil {
 		t.Fatalf("Could not prepare %v: %v", name, err)
 	}
 }
 
-func mustExecute(t testing.TB, conn *pgx.Conn, sql string, arguments ...interface{}) (commandTag pgx.CommandTag) {
+func mustExec(t testing.TB, conn *pgx.Conn, sql string, arguments ...interface{}) (commandTag pgx.CommandTag) {
 	var err error
-	if commandTag, err = conn.Execute(sql, arguments...); err != nil {
-		t.Fatalf("Execute unexpectedly failed with %v: %v", sql, err)
-	}
-	return
-}
-
-func mustSelectRow(t testing.TB, conn *pgx.Conn, sql string, arguments ...interface{}) (row map[string]interface{}) {
-	var err error
-	if row, err = conn.SelectRow(sql, arguments...); err != nil {
-		t.Fatalf("SelectRow unexpectedly failed with %v: %v", sql, err)
-	}
-	return
-}
-
-func mustSelectRows(t testing.TB, conn *pgx.Conn, sql string, arguments ...interface{}) (rows []map[string]interface{}) {
-	var err error
-	if rows, err = conn.SelectRows(sql, arguments...); err != nil {
-		t.Fatalf("SelectRows unexpected failed with %v: %v", sql, err)
+	if commandTag, err = conn.Exec(sql, arguments...); err != nil {
+		t.Fatalf("Exec unexpectedly failed with %v: %v", sql, err)
 	}
 	return
 }

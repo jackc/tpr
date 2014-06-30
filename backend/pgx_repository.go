@@ -47,16 +47,19 @@ func (repo *pgxRepository) CreateUser(user *User) (int32, error) {
 
 func (repo *pgxRepository) getUser(sql string, arg interface{}) (*User, error) {
 	user := User{}
-	err := repo.pool.SelectFunc(sql, func(r *pgx.DataRowReader) (err error) {
-		user.ID.Set(r.ReadValue().(int32))
-		user.Name.Set(r.ReadValue().(string))
-		user.Email.SetCoerceNil(r.ReadValue(), box.Empty)
-		user.PasswordDigest = r.ReadValue().([]byte)
-		user.PasswordSalt = r.ReadValue().([]byte)
-		return
-	}, arg)
-	if err != nil {
-		return nil, err
+
+	qr, _ := repo.pool.Query(sql, arg)
+	for qr.NextRow() {
+		var rr pgx.RowReader
+		user.ID.Set(rr.ReadInt32(qr))
+		user.Name.Set(rr.ReadString(qr))
+		user.Email.SetCoerceNil(rr.ReadValue(qr), box.Empty)
+		user.PasswordDigest = rr.ReadValue(qr).([]byte)
+		user.PasswordSalt = rr.ReadValue(qr).([]byte)
+	}
+
+	if qr.Err() != nil {
+		return nil, qr.Err()
 	}
 
 	if _, ok := user.ID.Get(); !ok {
@@ -100,7 +103,7 @@ func (repo *pgxRepository) UpdateUser(userID int32, attributes *User) error {
 
 	sql := "update users set " + strings.Join(sets, ", ") + " where id=" + args.Append(userID)
 
-	commandTag, err := repo.pool.Execute(sql, args...)
+	commandTag, err := repo.pool.Exec(sql, args...)
 	if err != nil {
 		return err
 	}
@@ -110,17 +113,20 @@ func (repo *pgxRepository) UpdateUser(userID int32, attributes *User) error {
 	return nil
 }
 
-func (repo *pgxRepository) GetFeedsUncheckedSince(since time.Time) (feeds []Feed, err error) {
-	err = repo.pool.SelectFunc("getFeedsUncheckedSince", func(r *pgx.DataRowReader) (err error) {
-		var feed Feed
-		feed.ID.Set(r.ReadValue().(int32))
-		feed.URL.Set(r.ReadValue().(string))
-		feed.ETag.SetCoerceNil(r.ReadValue(), box.Empty)
-		feeds = append(feeds, feed)
-		return
-	}, since)
+func (repo *pgxRepository) GetFeedsUncheckedSince(since time.Time) ([]Feed, error) {
+	feeds := make([]Feed, 0, 8)
+	qr, _ := repo.pool.Query("getFeedsUncheckedSince", since)
 
-	return
+	for qr.NextRow() {
+		var rr pgx.RowReader
+		var feed Feed
+		feed.ID.Set(rr.ReadInt32(qr))
+		feed.URL.Set(rr.ReadString(qr))
+		feed.ETag.SetCoerceNil(rr.ReadValue(qr), box.Empty)
+		feeds = append(feeds, feed)
+	}
+
+	return feeds, qr.Err()
 }
 
 func (repo *pgxRepository) UpdateFeedWithFetchSuccess(feedID int32, update *parsedFeed, etag box.String, fetchTime time.Time) (err error) {
@@ -133,7 +139,7 @@ func (repo *pgxRepository) UpdateFeedWithFetchSuccess(feedID int32, update *pars
 	defer repo.pool.Release(conn)
 
 	conn.Transaction(func() bool {
-		_, err = conn.Execute("updateFeedWithFetchSuccess",
+		_, err = conn.Exec("updateFeedWithFetchSuccess",
 			update.name,
 			fetchTime,
 			etag.GetCoerceNil(),
@@ -144,7 +150,7 @@ func (repo *pgxRepository) UpdateFeedWithFetchSuccess(feedID int32, update *pars
 
 		if len(update.items) > 0 {
 			insertSQL, insertArgs := repo.buildNewItemsSQL(feedID, update.items)
-			_, err = conn.Execute(insertSQL, insertArgs...)
+			_, err = conn.Exec(insertSQL, insertArgs...)
 			if err != nil {
 				return false
 			}
@@ -157,12 +163,12 @@ func (repo *pgxRepository) UpdateFeedWithFetchSuccess(feedID int32, update *pars
 }
 
 func (repo *pgxRepository) UpdateFeedWithFetchUnchanged(feedID int32, fetchTime time.Time) (err error) {
-	_, err = repo.pool.Execute("updateFeedWithFetchUnchanged", fetchTime, feedID)
+	_, err = repo.pool.Exec("updateFeedWithFetchUnchanged", fetchTime, feedID)
 	return
 }
 
 func (repo *pgxRepository) UpdateFeedWithFetchFailure(feedID int32, failure string, fetchTime time.Time) (err error) {
-	_, err = repo.pool.Execute("updateFeedWithFetchFailure", failure, fetchTime, feedID)
+	_, err = repo.pool.Exec("updateFeedWithFetchFailure", failure, fetchTime, feedID)
 	return err
 }
 
@@ -175,7 +181,7 @@ func (repo *pgxRepository) CopyUnreadItemsAsJSONByUserID(w io.Writer, userID int
 }
 
 func (repo *pgxRepository) MarkItemRead(userID, itemID int32) error {
-	commandTag, err := repo.pool.Execute("markItemRead", userID, itemID)
+	commandTag, err := repo.pool.Exec("markItemRead", userID, itemID)
 	if err != nil {
 		return err
 	}
@@ -187,28 +193,29 @@ func (repo *pgxRepository) MarkItemRead(userID, itemID int32) error {
 }
 
 func (repo *pgxRepository) CreateSubscription(userID int32, feedURL string) error {
-	_, err := repo.pool.Execute("createSubscription", userID, feedURL)
+	_, err := repo.pool.Exec("createSubscription", userID, feedURL)
 	return err
 }
 
 func (repo *pgxRepository) GetSubscriptions(userID int32) ([]Subscription, error) {
 	subs := make([]Subscription, 0, 16)
-	err := repo.pool.SelectFunc("getSubscriptions", func(r *pgx.DataRowReader) (err error) {
+	qr, _ := repo.pool.Query("getSubscriptions", userID)
+	for qr.NextRow() {
+		var rr pgx.RowReader
 		var s Subscription
-		s.FeedID.Set(r.ReadValue().(int32))
-		s.Name.Set(r.ReadValue().(string))
-		s.URL.Set(r.ReadValue().(string))
-		s.LastFetchTime.SetCoerceNil(r.ReadValue(), box.Empty)
-		s.LastFailure.SetCoerceNil(r.ReadValue(), box.Empty)
-		s.LastFailureTime.SetCoerceNil(r.ReadValue(), box.Empty)
-		s.FailureCount.Set(r.ReadValue().(int32))
-		s.ItemCount.Set(r.ReadValue().(int64))
-		s.LastPublicationTime.SetCoerceNil(r.ReadValue(), box.Empty)
+		s.FeedID.Set(rr.ReadInt32(qr))
+		s.Name.Set(rr.ReadString(qr))
+		s.URL.Set(rr.ReadString(qr))
+		s.LastFetchTime.SetCoerceNil(rr.ReadValue(qr), box.Empty)
+		s.LastFailure.SetCoerceNil(rr.ReadValue(qr), box.Empty)
+		s.LastFailureTime.SetCoerceNil(rr.ReadValue(qr), box.Empty)
+		s.FailureCount.Set(rr.ReadInt32(qr))
+		s.ItemCount.Set(rr.ReadInt64(qr))
+		s.LastPublicationTime.SetCoerceNil(rr.ReadValue(qr), box.Empty)
 		subs = append(subs, s)
-		return
-	}, userID)
+	}
 
-	return subs, err
+	return subs, qr.Err()
 }
 
 func (repo *pgxRepository) DeleteSubscription(userID, feedID int32) error {
@@ -219,12 +226,12 @@ func (repo *pgxRepository) DeleteSubscription(userID, feedID int32) error {
 	defer repo.pool.Release(conn)
 
 	conn.TransactionIso("serializable", func() bool {
-		_, err := conn.Execute("deleteSubscription", userID, feedID)
+		_, err := conn.Exec("deleteSubscription", userID, feedID)
 		if err != nil {
 			return false
 		}
 
-		_, err = conn.Execute("deleteFeedIfOrphaned", feedID)
+		_, err = conn.Exec("deleteFeedIfOrphaned", feedID)
 		if err != nil {
 			return false
 		}
@@ -236,7 +243,7 @@ func (repo *pgxRepository) DeleteSubscription(userID, feedID int32) error {
 }
 
 func (repo *pgxRepository) CreateSession(id []byte, userID int32) (err error) {
-	_, err = repo.pool.Execute("insertSession", id, userID)
+	_, err = repo.pool.Exec("insertSession", id, userID)
 	return err
 }
 
@@ -245,7 +252,7 @@ func (repo *pgxRepository) GetUserBySessionID(id []byte) (*User, error) {
 }
 
 func (repo *pgxRepository) DeleteSession(id []byte) error {
-	commandTag, err := repo.pool.Execute("deleteSession", id)
+	commandTag, err := repo.pool.Exec("deleteSession", id)
 	if err != nil {
 		return err
 	}
@@ -292,7 +299,7 @@ func (repo *pgxRepository) CreatePasswordReset(attrs *PasswordReset) error {
 
 	sql := "insert into password_resets(" + strings.Join(columns, ", ") + ") values(" + strings.Join(placeholders, ", ") + ")"
 
-	_, err := repo.pool.Execute(sql, args...)
+	_, err := repo.pool.Exec(sql, args...)
 	if err != nil {
 		if strings.Contains(err.Error(), "password_resets_pkey") {
 			return DuplicationError{Field: "token"}
@@ -305,18 +312,19 @@ func (repo *pgxRepository) CreatePasswordReset(attrs *PasswordReset) error {
 
 func (repo *pgxRepository) GetPasswordReset(token string) (*PasswordReset, error) {
 	pwr := &PasswordReset{}
-	err := repo.pool.SelectFunc("getPasswordReset", func(r *pgx.DataRowReader) (err error) {
-		pwr.Token.Set(r.ReadValue().(string))
-		pwr.Email.Set(r.ReadValue().(string))
-		pwr.RequestIP.SetCoerceNil(r.ReadValue(), box.Unknown)
-		pwr.RequestTime.Set(r.ReadValue().(time.Time))
-		pwr.UserID.SetCoerceNil(r.ReadValue(), box.Empty)
-		pwr.CompletionIP.SetCoerceNil(r.ReadValue(), box.Empty)
-		pwr.CompletionTime.SetCoerceNil(r.ReadValue(), box.Empty)
-		return
-	}, token)
-	if err != nil {
-		return nil, err
+	qr, _ := repo.pool.Query("getPasswordReset", token)
+	for qr.NextRow() {
+		var rr pgx.RowReader
+		pwr.Token.Set(rr.ReadString(qr))
+		pwr.Email.Set(rr.ReadString(qr))
+		pwr.RequestIP.SetCoerceNil(rr.ReadValue(qr), box.Unknown)
+		pwr.RequestTime.Set(rr.ReadTime(qr))
+		pwr.UserID.SetCoerceNil(rr.ReadValue(qr), box.Empty)
+		pwr.CompletionIP.SetCoerceNil(rr.ReadValue(qr), box.Empty)
+		pwr.CompletionTime.SetCoerceNil(rr.ReadValue(qr), box.Empty)
+	}
+	if qr.Err() != nil {
+		return nil, qr.Err()
 	}
 
 	if _, ok := pwr.Token.Get(); !ok {
@@ -351,7 +359,7 @@ func (repo *pgxRepository) UpdatePasswordReset(token string, attrs *PasswordRese
 
 	sql := "update password_resets set " + strings.Join(sets, ", ") + " where token=" + args.Append(token)
 
-	commandTag, err := repo.pool.Execute(sql, args...)
+	commandTag, err := repo.pool.Exec(sql, args...)
 	if err != nil {
 		return err
 	}
@@ -365,7 +373,7 @@ func (repo *pgxRepository) UpdatePasswordReset(token string, attrs *PasswordRese
 func (repo *pgxRepository) empty() error {
 	tables := []string{"feeds", "items", "password_resets", "sessions", "subscriptions", "unread_items", "users"}
 	for _, table := range tables {
-		_, err := repo.pool.Execute(fmt.Sprintf("delete from %s", table))
+		_, err := repo.pool.Exec(fmt.Sprintf("delete from %s", table))
 		if err != nil {
 			return err
 		}
@@ -425,7 +433,7 @@ func (repo *pgxRepository) buildNewItemsSQL(feedID int32, items []parsedItem) (s
 
 // afterConnect creates the prepared statements that this application uses
 func afterConnect(conn *pgx.Conn) (err error) {
-	err = conn.Prepare("getUnreadItems", `
+	_, err = conn.Prepare("getUnreadItems", `
     select coalesce(json_agg(row_to_json(t)), '[]'::json)
     from (
       select
@@ -445,12 +453,12 @@ func afterConnect(conn *pgx.Conn) (err error) {
 		return
 	}
 
-	err = conn.Prepare("deleteSession", `delete from sessions where id=$1`)
+	_, err = conn.Prepare("deleteSession", `delete from sessions where id=$1`)
 	if err != nil {
 		return
 	}
 
-	err = conn.Prepare("getFeedsForUser", `
+	_, err = conn.Prepare("getFeedsForUser", `
     select coalesce(json_agg(row_to_json(t)), '[]'::json)
     from (
       select feeds.id as feed_id,
@@ -473,7 +481,7 @@ func afterConnect(conn *pgx.Conn) (err error) {
 		return
 	}
 
-	err = conn.Prepare("markItemRead", `
+	_, err = conn.Prepare("markItemRead", `
     delete from unread_items
     where user_id=$1
       and item_id=$2`)
@@ -481,7 +489,7 @@ func afterConnect(conn *pgx.Conn) (err error) {
 		return
 	}
 
-	err = conn.Prepare("insertUser", `
+	_, err = conn.Prepare("insertUser", `
     insert into users(name, email, password_digest, password_salt)
     values($1, $2, $3, $4)
     returning id`)
@@ -489,13 +497,13 @@ func afterConnect(conn *pgx.Conn) (err error) {
 		return
 	}
 
-	err = conn.Prepare("getUserAuthenticationByName", `
+	_, err = conn.Prepare("getUserAuthenticationByName", `
     select id, password_digest, password_salt from users where name=$1`)
 	if err != nil {
 		return
 	}
 
-	err = conn.Prepare("getFeedsUncheckedSince", `
+	_, err = conn.Prepare("getFeedsUncheckedSince", `
     select id, url, etag
     from feeds
     where greatest(last_fetch_time, last_failure_time, '-Infinity'::timestamptz) < $1`)
@@ -503,7 +511,7 @@ func afterConnect(conn *pgx.Conn) (err error) {
 		return
 	}
 
-	err = conn.Prepare("updateFeedWithFetchSuccess", `
+	_, err = conn.Prepare("updateFeedWithFetchSuccess", `
       update feeds
       set name=$1,
         last_fetch_time=$2,
@@ -516,7 +524,7 @@ func afterConnect(conn *pgx.Conn) (err error) {
 		return
 	}
 
-	err = conn.Prepare("updateFeedWithFetchUnchanged", `
+	_, err = conn.Prepare("updateFeedWithFetchUnchanged", `
     update feeds
     set last_fetch_time=$1,
       last_failure=null,
@@ -527,7 +535,7 @@ func afterConnect(conn *pgx.Conn) (err error) {
 		return
 	}
 
-	err = conn.Prepare("updateFeedWithFetchFailure", `
+	_, err = conn.Prepare("updateFeedWithFetchFailure", `
     update feeds
     set last_failure=$1,
       last_failure_time=$2,
@@ -537,12 +545,12 @@ func afterConnect(conn *pgx.Conn) (err error) {
 		return
 	}
 
-	err = conn.Prepare("createSubscription", `select create_subscription($1::integer, $2::varchar)`)
+	_, err = conn.Prepare("createSubscription", `select create_subscription($1::integer, $2::varchar)`)
 	if err != nil {
 		return
 	}
 
-	err = conn.Prepare("getSubscriptions", `
+	_, err = conn.Prepare("getSubscriptions", `
     select feeds.id as feed_id,
       name,
       feeds.url,
@@ -562,12 +570,12 @@ func afterConnect(conn *pgx.Conn) (err error) {
 		return
 	}
 
-	err = conn.Prepare("deleteSubscription", `delete from subscriptions where user_id=$1 and feed_id=$2`)
+	_, err = conn.Prepare("deleteSubscription", `delete from subscriptions where user_id=$1 and feed_id=$2`)
 	if err != nil {
 		return
 	}
 
-	err = conn.Prepare("deleteFeedIfOrphaned", `
+	_, err = conn.Prepare("deleteFeedIfOrphaned", `
     delete from feeds
     where id=$1
       and not exists(select 1 from subscriptions where feed_id=id)`)
@@ -575,12 +583,12 @@ func afterConnect(conn *pgx.Conn) (err error) {
 		return
 	}
 
-	err = conn.Prepare("insertSession", `insert into sessions(id, user_id) values($1, $2)`)
+	_, err = conn.Prepare("insertSession", `insert into sessions(id, user_id) values($1, $2)`)
 	if err != nil {
 		return
 	}
 
-	err = conn.Prepare("getUserBySessionID", `
+	_, err = conn.Prepare("getUserBySessionID", `
     select users.id, name, email, password_digest, password_salt
     from sessions
       join users on sessions.user_id=users.id
@@ -589,27 +597,27 @@ func afterConnect(conn *pgx.Conn) (err error) {
 		return
 	}
 
-	err = conn.Prepare("getUserName", `select name from users where id=$1`)
+	_, err = conn.Prepare("getUserName", `select name from users where id=$1`)
 	if err != nil {
 		return
 	}
 
-	err = conn.Prepare("getUser", `select id, name, email, password_digest, password_salt from users where id=$1`)
+	_, err = conn.Prepare("getUser", `select id, name, email, password_digest, password_salt from users where id=$1`)
 	if err != nil {
 		return
 	}
 
-	err = conn.Prepare("getUserByName", `select id, name, email, password_digest, password_salt from users where name=$1`)
+	_, err = conn.Prepare("getUserByName", `select id, name, email, password_digest, password_salt from users where name=$1`)
 	if err != nil {
 		return
 	}
 
-	err = conn.Prepare("getUserByEmail", `select id, name, email, password_digest, password_salt from users where email=$1`)
+	_, err = conn.Prepare("getUserByEmail", `select id, name, email, password_digest, password_salt from users where email=$1`)
 	if err != nil {
 		return
 	}
 
-	err = conn.Prepare("getPasswordReset", `
+	_, err = conn.Prepare("getPasswordReset", `
     select token, email, request_ip, request_time, user_id, completion_ip, completion_time
     from password_resets
     where token=$1`)

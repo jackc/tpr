@@ -18,6 +18,8 @@ func createConnPool(t *testing.T, maxConnections int) *pgx.ConnPool {
 }
 
 func TestNewConnPool(t *testing.T) {
+	t.Parallel()
+
 	var numCallbacks int
 	afterConnect := func(c *pgx.Conn) error {
 		numCallbacks++
@@ -50,7 +52,38 @@ func TestNewConnPool(t *testing.T) {
 	}
 }
 
+func TestNewConnPoolDefaultsTo5MaxConnections(t *testing.T) {
+	t.Parallel()
+
+	config := pgx.ConnPoolConfig{ConnConfig: *defaultConnConfig}
+	pool, err := pgx.NewConnPool(config)
+	if err != nil {
+		t.Fatal("Unable to establish connection pool")
+	}
+	defer pool.Close()
+
+	if n := pool.MaxConnectionCount(); n != 5 {
+		t.Fatalf("Expected pool to default to 5 max connections, but it was %d", n)
+	}
+}
+
+func TestNewConnPoolMaxConnectionsCannotBeLessThan2(t *testing.T) {
+	t.Parallel()
+
+	config := pgx.ConnPoolConfig{ConnConfig: *defaultConnConfig, MaxConnections: 1}
+	pool, err := pgx.NewConnPool(config)
+	if err == nil {
+		pool.Close()
+		t.Fatal(`Expected NewConnPool to fail with "MaxConnections must be at least 2" error, but it succeeded`)
+	}
+	if err.Error() != "MaxConnections must be at least 2" {
+		t.Fatalf(`Expected NewConnPool to fail with "MaxConnections must be at least 2" error, but it failed with %v`, err)
+	}
+}
+
 func TestPoolAcquireAndReleaseCycle(t *testing.T) {
+	t.Parallel()
+
 	maxConnections := 2
 	incrementCount := int32(100)
 	completeSync := make(chan int)
@@ -71,8 +104,8 @@ func TestPoolAcquireAndReleaseCycle(t *testing.T) {
 	allConnections := acquireAll()
 
 	for _, c := range allConnections {
-		mustExecute(t, c, "create temporary table t(counter integer not null)")
-		mustExecute(t, c, "insert into t(counter) values(0);")
+		mustExec(t, c, "create temporary table t(counter integer not null)")
+		mustExec(t, c, "insert into t(counter) values(0);")
 	}
 
 	for _, c := range allConnections {
@@ -87,7 +120,7 @@ func TestPoolAcquireAndReleaseCycle(t *testing.T) {
 		defer pool.Release(conn)
 
 		// Increment counter...
-		mustExecute(t, conn, "update t set counter = counter + 1")
+		mustExec(t, conn, "update t set counter = counter + 1")
 		completeSync <- 0
 	}
 
@@ -125,15 +158,17 @@ func TestPoolAcquireAndReleaseCycle(t *testing.T) {
 }
 
 func TestPoolReleaseWithTransactions(t *testing.T) {
-	pool := createConnPool(t, 1)
+	t.Parallel()
+
+	pool := createConnPool(t, 2)
 	defer pool.Close()
 
 	conn, err := pool.Acquire()
 	if err != nil {
 		t.Fatalf("Unable to acquire connection: %v", err)
 	}
-	mustExecute(t, conn, "begin")
-	if _, err = conn.Execute("select"); err == nil {
+	mustExec(t, conn, "begin")
+	if _, err = conn.Exec("select"); err == nil {
 		t.Fatal("Did not receive expected error")
 	}
 	if conn.TxStatus != 'E' {
@@ -150,7 +185,7 @@ func TestPoolReleaseWithTransactions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unable to acquire connection: %v", err)
 	}
-	mustExecute(t, conn, "begin")
+	mustExec(t, conn, "begin")
 	if conn.TxStatus != 'T' {
 		t.Fatalf("Expected txStatus to be 'T', instead it was '%c'", conn.TxStatus)
 	}
@@ -163,6 +198,8 @@ func TestPoolReleaseWithTransactions(t *testing.T) {
 }
 
 func TestPoolAcquireAndReleaseCycleAutoConnect(t *testing.T) {
+	t.Parallel()
+
 	maxConnections := 3
 	pool := createConnPool(t, maxConnections)
 	defer pool.Close()
@@ -202,6 +239,8 @@ func TestPoolAcquireAndReleaseCycleAutoConnect(t *testing.T) {
 }
 
 func TestPoolReleaseDiscardsDeadConnections(t *testing.T) {
+	t.Parallel()
+
 	maxConnections := 3
 	pool := createConnPool(t, maxConnections)
 	defer pool.Close()
@@ -228,7 +267,7 @@ func TestPoolReleaseDiscardsDeadConnections(t *testing.T) {
 		}
 	}()
 
-	if _, err = c2.Execute("select pg_terminate_backend($1)", c1.Pid); err != nil {
+	if _, err = c2.Exec("select pg_terminate_backend($1)", c1.Pid); err != nil {
 		t.Fatalf("Unable to kill backend PostgreSQL process: %v", err)
 	}
 
@@ -262,11 +301,13 @@ func TestPoolReleaseDiscardsDeadConnections(t *testing.T) {
 }
 
 func TestPoolTransaction(t *testing.T) {
-	pool := createConnPool(t, 1)
+	t.Parallel()
+
+	pool := createConnPool(t, 2)
 	defer pool.Close()
 
 	committed, err := pool.Transaction(func(conn *pgx.Conn) bool {
-		mustExecute(t, conn, "create temporary table foo(id serial primary key)")
+		mustExec(t, conn, "create temporary table foo(id serial primary key)")
 		return true
 	})
 	if err != nil {
@@ -282,7 +323,7 @@ func TestPoolTransaction(t *testing.T) {
 			t.Fatalf("Did not receive expected value: %v", n)
 		}
 
-		mustExecute(t, conn, "insert into foo(id) values(default)")
+		mustExec(t, conn, "insert into foo(id) values(default)")
 
 		n = mustSelectValue(t, conn, "select count(*) from foo")
 		if n.(int64) != 1 {
@@ -315,7 +356,9 @@ func TestPoolTransaction(t *testing.T) {
 }
 
 func TestPoolTransactionIso(t *testing.T) {
-	pool := createConnPool(t, 1)
+	t.Parallel()
+
+	pool := createConnPool(t, 2)
 	defer pool.Close()
 
 	committed, err := pool.TransactionIso("serializable", func(conn *pgx.Conn) bool {
@@ -329,5 +372,46 @@ func TestPoolTransactionIso(t *testing.T) {
 	}
 	if !committed {
 		t.Fatal("Transaction was not committed when it should have been")
+	}
+}
+
+func TestConnPoolQuery(t *testing.T) {
+	t.Parallel()
+
+	pool := createConnPool(t, 2)
+	defer pool.Close()
+
+	var sum, rowCount int32
+
+	qr, err := pool.Query("select generate_series(1,$1)", 10)
+	if err != nil {
+		t.Fatalf("pool.Query failed: %v", err)
+	}
+
+	stats := pool.Stat()
+	if stats.CurrentConnections != 1 || stats.AvailableConnections != 0 {
+		t.Fatalf("Unexpected connection pool stats: %v", stats)
+	}
+
+	for qr.NextRow() {
+		var rr pgx.RowReader
+		sum += rr.ReadInt32(qr)
+		rowCount++
+	}
+
+	if qr.Err() != nil {
+		t.Fatalf("conn.Query failed: ", err)
+	}
+
+	if rowCount != 10 {
+		t.Error("Select called onDataRow wrong number of times")
+	}
+	if sum != 55 {
+		t.Error("Wrong values returned")
+	}
+
+	stats = pool.Stat()
+	if stats.CurrentConnections != 1 || stats.AvailableConnections != 1 {
+		t.Fatalf("Unexpected connection pool stats: %v", stats)
 	}
 }
