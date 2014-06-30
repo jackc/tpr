@@ -2,12 +2,10 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/jackc/box"
 	log "gopkg.in/inconshreveable/log15.v2"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 )
@@ -266,44 +264,4 @@ func TestFetchFeed(t *testing.T) {
 		t.Errorf("Expected no ETag to be empty but instead it was: %v", rawFeed.etag)
 	}
 
-}
-
-func TestFetchFeedResponseHeaderTimeout(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(2 * time.Millisecond)
-		fmt.Fprintln(w, "Too Late!")
-	}))
-	defer ts.Close()
-
-	u := NewFeedUpdater(nil, log.Root())
-	transport := &http.Transport{ResponseHeaderTimeout: time.Duration(1 * time.Millisecond)}
-	u.client = &http.Client{Transport: transport}
-
-	_, err := u.fetchFeed(ts.URL, box.String{})
-	if err == nil {
-		t.Fatal("Expected but did not receive error")
-	}
-	if !strings.Contains(err.Error(), "net/http: timeout awaiting response headers") {
-		t.Fatalf("Did not receive expected timeout error, instead received: %v", err)
-	}
-}
-
-func TestFetchFeedResponseBodyTimeout(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(200)
-		w.(http.Flusher).Flush()
-		time.Sleep(2 * time.Millisecond)
-	}))
-	defer ts.Close()
-
-	u := NewFeedUpdater(nil, log.Root())
-	u.bodyResponseTimeout = 1 * time.Millisecond
-
-	_, err := u.fetchFeed(ts.URL, box.String{})
-	if err == nil {
-		t.Fatal("Expected but did not receive error")
-	}
-	if !strings.Contains(err.Error(), "Timeout receiving response body") {
-		t.Fatalf("Did not receive expected timeout error, instead received: %v", err)
-	}
 }

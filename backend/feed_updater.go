@@ -9,13 +9,11 @@ import (
 	log "gopkg.in/inconshreveable/log15.v2"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"time"
 )
 
 type FeedUpdater struct {
 	client                   *http.Client
-	bodyResponseTimeout      time.Duration
 	maxConcurrentFeedFetches int
 	repo                     repository
 	logger                   log.Logger
@@ -25,9 +23,7 @@ func NewFeedUpdater(repo repository, logger log.Logger) *FeedUpdater {
 	feedUpdater := &FeedUpdater{}
 	feedUpdater.repo = repo
 	feedUpdater.logger = logger
-	transport := &http.Transport{ResponseHeaderTimeout: time.Duration(10 * time.Second)}
-	feedUpdater.client = &http.Client{Transport: transport}
-	feedUpdater.bodyResponseTimeout = 60 * time.Second
+	feedUpdater.client = &http.Client{Timeout: 60 * time.Second}
 	feedUpdater.maxConcurrentFeedFetches = 25
 	return feedUpdater
 }
@@ -98,20 +94,9 @@ func (u *FeedUpdater) fetchFeed(feedURL string, etag box.String) (*rawFeed, erro
 
 	switch resp.StatusCode {
 	case 200:
-		done := make(chan bool, 1)
-		go func() {
-			feed.body, err = ioutil.ReadAll(resp.Body)
-			done <- true
-		}()
-
-		select {
-		case <-done:
-			if err != nil {
-				return nil, fmt.Errorf("Unable to read response body: %v", err)
-			}
-		case <-time.After(u.bodyResponseTimeout):
-			u.client.Transport.(*http.Transport).CancelRequest(req)
-			return nil, &url.Error{Op: "Get", URL: feedURL, Err: errors.New("Timeout receiving response body")}
+		feed.body, err = ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("Unable to read response body: %v", err)
 		}
 
 		feed.etag.SetCoerceZero(resp.Header.Get("Etag"), box.Empty)
