@@ -2,7 +2,7 @@ package main
 
 import (
 	"bytes"
-	"github.com/jackc/box"
+	"github.com/jackc/tpr/backend/box"
 	log "gopkg.in/inconshreveable/log15.v2"
 	"net/http"
 	"net/http/httptest"
@@ -260,8 +260,8 @@ func TestFetchFeed(t *testing.T) {
 	if bytes.Compare(rssBody, rawFeed.body) != 0 {
 		t.Errorf("rawFeed body should match returned body but instead it was: %v", rawFeed.body)
 	}
-	if rawFeed.etag.Status() != box.Empty {
-		t.Errorf("Expected no ETag to be empty but instead it was: %v", rawFeed.etag)
+	if rawFeed.etag.Status() != box.Null {
+		t.Errorf("Expected no ETag to be null but instead it was: %v", rawFeed.etag)
 	}
 
 }

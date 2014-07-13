@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/jackc/box"
+	"github.com/jackc/tpr/backend/box"
 	"github.com/vaughan0/go-ini"
 	log "gopkg.in/inconshreveable/log15.v2"
 	"net/http"
@@ -330,12 +330,13 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 		// Need to reach down pgx because repo interface doesn't need any get
 		// interface besides by token, but for this test we need to know the token
 		pool := repo.(*pgxRepository).pool
-		token, err := pool.SelectValue("select token from password_resets")
+		var token string
+		err = pool.QueryRow("select token from password_resets").Scan(&token)
 		if err != nil {
-			t.Errorf("%s: pool.SelectValue returned error: %v", tt.descr, err)
+			t.Errorf("%s: pool.QueryRow Scan returned error: %v", tt.descr, err)
 			continue
 		}
-		pwr, err := repo.GetPasswordReset(token.(string))
+		pwr, err := repo.GetPasswordReset(token)
 		if err != nil {
 			t.Errorf("%s: repo.GetPasswordReset returned error: %v", tt.descr, err)
 			continue

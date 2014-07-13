@@ -5,7 +5,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"github.com/jackc/box"
+	"github.com/jackc/tpr/backend/box"
 	log "gopkg.in/inconshreveable/log15.v2"
 	"io/ioutil"
 	"net/http"
@@ -99,7 +99,7 @@ func (u *FeedUpdater) fetchFeed(feedURL string, etag box.String) (*rawFeed, erro
 			return nil, fmt.Errorf("Unable to read response body: %v", err)
 		}
 
-		feed.etag.SetCoerceZero(resp.Header.Get("Etag"), box.Empty)
+		feed.etag.SetCoerceZero(resp.Header.Get("Etag"), box.Null)
 
 		return feed, nil
 	case 304:

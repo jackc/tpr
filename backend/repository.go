@@ -6,7 +6,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"github.com/jackc/box"
+	"github.com/jackc/tpr/backend/box"
 	"io"
 	"time"
 )

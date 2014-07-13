@@ -4,17 +4,13 @@
 	"Deps": [
 		{
 			"ImportPath": "code.google.com/p/go.crypto/pbkdf2",
-			"Comment": "null-212",
-			"Rev": "1064b89a6fb591df0dd65422295b8498916b092f"
+			"Comment": "null-185",
+			"Rev": "6478cc9340cbbe6c04511280c5007722269108e9"
 		},
 		{
 			"ImportPath": "code.google.com/p/go.crypto/scrypt",
-			"Comment": "null-212",
-			"Rev": "1064b89a6fb591df0dd65422295b8498916b092f"
-		},
-		{
-			"ImportPath": "github.com/jackc/box",
-			"Rev": "f4572d8d574c9f00e4833c95266092654323444a"
+			"Comment": "null-185",
+			"Rev": "6478cc9340cbbe6c04511280c5007722269108e9"
 		},
 		{
 			"ImportPath": "github.com/jackc/cli",
@@ -23,7 +19,7 @@
 		},
 		{
 			"ImportPath": "github.com/jackc/pgx",
-			"Rev": "718c4dfdc878667d5fa81773d9dac692283261e2"
+			"Rev": "a12b7ed6c121bd1a980bf2f8d36013233422ebe3"
 		},
 		{
 			"ImportPath": "github.com/jackc/quo_vadis",
