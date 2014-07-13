@@ -1,6 +1,9 @@
 {
 	"ImportPath": "github.com/jackc/tpr/backend",
 	"GoVersion": "go1.3",
+	"Packages": [
+		"./..."
+	],
 	"Deps": [
 		{
 			"ImportPath": "code.google.com/p/go.crypto/pbkdf2",
@@ -11,6 +14,10 @@
 			"ImportPath": "code.google.com/p/go.crypto/scrypt",
 			"Comment": "null-185",
 			"Rev": "6478cc9340cbbe6c04511280c5007722269108e9"
+		},
+		{
+			"ImportPath": "github.com/jackc/box",
+			"Rev": "f4572d8d574c9f00e4833c95266092654323444a"
 		},
 		{
 			"ImportPath": "github.com/jackc/cli",
@@ -33,6 +40,11 @@
 			"ImportPath": "gopkg.in/inconshreveable/log15.v2",
 			"Comment": "v2.2",
 			"Rev": "6496dcc0b79933520138fe7ab8bb208877c1e2cd"
+		},
+		{
+			"ImportPath": "launchpad.net/gocheck",
+			"Comment": "85",
+			"Rev": "gustavo@niemeyer.net-20130302024745-6ikofwq2c03h7giu"
 		}
 	]
 }
