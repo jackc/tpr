@@ -3,14 +3,13 @@ package pgx
 import (
 	"errors"
 	log "gopkg.in/inconshreveable/log15.v2"
-	"io"
 	"sync"
 )
 
 type ConnPoolConfig struct {
 	ConnConfig
-	MaxConnections int // max simultaneous connections to use, default 5, must be at least 2
-	AfterConnect   func(*Conn) error
+	MaxConnections int               // max simultaneous connections to use, default 5, must be at least 2
+	AfterConnect   func(*Conn) error // function to call on every new connection
 }
 
 type ConnPool struct {
@@ -125,7 +124,7 @@ func (p *ConnPool) Release(conn *Conn) {
 	p.cond.Signal()
 }
 
-// Close ends the use of a connection by closing all underlying connections.
+// Close ends the use of a connection pool by closing all underlying connections.
 func (p *ConnPool) Close() {
 	for i := 0; i < p.maxConnections; i++ {
 		if c, err := p.Acquire(); err != nil {
@@ -134,6 +133,7 @@ func (p *ConnPool) Close() {
 	}
 }
 
+// Stat returns connection pool statistics
 func (p *ConnPool) Stat() (s ConnPoolStat) {
 	p.cond.L.Lock()
 	defer p.cond.L.Unlock()
@@ -142,14 +142,6 @@ func (p *ConnPool) Stat() (s ConnPoolStat) {
 	s.CurrentConnections = len(p.allConnections)
 	s.AvailableConnections = len(p.availableConnections)
 	return
-}
-
-func (p *ConnPool) MaxConnectionCount() int {
-	return p.maxConnections
-}
-
-func (p *ConnPool) CurrentConnectionCount() int {
-	return p.maxConnections
 }
 
 func (p *ConnPool) createConnection() (c *Conn, err error) {
@@ -166,28 +158,6 @@ func (p *ConnPool) createConnection() (c *Conn, err error) {
 	return
 }
 
-// SelectValue acquires a connection, delegates the call to that connection, and releases the connection
-func (p *ConnPool) SelectValue(sql string, arguments ...interface{}) (v interface{}, err error) {
-	var c *Conn
-	if c, err = p.Acquire(); err != nil {
-		return
-	}
-	defer p.Release(c)
-
-	return c.SelectValue(sql, arguments...)
-}
-
-// SelectValueTo acquires a connection, delegates the call to that connection, and releases the connection
-func (p *ConnPool) SelectValueTo(w io.Writer, sql string, arguments ...interface{}) (err error) {
-	var c *Conn
-	if c, err = p.Acquire(); err != nil {
-		return
-	}
-	defer p.Release(c)
-
-	return c.SelectValueTo(w, sql, arguments...)
-}
-
 // Exec acquires a connection, delegates the call to that connection, and releases the connection
 func (p *ConnPool) Exec(sql string, arguments ...interface{}) (commandTag CommandTag, err error) {
 	var c *Conn
@@ -199,49 +169,64 @@ func (p *ConnPool) Exec(sql string, arguments ...interface{}) (commandTag Comman
 	return c.Exec(sql, arguments...)
 }
 
-func (p *ConnPool) Query(sql string, args ...interface{}) (*QueryResult, error) {
+// Query acquires a connection and delegates the call to that connection. When
+// *Rows are closed, the connection is released automatically.
+func (p *ConnPool) Query(sql string, args ...interface{}) (*Rows, error) {
 	c, err := p.Acquire()
 	if err != nil {
-		// Because checking for errors can be deferred to the *QueryResult, build one with the error
-		return &QueryResult{closed: true, err: err}, err
+		// Because checking for errors can be deferred to the *Rows, build one with the error
+		return &Rows{closed: true, err: err}, err
 	}
 
-	qr, err := c.Query(sql, args...)
+	rows, err := c.Query(sql, args...)
 	if err != nil {
 		p.Release(c)
-		return qr, err
+		return rows, err
 	}
 
-	qr.pool = p
-	return qr, nil
+	rows.pool = p
+	return rows, nil
 }
 
-// Transaction acquires a connection, delegates the call to that connection,
-// and releases the connection. The call signature differs slightly from the
-// underlying Transaction in that the callback function accepts a *Conn
-func (p *ConnPool) Transaction(f func(conn *Conn) bool) (committed bool, err error) {
-	var c *Conn
-	if c, err = p.Acquire(); err != nil {
-		return
-	}
-	defer p.Release(c)
-
-	return c.Transaction(func() bool {
-		return f(c)
-	})
+// QueryRow acquires a connection and delegates the call to that connection. The
+// connection is released automatically after Scan is called on the returned
+// *Row.
+func (p *ConnPool) QueryRow(sql string, args ...interface{}) *Row {
+	rows, _ := p.Query(sql, args...)
+	return (*Row)(rows)
 }
 
-// TransactionIso acquires a connection, delegates the call to that connection,
-// and releases the connection. The call signature differs slightly from the
-// underlying TransactionIso in that the callback function accepts a *Conn
-func (p *ConnPool) TransactionIso(isoLevel string, f func(conn *Conn) bool) (committed bool, err error) {
-	var c *Conn
-	if c, err = p.Acquire(); err != nil {
-		return
+// Begin acquires a connection and begins a transaction on it. When the
+// transaction is closed the connection will be automatically released.
+func (p *ConnPool) Begin() (*Tx, error) {
+	c, err := p.Acquire()
+	if err != nil {
+		return nil, err
 	}
-	defer p.Release(c)
 
-	return c.TransactionIso(isoLevel, func() bool {
-		return f(c)
-	})
+	tx, err := c.Begin()
+	if err != nil {
+		return nil, err
+	}
+
+	tx.pool = p
+	return tx, nil
+}
+
+// BeginIso acquires a connection and begins a transaction in isolation mode iso
+// on it. When the transaction is closed the connection will be automatically
+// released.
+func (p *ConnPool) BeginIso(iso string) (*Tx, error) {
+	c, err := p.Acquire()
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := c.BeginIso(iso)
+	if err != nil {
+		return nil, err
+	}
+
+	tx.pool = p
+	return tx, nil
 }

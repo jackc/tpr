@@ -1,11 +1,13 @@
 // Package pgx is a PostgreSQL database driver.
 //
-// It does not implement the standard database/sql interface.
+// pgx provides lower level access to PostgreSQL than the standard database/sql
+// It remains as similar to the database/sql interface as possible while
+// providing better speed and access to PostgreSQL specific features. Import
+// github.com/jack/pgx/stdlib to use pgx as a database/sql compatible driver.
 package pgx
 
 import (
 	"bufio"
-	"bytes"
 	"crypto/md5"
 	"crypto/tls"
 	"encoding/binary"
@@ -14,7 +16,6 @@ import (
 	"fmt"
 	log "gopkg.in/inconshreveable/log15.v2"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
@@ -25,24 +26,15 @@ import (
 	"time"
 )
 
-// Transaction isolation levels
-const (
-	Serializable    = "serializable"
-	RepeatableRead  = "repeatable read"
-	ReadCommitted   = "read committed"
-	ReadUncommitted = "read uncommitted"
-)
-
 // ConnConfig contains all the options used to establish a connection.
 type ConnConfig struct {
-	Host       string // host (e.g. localhost) or path to unix domain socket directory (e.g. /private/tmp)
-	Port       uint16 // default: 5432
-	Database   string
-	User       string // default: OS user name
-	Password   string
-	MsgBufSize int         // Size of work buffer used for transcoding messages. For optimal performance, it should be large enough to store a single row from any result set. Default: 1024
-	TLSConfig  *tls.Config // config for TLS connection -- nil disables TLS
-	Logger     log.Logger
+	Host      string // host (e.g. localhost) or path to unix domain socket directory (e.g. /private/tmp)
+	Port      uint16 // default: 5432
+	Database  string
+	User      string // default: OS user name
+	Password  string
+	TLSConfig *tls.Config // config for TLS connection -- nil disables TLS
+	Logger    log.Logger
 }
 
 // Conn is a PostgreSQL connection handle. It is not safe for concurrent usage.
@@ -52,8 +44,6 @@ type Conn struct {
 	conn               net.Conn      // the underlying TCP or unix domain socket connection
 	reader             *bufio.Reader // buffered reader to improve read performance
 	wbuf               [1024]byte
-	buf                *bytes.Buffer     // work buffer to avoid constant alloc and dealloc
-	bufSize            int               // desired size of buf
 	Pid                int32             // backend pid
 	SecretKey          int32             // key to use to send a cancel query message to the server
 	RuntimeParams      map[string]string // parameters that have been reported by the server
@@ -64,7 +54,8 @@ type Conn struct {
 	alive              bool
 	causeOfDeath       error
 	logger             log.Logger
-	qr                 QueryResult
+	rows               Rows
+	mr                 msgReader
 }
 
 type PreparedStatement struct {
@@ -89,35 +80,15 @@ func (ct CommandTag) RowsAffected() int64 {
 	return n
 }
 
-// NotSingleRowError is returned when exactly 1 row is expected, but 0 or more than
-// 1 row is returned
-type NotSingleRowError struct {
-	RowCount int64
-}
-
-func (e NotSingleRowError) Error() string {
-	return fmt.Sprintf("Expected to find 1 row exactly, instead found %d", e.RowCount)
-}
-
-// UnexpectedColumnCountError is returned when an unexpected number of columns is
-// returned from a Select.
-type UnexpectedColumnCountError struct {
-	ExpectedCount int16
-	ActualCount   int16
-}
-
-func (e UnexpectedColumnCountError) Error() string {
-	return fmt.Sprintf("Expected result to have %d column(s), instead it has %d", e.ExpectedCount, e.ActualCount)
-}
+var ErrNoRows = errors.New("no rows in result set")
+var ErrNotificationTimeout = errors.New("notification timeout")
+var ErrDeadConn = errors.New("conn is dead")
 
 type ProtocolError string
 
 func (e ProtocolError) Error() string {
 	return string(e)
 }
-
-var NotificationTimeoutError = errors.New("Notification Timeout")
-var DeadConnError = errors.New("Connection is dead")
 
 // Connect establishes a connection with a PostgreSQL server using config.
 // config.Host must be specified. config.User will default to the OS user name.
@@ -145,10 +116,6 @@ func Connect(config ConnConfig) (c *Conn, err error) {
 	if c.config.Port == 0 {
 		c.config.Port = 5432
 		c.logger.Debug("Using default connection config", "Port", c.config.Port)
-	}
-	if c.config.MsgBufSize == 0 {
-		c.config.MsgBufSize = 1024
-		c.logger.Debug("Using default connection config", "MsgBufSize", c.config.MsgBufSize)
 	}
 
 	// See if host is a valid path, if yes connect with a socket
@@ -182,8 +149,6 @@ func Connect(config ConnConfig) (c *Conn, err error) {
 		}
 	}()
 
-	c.bufSize = c.config.MsgBufSize
-	c.buf = bytes.NewBuffer(make([]byte, 0, c.bufSize))
 	c.RuntimeParams = make(map[string]string)
 	c.preparedStatements = make(map[string]*PreparedStatement)
 	c.alive = true
@@ -197,6 +162,7 @@ func Connect(config ConnConfig) (c *Conn, err error) {
 	}
 
 	c.reader = bufio.NewReader(c.conn)
+	c.mr.reader = c.reader
 
 	msg := newStartupMessage()
 	msg.options["user"] = c.config.User
@@ -209,7 +175,7 @@ func Connect(config ConnConfig) (c *Conn, err error) {
 
 	for {
 		var t byte
-		var r *MessageReader
+		var r *msgReader
 		t, r, err = c.rxMsg()
 		if err != nil {
 			return nil, err
@@ -242,7 +208,11 @@ func (c *Conn) Close() (err error) {
 		return nil
 	}
 
-	err = c.txMsg('X', c.getBuf())
+	wbuf := newWriteBuf(c.wbuf[0:0], 'X')
+	wbuf.closeMsg()
+
+	_, err = c.conn.Write(wbuf.buf)
+
 	c.die(errors.New("Closed"))
 	c.logger.Info("Closed connection")
 	return err
@@ -276,162 +246,6 @@ func ParseURI(uri string) (ConnConfig, error) {
 	return cp, nil
 }
 
-// SelectValue executes sql and returns a single value. sql can be either a prepared
-// statement name or an SQL string. arguments will be sanitized before being
-// interpolated into sql strings. arguments should be referenced positionally from
-// the sql string as $1, $2, etc.
-//
-// Returns a UnexpectedColumnCountError if exactly one column is not found
-// Returns a NotSingleRowError if exactly one row is not found
-func (c *Conn) SelectValue(sql string, arguments ...interface{}) (interface{}, error) {
-	startTime := time.Now()
-
-	var numRowsFound int64
-	var v interface{}
-
-	qr, _ := c.Query(sql, arguments...)
-	defer qr.Close()
-
-	for qr.NextRow() {
-		if len(qr.fields) != 1 {
-			qr.Close()
-			return nil, UnexpectedColumnCountError{ExpectedCount: 1, ActualCount: int16(len(qr.fields))}
-		}
-
-		numRowsFound++
-		var rr RowReader
-		v = rr.ReadValue(qr)
-	}
-	if qr.Err() != nil {
-		return nil, qr.Err()
-	}
-
-	if numRowsFound != 1 {
-		return nil, NotSingleRowError{RowCount: numRowsFound}
-	}
-
-	endTime := time.Now()
-	c.logger.Info("SelectValue", "sql", sql, "args", arguments, "rowsFound", numRowsFound, "time", endTime.Sub(startTime))
-
-	return v, nil
-}
-
-// SelectValueTo executes sql that returns a single value and writes that value to w.
-// No type conversions will be performed. The raw bytes will be written directly to w.
-// This is ideal for returning JSON, files, or large text values directly over HTTP.
-
-// sql can be either a prepared statement name or an SQL string. arguments will be
-// sanitized before being interpolated into sql strings. arguments should be
-// referenced positionally from the sql string as $1, $2, etc.
-//
-// Returns a UnexpectedColumnCountError if exactly one column is not found
-// Returns a NotSingleRowError if exactly one row is not found
-func (c *Conn) SelectValueTo(w io.Writer, sql string, arguments ...interface{}) (err error) {
-	startTime := time.Now()
-
-	defer func() {
-		if err == nil {
-			endTime := time.Now()
-			c.logger.Info("SelectValueTo", "sql", sql, "args", arguments, "time", endTime.Sub(startTime))
-		} else {
-			c.logger.Error(fmt.Sprintf("SelectValueTo `%s` with %v failed: %v", sql, arguments, err))
-		}
-	}()
-
-	err = c.sendQuery(sql, arguments...)
-	if err != nil {
-		return err
-	}
-
-	var numRowsFound int64
-	var softErr error
-
-	for {
-		var t byte
-		var bodySize int32
-
-		t, bodySize, err = c.rxMsgHeader()
-		if err != nil {
-			return err
-		}
-
-		if t == dataRow {
-			numRowsFound++
-
-			if numRowsFound > 1 {
-				softErr = NotSingleRowError{RowCount: numRowsFound}
-			}
-
-			if softErr != nil {
-				c.rxMsgBody(bodySize) // Read and discard rest of message
-				continue
-			}
-
-			softErr = c.rxDataRowValueTo(w, bodySize)
-		} else {
-			var body *bytes.Buffer
-			body, err = c.rxMsgBody(bodySize)
-			if err != nil {
-				return err
-			}
-
-			r := (*MessageReader)(body)
-			switch t {
-			case readyForQuery:
-				c.rxReadyForQuery(r)
-				return softErr
-			case rowDescription:
-			case commandComplete:
-			case bindComplete:
-			default:
-				if e := c.processContextFreeMsg(t, r); e != nil && softErr == nil {
-					softErr = e
-				}
-			}
-		}
-	}
-}
-
-func (c *Conn) rxDataRowValueTo(w io.Writer, bodySize int32) (err error) {
-	b := make([]byte, 2)
-	_, err = io.ReadFull(c.reader, b)
-	if err != nil {
-		c.die(err)
-		return
-	}
-	columnCount := int16(binary.BigEndian.Uint16(b))
-
-	if columnCount != 1 {
-		// Read the rest of the data row so it can be discarded
-		if _, err = io.CopyN(ioutil.Discard, c.reader, int64(bodySize-2)); err != nil {
-			c.die(err)
-			return
-		}
-		err = UnexpectedColumnCountError{ExpectedCount: 1, ActualCount: columnCount}
-		return
-	}
-
-	b = make([]byte, 4)
-	_, err = io.ReadFull(c.reader, b)
-	if err != nil {
-		c.die(err)
-		return
-	}
-	valueSize := int32(binary.BigEndian.Uint32(b))
-
-	if valueSize == -1 {
-		err = errors.New("SelectValueTo cannot handle null")
-		return
-	}
-
-	_, err = io.CopyN(w, c.reader, int64(valueSize))
-	if err != nil {
-		c.die(err)
-	}
-
-	return
-}
-
 // Prepare creates a prepared statement with name and sql. sql can contain placeholders
 // for bound parameters. These placeholders are referenced positional as $1, $2, etc.
 func (c *Conn) Prepare(name, sql string) (ps *PreparedStatement, err error) {
@@ -442,29 +256,21 @@ func (c *Conn) Prepare(name, sql string) (ps *PreparedStatement, err error) {
 	}()
 
 	// parse
-	buf := c.getBuf()
-	buf.WriteString(name)
-	buf.WriteByte(0)
-	buf.WriteString(sql)
-	buf.WriteByte(0)
-	binary.Write(buf, binary.BigEndian, int16(0))
-	err = c.txMsg('P', buf)
-	if err != nil {
-		return nil, err
-	}
+	wbuf := newWriteBuf(c.wbuf[0:0], 'P')
+	wbuf.WriteCString(name)
+	wbuf.WriteCString(sql)
+	wbuf.WriteInt16(0)
 
 	// describe
-	buf = c.getBuf()
-	buf.WriteByte('S')
-	buf.WriteString(name)
-	buf.WriteByte(0)
-	err = c.txMsg('D', buf)
-	if err != nil {
-		return nil, err
-	}
+	wbuf.startMsg('D')
+	wbuf.WriteByte('S')
+	wbuf.WriteCString(name)
 
 	// sync
-	err = c.txMsg('S', c.getBuf())
+	wbuf.startMsg('S')
+	wbuf.closeMsg()
+
+	_, err = c.conn.Write(wbuf.buf)
 	if err != nil {
 		return nil, err
 	}
@@ -475,7 +281,7 @@ func (c *Conn) Prepare(name, sql string) (ps *PreparedStatement, err error) {
 
 	for {
 		var t byte
-		var r *MessageReader
+		var r *msgReader
 		t, r, err := c.rxMsg()
 		if err != nil {
 			return nil, err
@@ -488,11 +294,9 @@ func (c *Conn) Prepare(name, sql string) (ps *PreparedStatement, err error) {
 		case rowDescription:
 			ps.FieldDescriptions = c.rxRowDescription(r)
 			for i := range ps.FieldDescriptions {
-				oid := ps.FieldDescriptions[i].DataType
-				vt := ValueTranscoders[oid]
-
-				if vt != nil {
-					ps.FieldDescriptions[i].FormatCode = vt.DecodeFormat
+				switch ps.FieldDescriptions[i].DataType {
+				case BoolOid, ByteaOid, Int2Oid, Int4Oid, Int8Oid, Float4Oid, Float8Oid, DateOid, TimestampTzOid:
+					ps.FieldDescriptions[i].FormatCode = BinaryFormatCode
 				}
 			}
 		case noData:
@@ -511,7 +315,7 @@ func (c *Conn) Prepare(name, sql string) (ps *PreparedStatement, err error) {
 // Deallocate released a prepared statement
 func (c *Conn) Deallocate(name string) (err error) {
 	delete(c.preparedStatements, name)
-	_, err = c.Exec("deallocate " + c.QuoteIdentifier(name))
+	_, err = c.Exec("deallocate " + QuoteIdentifier(name))
 	return
 }
 
@@ -522,7 +326,7 @@ func (c *Conn) Listen(channel string) (err error) {
 }
 
 // WaitForNotification waits for a PostgreSQL notification for up to timeout.
-// If the timeout occurs it returns pgx.NotificationTimeoutError
+// If the timeout occurs it returns pgx.ErrNotificationTimeout
 func (c *Conn) WaitForNotification(timeout time.Duration) (*Notification, error) {
 	if len(c.notifications) > 0 {
 		notification := c.notifications[0]
@@ -552,7 +356,7 @@ func (c *Conn) WaitForNotification(timeout time.Duration) (*Notification, error)
 		if err != nil {
 			c.conn.SetReadDeadline(zeroTime) // we can only return one error and we already have one -- so ignore possiple error from SetReadDeadline
 			if err, ok := err.(*net.OpError); ok && err.Timeout() {
-				return nil, NotificationTimeoutError
+				return nil, ErrNotificationTimeout
 			}
 			return nil, err
 		}
@@ -563,7 +367,7 @@ func (c *Conn) WaitForNotification(timeout time.Duration) (*Notification, error)
 		}
 
 		var t byte
-		var r *MessageReader
+		var r *msgReader
 		if t, r, err = c.rxMsg(); err == nil {
 			if err = c.processContextFreeMsg(t, r); err != nil {
 				return nil, err
@@ -588,240 +392,6 @@ func (c *Conn) CauseOfDeath() error {
 	return c.causeOfDeath
 }
 
-type RowReader struct{}
-
-// TODO - Read*...
-
-func (rr *RowReader) ReadInt32(qr *QueryResult) int32 {
-	fd, size := qr.NextColumn()
-
-	// TODO - do something about nulls
-	if size == -1 {
-		panic("Can't handle nulls")
-	}
-
-	return decodeInt4(qr, fd, size)
-}
-
-func (rr *RowReader) ReadInt64(qr *QueryResult) int64 {
-	fd, size := qr.NextColumn()
-
-	// TODO - do something about nulls
-	if size == -1 {
-		panic("Can't handle nulls")
-	}
-
-	return decodeInt8(qr, fd, size)
-}
-
-func (rr *RowReader) ReadTime(qr *QueryResult) time.Time {
-	fd, size := qr.NextColumn()
-
-	// TODO - do something about nulls
-	if size == -1 {
-		panic("Can't handle nulls")
-	}
-
-	return decodeTimestampTz(qr, fd, size)
-}
-
-func (rr *RowReader) ReadDate(qr *QueryResult) time.Time {
-	fd, size := qr.NextColumn()
-
-	// TODO - do something about nulls
-	if size == -1 {
-		panic("Can't handle nulls")
-	}
-
-	return decodeDate(qr, fd, size)
-}
-
-func (rr *RowReader) ReadString(qr *QueryResult) string {
-	_, size := qr.NextColumn()
-	return qr.mr.ReadString(size)
-}
-
-func (rr *RowReader) ReadValue(qr *QueryResult) interface{} {
-	fd, size := qr.NextColumn()
-
-	if size > -1 {
-		if vt, present := ValueTranscoders[fd.DataType]; present && vt.Decode != nil {
-			return vt.Decode(qr, fd, size)
-		} else {
-			return qr.mr.ReadString(size)
-		}
-	} else {
-		return nil
-	}
-}
-
-type QueryResult struct {
-	pool      *ConnPool
-	conn      *Conn
-	mr        *MessageReader
-	fields    []FieldDescription
-	rowCount  int
-	columnIdx int
-	err       error
-	closed    bool
-}
-
-func (qr *QueryResult) FieldDescriptions() []FieldDescription {
-	return qr.fields
-}
-
-func (qr *QueryResult) MessageReader() *MessageReader {
-	return qr.mr
-}
-
-func (qr *QueryResult) close() {
-	if qr.pool != nil {
-		qr.pool.Release(qr.conn)
-		qr.pool = nil
-	}
-
-	qr.closed = true
-}
-
-func (qr *QueryResult) readUntilReadyForQuery() {
-	for {
-		t, r, err := qr.conn.rxMsg()
-		if err != nil {
-			qr.close()
-			return
-		}
-
-		switch t {
-		case readyForQuery:
-			qr.conn.rxReadyForQuery(r)
-			qr.close()
-			return
-		case rowDescription:
-		case dataRow:
-		case commandComplete:
-		case bindComplete:
-		default:
-			err = qr.conn.processContextFreeMsg(t, r)
-			if err != nil {
-				qr.close()
-				return
-			}
-		}
-	}
-}
-
-func (qr *QueryResult) Close() {
-	if qr.closed {
-		return
-	}
-	qr.readUntilReadyForQuery()
-	qr.close()
-}
-
-func (qr *QueryResult) Err() error {
-	return qr.err
-}
-
-func (qr *QueryResult) Fatal(err error) {
-	qr.err = err
-	qr.Close()
-}
-
-func (qr *QueryResult) NextRow() bool {
-	if qr.closed {
-		return false
-	}
-
-	qr.rowCount++
-	qr.columnIdx = 0
-
-	for {
-		t, r, err := qr.conn.rxMsg()
-		if err != nil {
-			qr.Fatal(err)
-			return false
-		}
-
-		switch t {
-		case readyForQuery:
-			qr.conn.rxReadyForQuery(r)
-			qr.close()
-			return false
-		case dataRow:
-			fieldCount := int(r.ReadInt16())
-			if fieldCount != len(qr.fields) {
-				qr.Fatal(ProtocolError(fmt.Sprintf("Row description field count (%v) and data row field count (%v) do not match", len(qr.fields), fieldCount)))
-				return false
-			}
-
-			qr.mr = r
-			return true
-		case commandComplete:
-		case bindComplete:
-		default:
-			err = qr.conn.processContextFreeMsg(t, r)
-			if err != nil {
-				qr.Fatal(err)
-				return false
-			}
-		}
-	}
-}
-
-func (qr *QueryResult) NextColumn() (*FieldDescription, int32) {
-	fd := &qr.fields[qr.columnIdx]
-	qr.columnIdx++
-	size := qr.mr.ReadInt32()
-
-	return fd, size
-}
-
-// TODO - document
-func (c *Conn) Query(sql string, args ...interface{}) (*QueryResult, error) {
-	c.qr = QueryResult{conn: c}
-	qr := &c.qr
-
-	// TODO - shouldn't be messing with qr.err and qr.closed directly
-	if ps, present := c.preparedStatements[sql]; present {
-		qr.fields = ps.FieldDescriptions
-		qr.err = c.sendPreparedQuery(ps, args...)
-		if qr.err != nil {
-			qr.closed = true
-		}
-		return qr, qr.err
-	}
-
-	qr.err = c.sendSimpleQuery(sql, args...)
-	if qr.err != nil {
-		qr.closed = true
-		return qr, qr.err
-	}
-
-	// Simple queries don't know the field descriptions of the result.
-	// Read until that is known before returning
-	for {
-		t, r, err := c.rxMsg()
-		if err != nil {
-			qr.err = err
-			qr.closed = true
-			return qr, qr.err
-		}
-
-		switch t {
-		case rowDescription:
-			qr.fields = qr.conn.rxRowDescription(r)
-			return qr, nil
-		default:
-			err = qr.conn.processContextFreeMsg(t, r)
-			if err != nil {
-				qr.closed = true
-				qr.err = err
-				return qr, qr.err
-			}
-		}
-	}
-}
-
 func (c *Conn) sendQuery(sql string, arguments ...interface{}) (err error) {
 	if ps, present := c.preparedStatements[sql]; present {
 		return c.sendPreparedQuery(ps, arguments...)
@@ -832,24 +402,22 @@ func (c *Conn) sendQuery(sql string, arguments ...interface{}) (err error) {
 
 func (c *Conn) sendSimpleQuery(sql string, arguments ...interface{}) (err error) {
 	if len(arguments) > 0 {
-		sql, err = c.SanitizeSql(sql, arguments...)
+		sql, err = SanitizeSql(sql, arguments...)
 		if err != nil {
 			return
 		}
 	}
 
-	buf := c.getBuf()
+	wbuf := newWriteBuf(c.wbuf[0:0], 'Q')
+	wbuf.WriteCString(sql)
+	wbuf.closeMsg()
 
-	_, err = buf.WriteString(sql)
+	_, err = c.conn.Write(wbuf.buf)
 	if err != nil {
-		return
-	}
-	err = buf.WriteByte(0)
-	if err != nil {
-		return
+		c.die(err)
 	}
 
-	return c.txMsg('Q', buf)
+	return err
 }
 
 func (c *Conn) sendPreparedQuery(ps *PreparedStatement, arguments ...interface{}) (err error) {
@@ -863,38 +431,80 @@ func (c *Conn) sendPreparedQuery(ps *PreparedStatement, arguments ...interface{}
 	wbuf.WriteCString(ps.Name)
 
 	wbuf.WriteInt16(int16(len(ps.ParameterOids)))
-	for _, oid := range ps.ParameterOids {
-		transcoder := ValueTranscoders[oid]
-		if transcoder == nil {
-			transcoder = defaultTranscoder
+	for i, oid := range ps.ParameterOids {
+		switch arg := arguments[i].(type) {
+		case BinaryEncoder:
+			wbuf.WriteInt16(BinaryFormatCode)
+		case TextEncoder:
+			wbuf.WriteInt16(TextFormatCode)
+		default:
+			switch oid {
+			case BoolOid, ByteaOid, Int2Oid, Int4Oid, Int8Oid, Float4Oid, Float8Oid, TimestampTzOid:
+				wbuf.WriteInt16(BinaryFormatCode)
+			case TextOid, VarcharOid, DateOid, TimestampOid:
+				wbuf.WriteInt16(TextFormatCode)
+			default:
+				return SerializationError(fmt.Sprintf("Parameter %d oid %d is not a core type and argument type %T does not implement TextEncoder or BinaryEncoder", i, oid, arg))
+			}
 		}
-		wbuf.WriteInt16(transcoder.EncodeFormat)
 	}
 
 	wbuf.WriteInt16(int16(len(arguments)))
 	for i, oid := range ps.ParameterOids {
-		if arguments[i] != nil {
-			transcoder := ValueTranscoders[oid]
-			if transcoder == nil {
-				transcoder = defaultTranscoder
+		if arguments[i] == nil {
+			wbuf.WriteInt32(-1)
+			continue
+		}
+
+		switch arg := arguments[i].(type) {
+		case BinaryEncoder:
+			err = arg.EncodeBinary(wbuf, oid)
+		case TextEncoder:
+			var s string
+			var status byte
+			s, status, err = arg.EncodeText()
+			if status == NullText {
+				wbuf.WriteInt32(-1)
+				continue
 			}
-			err = transcoder.EncodeTo(wbuf, arguments[i])
-			if err != nil {
-				return err
+			wbuf.WriteInt32(int32(len(s)))
+			wbuf.WriteBytes([]byte(s))
+		default:
+			switch oid {
+			case BoolOid:
+				err = encodeBool(wbuf, arguments[i])
+			case ByteaOid:
+				err = encodeBytea(wbuf, arguments[i])
+			case Int2Oid:
+				err = encodeInt2(wbuf, arguments[i])
+			case Int4Oid:
+				err = encodeInt4(wbuf, arguments[i])
+			case Int8Oid:
+				err = encodeInt8(wbuf, arguments[i])
+			case Float4Oid:
+				err = encodeFloat4(wbuf, arguments[i])
+			case Float8Oid:
+				err = encodeFloat8(wbuf, arguments[i])
+			case TextOid, VarcharOid:
+				err = encodeText(wbuf, arguments[i])
+			case DateOid:
+				err = encodeDate(wbuf, arguments[i])
+			case TimestampTzOid:
+				err = encodeTimestampTz(wbuf, arguments[i])
+			case TimestampOid:
+				err = encodeTimestamp(wbuf, arguments[i])
+			default:
+				return SerializationError(fmt.Sprintf("%T is not a core type and it does not implement TextEncoder or BinaryEncoder", arg))
 			}
-		} else {
-			wbuf.WriteInt32(int32(-1))
+		}
+		if err != nil {
+			return err
 		}
 	}
 
 	wbuf.WriteInt16(int16(len(ps.FieldDescriptions)))
 	for _, fd := range ps.FieldDescriptions {
-		transcoder := ValueTranscoders[fd.DataType]
-		if transcoder != nil {
-			wbuf.WriteInt16(transcoder.DecodeFormat)
-		} else {
-			wbuf.WriteInt16(0)
-		}
+		wbuf.WriteInt16(fd.FormatCode)
 	}
 
 	// execute
@@ -907,6 +517,9 @@ func (c *Conn) sendPreparedQuery(ps *PreparedStatement, arguments ...interface{}
 	wbuf.closeMsg()
 
 	_, err = c.conn.Write(wbuf.buf)
+	if err != nil {
+		c.die(err)
+	}
 
 	return err
 }
@@ -934,7 +547,7 @@ func (c *Conn) Exec(sql string, arguments ...interface{}) (commandTag CommandTag
 
 	for {
 		var t byte
-		var r *MessageReader
+		var r *msgReader
 		t, r, err = c.rxMsg()
 		if err != nil {
 			return commandTag, err
@@ -948,7 +561,7 @@ func (c *Conn) Exec(sql string, arguments ...interface{}) (commandTag CommandTag
 		case dataRow:
 		case bindComplete:
 		case commandComplete:
-			commandTag = CommandTag(r.ReadCString())
+			commandTag = CommandTag(r.readCString())
 		default:
 			if e := c.processContextFreeMsg(t, r); e != nil && softErr == nil {
 				softErr = e
@@ -957,59 +570,10 @@ func (c *Conn) Exec(sql string, arguments ...interface{}) (commandTag CommandTag
 	}
 }
 
-// Transaction runs f in a transaction. f should return true if the transaction
-// should be committed or false if it should be rolled back. Return value committed
-// is if the transaction was committed or not. committed should be checked separately
-// from err as an explicit rollback is not an error. Transaction will use the default
-// isolation level for the current connection. To use a specific isolation level see
-// TransactionIso
-func (c *Conn) Transaction(f func() bool) (committed bool, err error) {
-	return c.transaction("", f)
-}
-
-// TransactionIso is the same as Transaction except it takes an isoLevel argument that
-// it uses as the transaction isolation level.
-//
-// Valid isolation levels (and their constants) are:
-//   serializable (pgx.Serializable)
-//   repeatable read (pgx.RepeatableRead)
-//   read committed (pgx.ReadCommitted)
-//   read uncommitted (pgx.ReadUncommitted)
-func (c *Conn) TransactionIso(isoLevel string, f func() bool) (committed bool, err error) {
-	return c.transaction(isoLevel, f)
-}
-
-func (c *Conn) transaction(isoLevel string, f func() bool) (committed bool, err error) {
-	var beginSql string
-	if isoLevel == "" {
-		beginSql = "begin"
-	} else {
-		beginSql = fmt.Sprintf("begin isolation level %s", isoLevel)
-	}
-
-	if _, err = c.Exec(beginSql); err != nil {
-		return
-	}
-	defer func() {
-		if committed && c.TxStatus == 'T' {
-			_, err = c.Exec("commit")
-			if err != nil {
-				committed = false
-			}
-		} else {
-			_, err = c.Exec("rollback")
-			committed = false
-		}
-	}()
-
-	committed = f()
-	return
-}
-
 // Processes messages that are not exclusive to one context such as
 // authentication or query response. The response to these messages
 // is the same regardless of when they occur.
-func (c *Conn) processContextFreeMsg(t byte, r *MessageReader) (err error) {
+func (c *Conn) processContextFreeMsg(t byte, r *msgReader) (err error) {
 	switch t {
 	case 'S':
 		c.rxParameterStatus(r)
@@ -1019,74 +583,33 @@ func (c *Conn) processContextFreeMsg(t byte, r *MessageReader) (err error) {
 	case noticeResponse:
 		return nil
 	case notificationResponse:
-		return c.rxNotificationResponse(r)
+		c.rxNotificationResponse(r)
+		return nil
 	default:
 		return fmt.Errorf("Received unknown message type: %c", t)
 	}
 }
 
-func (c *Conn) rxMsg() (t byte, r *MessageReader, err error) {
-	var bodySize int32
-	t, bodySize, err = c.rxMsgHeader()
-	if err != nil {
-		return
-	}
-
-	var body *bytes.Buffer
-	if body, err = c.rxMsgBody(bodySize); err != nil {
-		return
-	}
-	r = (*MessageReader)(body)
-	return
-}
-
-func (c *Conn) rxMsgHeader() (t byte, bodySize int32, err error) {
+func (c *Conn) rxMsg() (t byte, r *msgReader, err error) {
 	if !c.alive {
-		return 0, 0, DeadConnError
+		return 0, nil, ErrDeadConn
 	}
 
-	t, err = c.reader.ReadByte()
+	t, err = c.mr.rxMsg()
 	if err != nil {
 		c.die(err)
-		return 0, 0, err
 	}
 
-	b := make([]byte, 4)
-	_, err = io.ReadFull(c.reader, b)
-	if err != nil {
-		c.die(err)
-		return 0, 0, err
-	}
-
-	bodySize = int32(binary.BigEndian.Uint32(b))
-
-	bodySize -= 4 // remove self from size
-	return t, bodySize, err
+	return t, &c.mr, err
 }
 
-func (c *Conn) rxMsgBody(bodySize int32) (*bytes.Buffer, error) {
-	if !c.alive {
-		return nil, DeadConnError
-	}
-
-	buf := c.getBuf()
-	_, err := io.CopyN(buf, c.reader, int64(bodySize))
-	if err != nil {
-		c.die(err)
-		return nil, err
-	}
-
-	return buf, nil
-}
-
-func (c *Conn) rxAuthenticationX(r *MessageReader) (err error) {
-	code := r.ReadInt32()
-	switch code {
+func (c *Conn) rxAuthenticationX(r *msgReader) (err error) {
+	switch r.readInt32() {
 	case 0: // AuthenticationOk
 	case 3: // AuthenticationCleartextPassword
 		err = c.txPasswordMessage(c.config.Password)
 	case 5: // AuthenticationMD5Password
-		salt := r.ReadString(4)
+		salt := r.readString(4)
 		digestedPassword := "md5" + hexMD5(hexMD5(c.config.Password+c.config.User)+salt)
 		err = c.txPasswordMessage(digestedPassword)
 	default:
@@ -1102,77 +625,73 @@ func hexMD5(s string) string {
 	return hex.EncodeToString(hash.Sum(nil))
 }
 
-func (c *Conn) rxParameterStatus(r *MessageReader) {
-	key := r.ReadCString()
-	value := r.ReadCString()
+func (c *Conn) rxParameterStatus(r *msgReader) {
+	key := r.readCString()
+	value := r.readCString()
 	c.RuntimeParams[key] = value
 }
 
-func (c *Conn) rxErrorResponse(r *MessageReader) (err PgError) {
+func (c *Conn) rxErrorResponse(r *msgReader) (err PgError) {
 	for {
-		switch r.ReadByte() {
+		switch r.readByte() {
 		case 'S':
-			err.Severity = r.ReadCString()
+			err.Severity = r.readCString()
 		case 'C':
-			err.Code = r.ReadCString()
+			err.Code = r.readCString()
 		case 'M':
-			err.Message = r.ReadCString()
+			err.Message = r.readCString()
 		case 0: // End of error message
 			if err.Severity == "FATAL" {
 				c.die(err)
 			}
 			return
 		default: // Ignore other error fields
-			r.ReadCString()
+			r.readCString()
 		}
 	}
 }
 
-func (c *Conn) rxBackendKeyData(r *MessageReader) {
-	c.Pid = r.ReadInt32()
-	c.SecretKey = r.ReadInt32()
+func (c *Conn) rxBackendKeyData(r *msgReader) {
+	c.Pid = r.readInt32()
+	c.SecretKey = r.readInt32()
 }
 
-func (c *Conn) rxReadyForQuery(r *MessageReader) {
-	c.TxStatus = r.ReadByte()
+func (c *Conn) rxReadyForQuery(r *msgReader) {
+	c.TxStatus = r.readByte()
 }
 
-func (c *Conn) rxRowDescription(r *MessageReader) (fields []FieldDescription) {
-	fieldCount := r.ReadInt16()
+func (c *Conn) rxRowDescription(r *msgReader) (fields []FieldDescription) {
+	fieldCount := r.readInt16()
 	fields = make([]FieldDescription, fieldCount)
 	for i := int16(0); i < fieldCount; i++ {
 		f := &fields[i]
-		f.Name = r.ReadCString()
-		f.Table = r.ReadOid()
-		f.AttributeNumber = r.ReadInt16()
-		f.DataType = r.ReadOid()
-		f.DataTypeSize = r.ReadInt16()
-		f.Modifier = r.ReadInt32()
-		f.FormatCode = r.ReadInt16()
+		f.Name = r.readCString()
+		f.Table = r.readOid()
+		f.AttributeNumber = r.readInt16()
+		f.DataType = r.readOid()
+		f.DataTypeSize = r.readInt16()
+		f.Modifier = r.readInt32()
+		f.FormatCode = r.readInt16()
 	}
 	return
 }
 
-func (c *Conn) rxParameterDescription(r *MessageReader) (parameters []Oid) {
-	parameterCount := r.ReadInt16()
+func (c *Conn) rxParameterDescription(r *msgReader) (parameters []Oid) {
+	parameterCount := r.readInt16()
 	parameters = make([]Oid, 0, parameterCount)
+
 	for i := int16(0); i < parameterCount; i++ {
-		parameters = append(parameters, r.ReadOid())
+		parameters = append(parameters, r.readOid())
 	}
 	return
 }
 
-func (c *Conn) rxCommandComplete(r *MessageReader) string {
-	return r.ReadCString()
-}
-
-func (c *Conn) rxNotificationResponse(r *MessageReader) (err error) {
+func (c *Conn) rxNotificationResponse(r *msgReader) {
 	n := new(Notification)
-	n.Pid = r.ReadInt32()
-	n.Channel = r.ReadCString()
-	n.Payload = r.ReadCString()
+	n.Pid = r.readInt32()
+	n.Channel = r.readCString()
+	n.Payload = r.readCString()
 	c.notifications = append(c.notifications, n)
-	return
 }
 
 func (c *Conn) startTLS() (err error) {
@@ -1201,60 +720,14 @@ func (c *Conn) txStartupMessage(msg *startupMessage) error {
 	return err
 }
 
-func (c *Conn) txMsg(identifier byte, buf *bytes.Buffer) (err error) {
-	if !c.alive {
-		return DeadConnError
-	}
-
-	defer func() {
-		if err != nil {
-			c.die(err)
-		}
-	}()
-
-	err = binary.Write(c.conn, binary.BigEndian, identifier)
-	if err != nil {
-		return
-	}
-
-	err = binary.Write(c.conn, binary.BigEndian, int32(buf.Len()+4))
-	if err != nil {
-		return
-	}
-
-	_, err = buf.WriteTo(c.conn)
-	if err != nil {
-		return
-	}
-
-	return
-}
-
 func (c *Conn) txPasswordMessage(password string) (err error) {
-	buf := c.getBuf()
+	wbuf := newWriteBuf(c.wbuf[0:0], 'p')
+	wbuf.WriteCString(password)
+	wbuf.closeMsg()
 
-	_, err = buf.WriteString(password)
-	if err != nil {
-		return
-	}
-	buf.WriteByte(0)
-	if err != nil {
-		return
-	}
-	err = c.txMsg('p', buf)
-	return
-}
+	_, err = c.conn.Write(wbuf.buf)
 
-// Gets the shared connection buffer. Since bytes.Buffer never releases memory from
-// its internal byte array, check on the size and create a new bytes.Buffer so the
-// old one can get GC'ed
-func (c *Conn) getBuf() *bytes.Buffer {
-	c.buf.Reset()
-	if cap(c.buf.Bytes()) > c.bufSize {
-		c.logger.Debug(fmt.Sprintf("c.buf (%d) is larger than c.bufSize (%d) -- resetting", cap(c.buf.Bytes()), c.bufSize))
-		c.buf = bytes.NewBuffer(make([]byte, 0, c.bufSize))
-	}
-	return c.buf
+	return err
 }
 
 func (c *Conn) die(err error) {

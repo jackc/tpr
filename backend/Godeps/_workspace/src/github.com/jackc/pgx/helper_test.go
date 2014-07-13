@@ -2,7 +2,6 @@ package pgx_test
 
 import (
 	"github.com/jackc/pgx"
-	"io"
 	"testing"
 )
 
@@ -35,16 +34,31 @@ func mustExec(t testing.TB, conn *pgx.Conn, sql string, arguments ...interface{}
 	return
 }
 
-func mustSelectValue(t testing.TB, conn *pgx.Conn, sql string, arguments ...interface{}) (value interface{}) {
-	var err error
-	if value, err = conn.SelectValue(sql, arguments...); err != nil {
-		t.Fatalf("SelectValue unexpectedly failed with %v: %v", sql, err)
-	}
-	return
-}
+// Do a simple query to ensure the connection is still usable
+func ensureConnValid(t *testing.T, conn *pgx.Conn) {
+	var sum, rowCount int32
 
-func mustSelectValueTo(t testing.TB, conn *pgx.Conn, w io.Writer, sql string, arguments ...interface{}) {
-	if err := conn.SelectValueTo(w, sql, arguments...); err != nil {
-		t.Fatalf("SelectValueTo unexpectedly failed with %v: %v", sql, err)
+	rows, err := conn.Query("select generate_series(1,$1)", 10)
+	if err != nil {
+		t.Fatalf("conn.Query failed: ", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var n int32
+		rows.Scan(&n)
+		sum += n
+		rowCount++
+	}
+
+	if rows.Err() != nil {
+		t.Fatalf("conn.Query failed: ", err)
+	}
+
+	if rowCount != 10 {
+		t.Error("Select called onDataRow wrong number of times")
+	}
+	if sum != 55 {
+		t.Error("Wrong values returned")
 	}
 }

@@ -16,7 +16,6 @@ type pgxRepository struct {
 }
 
 func NewPgxRepository(connPoolConfig pgx.ConnPoolConfig) (*pgxRepository, error) {
-	connPoolConfig.MsgBufSize = 16 * 1024
 	pool, err := pgx.NewConnPool(connPoolConfig)
 	if err != nil {
 		return nil, err
@@ -27,11 +26,8 @@ func NewPgxRepository(connPoolConfig pgx.ConnPoolConfig) (*pgxRepository, error)
 }
 
 func (repo *pgxRepository) CreateUser(user *User) (int32, error) {
-	v, err := repo.pool.SelectValue("insertUser",
-		user.Name.GetCoerceNil(),
-		user.Email.GetCoerceNil(),
-		user.PasswordDigest,
-		user.PasswordSalt)
+	var id int32
+	err := repo.pool.QueryRow("insertUser", user.Name, user.Email, user.PasswordDigest, user.PasswordSalt).Scan(&id)
 	if err != nil {
 		if strings.Contains(err.Error(), "users_name_unq") {
 			return 0, DuplicationError{Field: "name"}
@@ -42,7 +38,7 @@ func (repo *pgxRepository) CreateUser(user *User) (int32, error) {
 		return 0, err
 	}
 
-	return v.(int32), nil
+	return id, nil
 }
 
 func (repo *pgxRepository) getUser(sql string, arg interface{}) (*User, error) {

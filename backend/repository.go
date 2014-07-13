@@ -6,7 +6,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"github.com/jackc/box"
+	"github.com/jackc/pgx"
 	"io"
 	"time"
 )
@@ -37,7 +37,7 @@ type repository interface {
 	UpdatePasswordReset(string, *PasswordReset) error
 
 	GetFeedsUncheckedSince(since time.Time) (feeds []Feed, err error)
-	UpdateFeedWithFetchSuccess(feedID int32, update *parsedFeed, etag box.String, fetchTime time.Time) error
+	UpdateFeedWithFetchSuccess(feedID int32, update *parsedFeed, etag pgx.NullString, fetchTime time.Time) error
 	UpdateFeedWithFetchUnchanged(feedID int32, fetchTime time.Time) error
 	UpdateFeedWithFetchFailure(feedID int32, failure string, fetchTime time.Time) (err error)
 
@@ -52,9 +52,9 @@ type repository interface {
 }
 
 type User struct {
-	ID             box.Int32
-	Name           box.String
-	Email          box.String
+	ID             pgx.NullInt32
+	Name           pgx.NullString
+	Email          pgx.NullString
 	PasswordDigest []byte
 	PasswordSalt   []byte
 }
@@ -87,37 +87,37 @@ func (u *User) IsPassword(password string) bool {
 }
 
 type Feed struct {
-	ID              box.Int32
-	Name            box.String
-	URL             box.String
-	LastFetchTime   box.Time
-	ETag            box.String
-	LastFailure     box.String
-	LastFailureTime box.Time
-	FailureCount    box.Int32
-	CreationTime    box.Time
+	ID              pgx.NullInt32
+	Name            pgx.NullString
+	URL             pgx.NullString
+	LastFetchTime   pgx.NullTime
+	ETag            pgx.NullString
+	LastFailure     pgx.NullString
+	LastFailureTime pgx.NullTime
+	FailureCount    pgx.NullInt32
+	CreationTime    pgx.NullTime
 }
 
 type Subscription struct {
-	FeedID              box.Int32
-	Name                box.String
-	URL                 box.String
-	LastFetchTime       box.Time
-	LastFailure         box.String
-	LastFailureTime     box.Time
-	FailureCount        box.Int32
-	ItemCount           box.Int64
-	LastPublicationTime box.Time
+	FeedID              pgx.NullInt32
+	Name                pgx.NullString
+	URL                 pgx.NullString
+	LastFetchTime       pgx.NullTime
+	LastFailure         pgx.NullString
+	LastFailureTime     pgx.NullTime
+	FailureCount        pgx.NullInt32
+	ItemCount           pgx.NullInt64
+	LastPublicationTime pgx.NullTime
 }
 
 type PasswordReset struct {
-	Token          box.String
-	Email          box.String
-	RequestIP      box.String
-	RequestTime    box.Time
-	UserID         box.Int32
-	CompletionIP   box.String
-	CompletionTime box.Time
+	Token          pgx.NullString
+	Email          pgx.NullString
+	RequestIP      pgx.NullString
+	RequestTime    pgx.NullTime
+	UserID         pgx.NullInt32
+	CompletionIP   pgx.NullString
+	CompletionTime pgx.NullTime
 }
 
 type staleFeed struct {
