@@ -2,7 +2,7 @@ package box_test
 
 import (
 	"encoding/json"
-	"github.com/jackc/box"
+	"github.com/jackc/tpr/backend/box"
 	. "launchpad.net/gocheck"
 	"testing"
 	"time"
@@ -44,13 +44,10 @@ func (s *MySuite) TestSetAndGet(c *C) {
 	_, present = b.Get()
 	c.Check(present, Equals, false)
 
-	b.SetUnknown()
+	b.SetNull()
 	_, present = b.Get()
 	c.Check(present, Equals, false)
 
-	b.SetEmpty()
-	_, present = b.Get()
-	c.Check(present, Equals, false)
 }
 
 func (s *MySuite) TestGetCoerceNil(c *C) {
@@ -59,10 +56,7 @@ func (s *MySuite) TestGetCoerceNil(c *C) {
 	b.SetUndefined()
 	c.Check(b.GetCoerceNil(), Equals, nil)
 
-	b.SetUnknown()
-	c.Check(b.GetCoerceNil(), Equals, nil)
-
-	b.SetEmpty()
+	b.SetNull()
 	c.Check(b.GetCoerceNil(), Equals, nil)
 
 	val := time.Now()
@@ -73,9 +67,9 @@ func (s *MySuite) TestGetCoerceNil(c *C) {
 func (s *MySuite) TestSetCoerceNil(c *C) {
 	var b box.Time
 
-	b.SetCoerceNil(nil, box.Empty)
+	b.SetCoerceNil(nil, box.Null)
 
-	c.Check(b.Status(), Equals, byte(box.Empty))
+	c.Check(b.Status(), Equals, byte(box.Null))
 }
 
 func (s *MySuite) TestGetCoerceZero(c *C) {
@@ -85,10 +79,7 @@ func (s *MySuite) TestGetCoerceZero(c *C) {
 	b.SetUndefined()
 	c.Check(b.GetCoerceZero(), Equals, zero)
 
-	b.SetUnknown()
-	c.Check(b.GetCoerceZero(), Equals, zero)
-
-	b.SetEmpty()
+	b.SetNull()
 	c.Check(b.GetCoerceZero(), Equals, zero)
 
 	val := time.Now()
@@ -100,8 +91,8 @@ func (s *MySuite) TestSetCoerceZero(c *C) {
 	var b box.Time
 	var zero time.Time
 
-	b.SetCoerceZero(zero, box.Empty)
-	c.Check(b.Status(), Equals, byte(box.Empty))
+	b.SetCoerceZero(zero, box.Null)
+	c.Check(b.Status(), Equals, byte(box.Null))
 }
 
 func (s *MySuite) TestMustGetPanicsWhenNotFull(c *C) {
@@ -110,10 +101,7 @@ func (s *MySuite) TestMustGetPanicsWhenNotFull(c *C) {
 	b.SetUndefined()
 	c.Check(b.MustGet, Panics, "called MustGet on a box that was not full")
 
-	b.SetUnknown()
-	c.Check(b.MustGet, Panics, "called MustGet on a box that was not full")
-
-	b.SetEmpty()
+	b.SetNull()
 	c.Check(b.MustGet, Panics, "called MustGet on a box that was not full")
 }
 
@@ -125,15 +113,6 @@ func (s *MySuite) TestJSONMarshal(c *C) {
 		{box.NewBool(true), "true"},
 		{box.NewBool(false), "false"},
 		{box.Bool{}, "null"},
-		{box.NewFloat32(1.23), "1.23"},
-		{box.NewFloat32(-1.23), "-1.23"},
-		{box.Float32{}, "null"},
-		{box.NewFloat64(1.23), "1.23"},
-		{box.NewFloat64(-1.23), "-1.23"},
-		{box.Float64{}, "null"},
-		{box.NewInt8(1), "1"},
-		{box.NewInt8(-1), "-1"},
-		{box.Int8{}, "null"},
 		{box.NewInt16(1), "1"},
 		{box.NewInt16(-1), "-1"},
 		{box.Int16{}, "null"},
@@ -145,18 +124,6 @@ func (s *MySuite) TestJSONMarshal(c *C) {
 		{box.Int64{}, "null"},
 		{box.NewString("foo"), `"foo"`},
 		{box.String{}, "null"},
-		{box.NewUInt8(1), "1"},
-		{box.NewUInt8(0), "0"},
-		{box.UInt8{}, "null"},
-		{box.NewUInt16(1), "1"},
-		{box.NewUInt16(0), "0"},
-		{box.UInt16{}, "null"},
-		{box.NewUInt32(1), "1"},
-		{box.NewUInt32(0), "0"},
-		{box.UInt32{}, "null"},
-		{box.NewUInt64(1), "1"},
-		{box.NewUInt64(0), "0"},
-		{box.UInt64{}, "null"},
 	}
 
 	for i, t := range tests {

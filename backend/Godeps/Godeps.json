@@ -16,10 +16,6 @@
 			"Rev": "6478cc9340cbbe6c04511280c5007722269108e9"
 		},
 		{
-			"ImportPath": "github.com/jackc/box",
-			"Rev": "f4572d8d574c9f00e4833c95266092654323444a"
-		},
-		{
 			"ImportPath": "github.com/jackc/cli",
 			"Comment": "1.0.0-69-g2bb83f4",
 			"Rev": "2bb83f44aaf313148c8730ae2074fc055e563195"
