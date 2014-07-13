@@ -1,0 +1,215 @@
+// Package box stores values, undefined, or null.
+package box
+
+import (
+	"errors"
+	"github.com/jackc/pgx"
+	"strconv"
+	"time"
+)
+
+const (
+	Undefined = iota
+	Null   		= iota
+	Full      = iota
+)
+
+<%
+[
+	['Bool', 'bool'],
+	['Int16', 'int16'],
+	['Int32', 'int32'],
+	['Int64', 'int64'],
+	['String', 'string'],
+	['Time', 'time.Time'],
+].each do |box_type, value_type|
+%>
+type <%= box_type %> struct {
+	value  <%= value_type %>
+	status byte
+}
+
+// New<%= box_type %> returns a <%= box_type %> initialized to v
+func New<%= box_type %>(v <%= value_type %>) (box <%= box_type %>) {
+	box.Set(v)
+	return box
+}
+
+// Set places v in box
+func (box *<%= box_type %>) Set(v <%= value_type %>) {
+	box.value = v
+	box.status = Full
+}
+
+// GetCoerceNil returns the value if the box is full, otherwise it returns nil
+func (box *<%= box_type %>) GetCoerceNil() interface{} {
+	if box.status == Full {
+		return box.value
+	} else {
+		return nil
+	}
+}
+
+// SetCoerceNil places v in box if v is not nil, otherwise it sets box to nilStatus
+func (box *<%= box_type %>) SetCoerceNil(v interface{}, nilStatus byte) {
+	if v != nil {
+		box.Set(v.(<%= value_type %>))
+	} else {
+	  box.status = nilStatus
+	}
+}
+
+// GetCoerceZero returns value if the box is full, otherwise it returns the zero value
+func (box *<%= box_type %>) GetCoerceZero() <%= value_type %> {
+	if box.status == Full {
+		return box.value
+	} else {
+		var zero <%= value_type %>
+		return zero
+	}
+}
+
+// SetCoerceZero places v in box if v is not the zero value, otherwise it sets box to zeroStatus
+func (box *<%= box_type %>) SetCoerceZero(v <%= value_type %>, zeroStatus byte) {
+	var zero <%= value_type %>
+
+	if v != zero {
+		box.Set(v)
+	} else {
+	  box.status = zeroStatus
+	}
+}
+
+// SetUndefined sets box to Undefined
+func (box *<%= box_type %>) SetUndefined() {
+	box.status = Undefined
+}
+
+// SetNull sets box to Null
+func (box *<%= box_type %>) SetNull() {
+	box.status = Null
+}
+
+// MustGet returns the value or panics if box is not full
+func (box *<%= box_type %>) MustGet() <%= value_type %> {
+	if box.status != Full {
+		panic("called MustGet on a box that was not full")
+	}
+
+	return box.value
+}
+
+// Get returns the value and present. present is true only if the box is Full and value is valid
+func (box *<%= box_type %>) Get() (<%= value_type %>, bool) {
+	if box.status != Full {
+		var zeroVal <%= value_type %>
+		return zeroVal, false
+	}
+
+	return box.value, true
+}
+
+// Status returns the box's status
+func (box *<%= box_type %>) Status() byte {
+	return box.status
+}
+
+<% end %>
+
+
+func (box Bool) MarshalJSON() ([]byte, error) {
+	if box.status != Full {
+		return []byte("null"), nil
+	}
+	if box.value {
+		return []byte("true"), nil
+	}
+	return []byte("false"), nil
+}
+
+<%
+# MarshalJSON for integers
+%w[
+	Int16
+	Int32
+	Int64
+].each do |box_type|
+%>
+func (box <%= box_type%>) MarshalJSON() ([]byte, error) {
+	if box.status != Full {
+		return []byte("null"), nil
+	}
+	return []byte(strconv.FormatInt(int64(box.value), 10)), nil
+}
+
+<% end %>
+
+func (box String) MarshalJSON() ([]byte, error) {
+	if box.status != Full {
+		return []byte("null"), nil
+	}
+	return []byte(`"` + box.value + `"`), nil
+}
+
+<%
+[
+	['Bool', true],
+	['Int16', true],
+	['Int32', true],
+	['Int64', true],
+	['String', false],
+	['Time', true]
+].each do |box_type, bin|
+%>
+
+func (box *<%= box_type %>) Scan(r *pgx.ValueReader) error {
+	var nv pgx.Null<%= box_type %>
+	err := nv.Scan(r)
+	if err != nil {
+		return err
+	}
+
+	box.value = nv.<%= box_type %>
+	if nv.Valid {
+		box.status = Full
+	} else {
+		box.status = Null
+	}
+
+	return nil
+}
+
+func (box <%= box_type %>) EncodeText() (val string, status byte, err error) {
+	var nv pgx.Null<%= box_type %>
+	nv.<%= box_type %> = box.value
+
+	switch box.status {
+	case Full:
+		nv.Valid = true
+	case Null:
+		nv.Valid = false
+	case Undefined:
+		return "", 0, errors.New("cannot encode undefined box")
+	}
+
+	return nv.EncodeText()
+}
+
+<% if bin %>
+func (box <%= box_type %>) EncodeBinary(w *pgx.WriteBuf, oid pgx.Oid) error {
+	var nv pgx.Null<%= box_type %>
+	nv.<%= box_type %> = box.value
+
+	switch box.status {
+	case Full:
+		nv.Valid = true
+	case Null:
+		nv.Valid = false
+	case Undefined:
+		return errors.New("cannot encode undefined box")
+	}
+
+	return nv.EncodeBinary(w, oid)
+}
+<% end %>
+<% end %>
