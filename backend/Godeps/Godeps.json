@@ -19,7 +19,7 @@
 		},
 		{
 			"ImportPath": "github.com/jackc/pgx",
-			"Rev": "a12b7ed6c121bd1a980bf2f8d36013233422ebe3"
+			"Rev": "1027d2d01407772d4ec984efdb81ce7da1f18bc2"
 		},
 		{
 			"ImportPath": "github.com/jackc/quo_vadis",

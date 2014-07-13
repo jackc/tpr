@@ -381,6 +381,7 @@ func ExportFeedsHandler(w http.ResponseWriter, req *http.Request, env *environme
 	subs, err := env.repo.GetSubscriptions(env.user.ID.MustGet())
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
 	}
 
 	doc := OpmlDocument{Version: "1.0"}

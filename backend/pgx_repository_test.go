@@ -206,6 +206,7 @@ func TestPgxRepositoryUpdateUser(t *testing.T) {
 		expected, err := repo.GetUser(userID)
 		if err != nil {
 			t.Errorf("%d. %v", i, err)
+			continue
 		}
 
 		if _, ok := tt.update.ID.Get(); ok {
@@ -227,6 +228,7 @@ func TestPgxRepositoryUpdateUser(t *testing.T) {
 		err = repo.UpdateUser(userID, tt.update)
 		if err != nil {
 			t.Errorf("%d. %v", i, err)
+			continue
 		}
 
 		user, err := repo.GetUser(userID)
