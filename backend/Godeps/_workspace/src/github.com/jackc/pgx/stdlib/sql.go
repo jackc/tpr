@@ -1,3 +1,46 @@
+// Package stdlib is the compatibility layer from pgx to database/sql.
+//
+// A database/sql connection can be established through sql.Open.
+//
+//	db, err := sql.Open("pgx", "postgres://pgx_md5:secret@localhost:5432/pgx_test")
+//	if err != nil {
+//		return err
+//	}
+//
+// Or a normal pgx connection pool can be established and the database/sql
+// connection can be created through stdlib.OpenFromConnPool(). This allows
+// more control over the connection process (such as TLS), more control
+// over the connection pool, setting an AfterConnect hook, and using both
+// database/sql and pgx interfaces as needed.
+//
+//	connConfig := pgx.ConnConfig{
+//		Host:     "localhost",
+//		User:     "pgx_md5",
+// 		Password: "secret",
+// 		Database: "pgx_test",
+// 	}
+//
+//	config := pgx.ConnPoolConfig{ConnConfig: connConfig}
+//	pool, err := pgx.NewConnPool(config)
+// 	if err != nil {
+// 		return err
+// 	}
+//
+//	db, err := stdlib.OpenFromConnPool(pool)
+//	if err != nil {
+//		t.Fatalf("Unable to create connection pool: %v", err)
+//	}
+//
+// If the database/sql connection is established through
+// stdlib.OpenFromConnPool then access to a pgx *ConnPool can be regained
+// through db.Driver(). This allows writing a fast path for pgx while
+// preserving compatibility with other drivers and database
+//
+//	if driver, ok := db.Driver().(*stdlib.Driver); ok && driver.Pool != nil {
+//		// fast path with pgx
+//	} else {
+//		// normal path for other drivers and databases
+//	}
 package stdlib
 
 import (
@@ -11,9 +54,24 @@ import (
 
 var openFromConnPoolCount int
 
+// oids that map to intrinsic database/sql types. These will be allowed to be
+// binary, anything else will be forced to text format
+var databaseSqlOids map[pgx.Oid]bool
+
 func init() {
 	d := &Driver{}
 	sql.Register("pgx", d)
+
+	databaseSqlOids = make(map[pgx.Oid]bool)
+	databaseSqlOids[pgx.BoolOid] = true
+	databaseSqlOids[pgx.ByteaOid] = true
+	databaseSqlOids[pgx.Int2Oid] = true
+	databaseSqlOids[pgx.Int4Oid] = true
+	databaseSqlOids[pgx.Int8Oid] = true
+	databaseSqlOids[pgx.Float4Oid] = true
+	databaseSqlOids[pgx.Float8Oid] = true
+	databaseSqlOids[pgx.DateOid] = true
+	databaseSqlOids[pgx.TimestampTzOid] = true
 }
 
 type Driver struct {
@@ -67,8 +125,9 @@ func OpenFromConnPool(pool *pgx.ConnPool) (*sql.DB, error) {
 	// Don't have database/sql immediately release all idle connections because
 	// that would mean that prepared statements would be lost (which kills
 	// performance if the prepared statements constantly have to be reprepared)
-	db.SetMaxIdleConns(pool.MaxConnectionCount() - 2)
-	db.SetMaxOpenConns(pool.MaxConnectionCount())
+	stat := pool.Stat()
+	db.SetMaxIdleConns(stat.MaxConnections - 2)
+	db.SetMaxOpenConns(stat.MaxConnections)
 
 	return db, nil
 }
@@ -91,6 +150,8 @@ func (c *Conn) Prepare(query string) (driver.Stmt, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	restrictBinaryToDatabaseSqlTypes(ps)
 
 	return &Stmt{ps: ps, conn: c}, nil
 }
@@ -132,14 +193,41 @@ func (c *Conn) Query(query string, argsV []driver.Value) (driver.Rows, error) {
 		return nil, driver.ErrBadConn
 	}
 
+	ps, err := c.conn.Prepare("", query)
+	if err != nil {
+		return nil, err
+	}
+
+	restrictBinaryToDatabaseSqlTypes(ps)
+
+	return c.queryPrepared("", argsV)
+}
+
+func (c *Conn) queryPrepared(name string, argsV []driver.Value) (driver.Rows, error) {
+	if !c.conn.IsAlive() {
+		return nil, driver.ErrBadConn
+	}
+
 	args := valueToInterface(argsV)
 
-	rows, err := c.conn.Query(query, args...)
+	rows, err := c.conn.Query(name, args...)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Rows{rows: rows}, nil
+}
+
+// Anything that isn't a database/sql compatible type needs to be forced to
+// text format so that pgx.Rows.Values doesn't decode it into a native type
+// (e.g. []int32)
+func restrictBinaryToDatabaseSqlTypes(ps *pgx.PreparedStatement) {
+	for i, _ := range ps.FieldDescriptions {
+		intrinsic, _ := databaseSqlOids[ps.FieldDescriptions[i].DataType]
+		if !intrinsic {
+			ps.FieldDescriptions[i].FormatCode = pgx.TextFormatCode
+		}
+	}
 }
 
 type Stmt struct {
@@ -160,7 +248,7 @@ func (s *Stmt) Exec(argsV []driver.Value) (driver.Result, error) {
 }
 
 func (s *Stmt) Query(argsV []driver.Value) (driver.Rows, error) {
-	return s.conn.Query(s.ps.Name, argsV)
+	return s.conn.queryPrepared(s.ps.Name, argsV)
 }
 
 // TODO - rename to avoid alloc

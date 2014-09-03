@@ -294,8 +294,11 @@ func TestPgxRepositoryFeeds(t *testing.T) {
 
 	feedID := staleFeeds[0].ID.MustGet()
 
+	nullString := box.String{}
+	nullString.SetNull()
+
 	// Update feed as of now
-	err = repo.UpdateFeedWithFetchSuccess(feedID, update, box.String{}, now)
+	err = repo.UpdateFeedWithFetchSuccess(feedID, update, nullString, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +313,7 @@ func TestPgxRepositoryFeeds(t *testing.T) {
 	}
 
 	// Update feed to be old enough to need refresh
-	err = repo.UpdateFeedWithFetchSuccess(feedID, update, box.String{}, fifteenMinutesAgo)
+	err = repo.UpdateFeedWithFetchSuccess(feedID, update, nullString, fifteenMinutesAgo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -371,7 +374,11 @@ func TestPgxRepositoryUpdateFeedWithFetchSuccess(t *testing.T) {
 	update := &parsedFeed{name: "baz", items: []parsedItem{
 		{url: "http://baz/bar", title: "Baz", publicationTime: box.NewTime(now)},
 	}}
-	err = repo.UpdateFeedWithFetchSuccess(feedID, update, box.String{}, now)
+
+	nullString := box.String{}
+	nullString.SetNull()
+
+	err = repo.UpdateFeedWithFetchSuccess(feedID, update, nullString, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -396,7 +403,7 @@ func TestPgxRepositoryUpdateFeedWithFetchSuccess(t *testing.T) {
 	}
 
 	// Update again and ensure item does not get created again
-	err = repo.UpdateFeedWithFetchSuccess(feedID, update, box.String{}, now)
+	err = repo.UpdateFeedWithFetchSuccess(feedID, update, nullString, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -446,7 +453,11 @@ func TestPgxRepositoryUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testin
 	update := &parsedFeed{name: "baz", items: []parsedItem{
 		{url: "http://baz/bar", title: "Baz"},
 	}}
-	err = repo.UpdateFeedWithFetchSuccess(feedID, update, box.String{}, now)
+
+	nullString := box.String{}
+	nullString.SetNull()
+
+	err = repo.UpdateFeedWithFetchSuccess(feedID, update, nullString, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -471,7 +482,7 @@ func TestPgxRepositoryUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testin
 	}
 
 	// Update again and ensure item does not get created again
-	err = repo.UpdateFeedWithFetchSuccess(feedID, update, box.String{}, now)
+	err = repo.UpdateFeedWithFetchSuccess(feedID, update, nullString, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -542,7 +553,11 @@ func TestPgxRepositoryDeleteSubscription(t *testing.T) {
 	update := &parsedFeed{name: "baz", items: []parsedItem{
 		{url: "http://baz/bar", title: "Baz", publicationTime: box.NewTime(time.Now())},
 	}}
-	err = repo.UpdateFeedWithFetchSuccess(feedID, update, box.String{}, time.Now().Add(-20*time.Minute))
+
+	nullString := box.String{}
+	nullString.SetNull()
+
+	err = repo.UpdateFeedWithFetchSuccess(feedID, update, nullString, time.Now().Add(-20*time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}

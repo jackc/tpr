@@ -151,17 +151,7 @@ func (box String) MarshalJSON() ([]byte, error) {
 	return []byte(`"` + box.value + `"`), nil
 }
 
-<%
-[
-	['Bool', true],
-	['Int16', true],
-	['Int32', true],
-	['Int64', true],
-	['String', false],
-	['Time', true]
-].each do |box_type, bin|
-%>
-
+<% %w[Bool Int16 Int32 Int64 String Time].each do |box_type| %>
 func (box *<%= box_type %>) Scan(r *pgx.ValueReader) error {
 	var nv pgx.Null<%= box_type %>
 	err := nv.Scan(r)
@@ -179,24 +169,13 @@ func (box *<%= box_type %>) Scan(r *pgx.ValueReader) error {
 	return nil
 }
 
-func (box <%= box_type %>) EncodeText() (val string, status byte, err error) {
+
+func (box <%= box_type %>) FormatCode() int16 {
 	var nv pgx.Null<%= box_type %>
-	nv.<%= box_type %> = box.value
-
-	switch box.status {
-	case Full:
-		nv.Valid = true
-	case Null:
-		nv.Valid = false
-	case Undefined:
-		return "", 0, errors.New("cannot encode undefined box")
-	}
-
-	return nv.EncodeText()
+	return nv.FormatCode()
 }
 
-<% if bin %>
-func (box <%= box_type %>) EncodeBinary(w *pgx.WriteBuf, oid pgx.Oid) error {
+func (box <%= box_type %>) Encode(w *pgx.WriteBuf, oid pgx.Oid) error {
 	var nv pgx.Null<%= box_type %>
 	nv.<%= box_type %> = box.value
 
@@ -209,7 +188,6 @@ func (box <%= box_type %>) EncodeBinary(w *pgx.WriteBuf, oid pgx.Oid) error {
 		return errors.New("cannot encode undefined box")
 	}
 
-	return nv.EncodeBinary(w, oid)
+	return nv.Encode(w, oid)
 }
-<% end %>
 <% end %>

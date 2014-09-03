@@ -294,10 +294,7 @@ func (c *Conn) Prepare(name, sql string) (ps *PreparedStatement, err error) {
 		case rowDescription:
 			ps.FieldDescriptions = c.rxRowDescription(r)
 			for i := range ps.FieldDescriptions {
-				switch ps.FieldDescriptions[i].DataType {
-				case BoolOid, ByteaOid, Int2Oid, Int4Oid, Int8Oid, Float4Oid, Float8Oid, DateOid, TimestampTzOid:
-					ps.FieldDescriptions[i].FormatCode = BinaryFormatCode
-				}
+				ps.FieldDescriptions[i].FormatCode, _ = DefaultOidFormats[ps.FieldDescriptions[i].DataType]
 			}
 		case noData:
 		case readyForQuery:
@@ -315,8 +312,40 @@ func (c *Conn) Prepare(name, sql string) (ps *PreparedStatement, err error) {
 // Deallocate released a prepared statement
 func (c *Conn) Deallocate(name string) (err error) {
 	delete(c.preparedStatements, name)
-	_, err = c.Exec("deallocate " + QuoteIdentifier(name))
-	return
+
+	// close
+	wbuf := newWriteBuf(c.wbuf[0:0], 'C')
+	wbuf.WriteByte('S')
+	wbuf.WriteCString(name)
+
+	// flush
+	wbuf.startMsg('H')
+	wbuf.closeMsg()
+	wbuf.closeMsg()
+
+	_, err = c.conn.Write(wbuf.buf)
+	if err != nil {
+		return err
+	}
+
+	for {
+		var t byte
+		var r *msgReader
+		t, r, err := c.rxMsg()
+		if err != nil {
+			return err
+		}
+
+		switch t {
+		case closeComplete:
+			return nil
+		default:
+			err = c.processContextFreeMsg(t, r)
+			if err != nil {
+				return err
+			}
+		}
+	}
 }
 
 // Listen establishes a PostgreSQL listen/notify to channel
@@ -400,24 +429,27 @@ func (c *Conn) sendQuery(sql string, arguments ...interface{}) (err error) {
 	}
 }
 
-func (c *Conn) sendSimpleQuery(sql string, arguments ...interface{}) (err error) {
-	if len(arguments) > 0 {
-		sql, err = SanitizeSql(sql, arguments...)
+func (c *Conn) sendSimpleQuery(sql string, args ...interface{}) error {
+	if len(args) == 0 {
+		wbuf := newWriteBuf(c.wbuf[0:0], 'Q')
+		wbuf.WriteCString(sql)
+		wbuf.closeMsg()
+
+		_, err := c.conn.Write(wbuf.buf)
 		if err != nil {
-			return
+			c.die(err)
+			return err
 		}
+
+		return nil
 	}
 
-	wbuf := newWriteBuf(c.wbuf[0:0], 'Q')
-	wbuf.WriteCString(sql)
-	wbuf.closeMsg()
-
-	_, err = c.conn.Write(wbuf.buf)
+	ps, err := c.Prepare("", sql)
 	if err != nil {
-		c.die(err)
+		return err
 	}
 
-	return err
+	return c.sendPreparedQuery(ps, args...)
 }
 
 func (c *Conn) sendPreparedQuery(ps *PreparedStatement, arguments ...interface{}) (err error) {
@@ -433,18 +465,16 @@ func (c *Conn) sendPreparedQuery(ps *PreparedStatement, arguments ...interface{}
 	wbuf.WriteInt16(int16(len(ps.ParameterOids)))
 	for i, oid := range ps.ParameterOids {
 		switch arg := arguments[i].(type) {
-		case BinaryEncoder:
-			wbuf.WriteInt16(BinaryFormatCode)
-		case TextEncoder:
+		case Encoder:
+			wbuf.WriteInt16(arg.FormatCode())
+		case string:
 			wbuf.WriteInt16(TextFormatCode)
 		default:
 			switch oid {
-			case BoolOid, ByteaOid, Int2Oid, Int4Oid, Int8Oid, Float4Oid, Float8Oid, TimestampTzOid:
+			case BoolOid, ByteaOid, Int2Oid, Int4Oid, Int8Oid, Float4Oid, Float8Oid, TimestampTzOid, Int2ArrayOid, Int4ArrayOid, Int8ArrayOid, Float4ArrayOid, Float8ArrayOid, TextArrayOid, VarcharArrayOid, OidOid:
 				wbuf.WriteInt16(BinaryFormatCode)
-			case TextOid, VarcharOid, DateOid, TimestampOid:
-				wbuf.WriteInt16(TextFormatCode)
 			default:
-				return SerializationError(fmt.Sprintf("Parameter %d oid %d is not a core type and argument type %T does not implement TextEncoder or BinaryEncoder", i, oid, arg))
+				wbuf.WriteInt16(TextFormatCode)
 			}
 		}
 	}
@@ -457,18 +487,10 @@ func (c *Conn) sendPreparedQuery(ps *PreparedStatement, arguments ...interface{}
 		}
 
 		switch arg := arguments[i].(type) {
-		case BinaryEncoder:
-			err = arg.EncodeBinary(wbuf, oid)
-		case TextEncoder:
-			var s string
-			var status byte
-			s, status, err = arg.EncodeText()
-			if status == NullText {
-				wbuf.WriteInt32(-1)
-				continue
-			}
-			wbuf.WriteInt32(int32(len(s)))
-			wbuf.WriteBytes([]byte(s))
+		case Encoder:
+			err = arg.Encode(wbuf, oid)
+		case string:
+			err = encodeText(wbuf, arguments[i])
 		default:
 			switch oid {
 			case BoolOid:
@@ -493,8 +515,24 @@ func (c *Conn) sendPreparedQuery(ps *PreparedStatement, arguments ...interface{}
 				err = encodeTimestampTz(wbuf, arguments[i])
 			case TimestampOid:
 				err = encodeTimestamp(wbuf, arguments[i])
+			case Int2ArrayOid:
+				err = encodeInt2Array(wbuf, arguments[i])
+			case Int4ArrayOid:
+				err = encodeInt4Array(wbuf, arguments[i])
+			case Int8ArrayOid:
+				err = encodeInt8Array(wbuf, arguments[i])
+			case Float4ArrayOid:
+				err = encodeFloat4Array(wbuf, arguments[i])
+			case Float8ArrayOid:
+				err = encodeFloat8Array(wbuf, arguments[i])
+			case TextArrayOid:
+				err = encodeTextArray(wbuf, arguments[i], TextOid)
+			case VarcharArrayOid:
+				err = encodeTextArray(wbuf, arguments[i], VarcharOid)
+			case OidOid:
+				err = encodeOid(wbuf, arguments[i])
 			default:
-				return SerializationError(fmt.Sprintf("%T is not a core type and it does not implement TextEncoder or BinaryEncoder", arg))
+				return SerializationError(fmt.Sprintf("Cannot encode %T into oid %v - %T must implement Encoder or be converted to a string", arg, oid, arg))
 			}
 		}
 		if err != nil {

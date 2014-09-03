@@ -1,19 +1,16 @@
 {
 	"ImportPath": "github.com/jackc/tpr/backend",
-	"GoVersion": "go1.3",
-	"Packages": [
-		"./..."
-	],
+	"GoVersion": "go1.3.1",
 	"Deps": [
 		{
 			"ImportPath": "code.google.com/p/go.crypto/pbkdf2",
-			"Comment": "null-185",
-			"Rev": "6478cc9340cbbe6c04511280c5007722269108e9"
+			"Comment": "null-212",
+			"Rev": "1064b89a6fb591df0dd65422295b8498916b092f"
 		},
 		{
 			"ImportPath": "code.google.com/p/go.crypto/scrypt",
-			"Comment": "null-185",
-			"Rev": "6478cc9340cbbe6c04511280c5007722269108e9"
+			"Comment": "null-212",
+			"Rev": "1064b89a6fb591df0dd65422295b8498916b092f"
 		},
 		{
 			"ImportPath": "github.com/jackc/cli",
@@ -22,7 +19,8 @@
 		},
 		{
 			"ImportPath": "github.com/jackc/pgx",
-			"Rev": "1027d2d01407772d4ec984efdb81ce7da1f18bc2"
+			"Comment": "v2.1.0-16-ge47838d",
+			"Rev": "e47838d926f69366fb68f5004e639a69cdd60468"
 		},
 		{
 			"ImportPath": "github.com/jackc/quo_vadis",
@@ -36,11 +34,6 @@
 			"ImportPath": "gopkg.in/inconshreveable/log15.v2",
 			"Comment": "v2.2",
 			"Rev": "6496dcc0b79933520138fe7ab8bb208877c1e2cd"
-		},
-		{
-			"ImportPath": "launchpad.net/gocheck",
-			"Comment": "85",
-			"Rev": "gustavo@niemeyer.net-20130302024745-6ikofwq2c03h7giu"
 		}
 	]
 }

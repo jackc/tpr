@@ -70,9 +70,6 @@ if err != nil {
 }
 ```
 
-Prepared statements will use the binary transmission when possible. This can
-substantially increase performance.
-
 ### Explicit Connection Pool
 
 Connection pool usage is explicit and configurable. In pgx, a connection can
@@ -142,20 +139,26 @@ configure the TLS connection.
 pgx includes support for the common data types like integers, floats, strings,
 dates, and times that have direct mappings between Go and SQL. Support can be
 added for additional types like point, hstore, numeric, etc. that do not have
-direct mappings in Go by the types implementing Scanner, TextEncoder, and
-optionally BinaryEncoder. To enable binary format for custom types, a prepared
-statement must be used and the field description of the returned field must have
-FormatCode set to BinaryFormatCode. See example_custom_type_test.go for an
-example of a custom type for the PostgreSQL point type.
+direct mappings in Go by the types implementing Scanner and Encoder. See
+example_custom_type_test.go for an example of a custom type for the PostgreSQL
+point type.
 
 ### Null Mapping
 
 pgx includes Null* types in a similar fashion to database/sql that implement the
 necessary interfaces to be encoded and scanned.
 
+### Array Mapping
+
+pgx maps between int16, int32, int64, float32, float64, and string Go slices
+and the equivalent PostgreSQL array type. Go slices of native types do not
+support nulls, so if a PostgreSQL array that contains a slice is read into a
+native Go slice an error will occur.
+
 ### Logging
 
-pgx connections optionally accept a logger from the [log15 package](http://gopkg.in/inconshreveable/log15.v2).
+pgx connections optionally accept a logger from the [log15
+package](http://gopkg.in/inconshreveable/log15.v2).
 
 ## Testing
 

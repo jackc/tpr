@@ -27,7 +27,8 @@ func NewPgxRepository(connPoolConfig pgx.ConnPoolConfig) (*pgxRepository, error)
 
 func (repo *pgxRepository) CreateUser(user *User) (int32, error) {
 	var id int32
-	err := repo.pool.QueryRow("insertUser", user.Name, user.Email, user.PasswordDigest, user.PasswordSalt).Scan(&id)
+
+	err := repo.pool.QueryRow("insertUser", user.Name, user.Email.GetCoerceNil(), user.PasswordDigest, user.PasswordSalt).Scan(&id)
 	if err != nil {
 		if strings.Contains(err.Error(), "users_name_unq") {
 			return 0, DuplicationError{Field: "name"}

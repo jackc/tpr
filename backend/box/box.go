@@ -609,23 +609,12 @@ func (box *Bool) Scan(r *pgx.ValueReader) error {
 	return nil
 }
 
-func (box Bool) EncodeText() (val string, status byte, err error) {
+func (box Bool) FormatCode() int16 {
 	var nv pgx.NullBool
-	nv.Bool = box.value
-
-	switch box.status {
-	case Full:
-		nv.Valid = true
-	case Null:
-		nv.Valid = false
-	case Undefined:
-		return "", 0, errors.New("cannot encode undefined box")
-	}
-
-	return nv.EncodeText()
+	return nv.FormatCode()
 }
 
-func (box Bool) EncodeBinary(w *pgx.WriteBuf, oid pgx.Oid) error {
+func (box Bool) Encode(w *pgx.WriteBuf, oid pgx.Oid) error {
 	var nv pgx.NullBool
 	nv.Bool = box.value
 
@@ -638,7 +627,7 @@ func (box Bool) EncodeBinary(w *pgx.WriteBuf, oid pgx.Oid) error {
 		return errors.New("cannot encode undefined box")
 	}
 
-	return nv.EncodeBinary(w, oid)
+	return nv.Encode(w, oid)
 }
 
 func (box *Int16) Scan(r *pgx.ValueReader) error {
@@ -658,23 +647,12 @@ func (box *Int16) Scan(r *pgx.ValueReader) error {
 	return nil
 }
 
-func (box Int16) EncodeText() (val string, status byte, err error) {
+func (box Int16) FormatCode() int16 {
 	var nv pgx.NullInt16
-	nv.Int16 = box.value
-
-	switch box.status {
-	case Full:
-		nv.Valid = true
-	case Null:
-		nv.Valid = false
-	case Undefined:
-		return "", 0, errors.New("cannot encode undefined box")
-	}
-
-	return nv.EncodeText()
+	return nv.FormatCode()
 }
 
-func (box Int16) EncodeBinary(w *pgx.WriteBuf, oid pgx.Oid) error {
+func (box Int16) Encode(w *pgx.WriteBuf, oid pgx.Oid) error {
 	var nv pgx.NullInt16
 	nv.Int16 = box.value
 
@@ -687,7 +665,7 @@ func (box Int16) EncodeBinary(w *pgx.WriteBuf, oid pgx.Oid) error {
 		return errors.New("cannot encode undefined box")
 	}
 
-	return nv.EncodeBinary(w, oid)
+	return nv.Encode(w, oid)
 }
 
 func (box *Int32) Scan(r *pgx.ValueReader) error {
@@ -707,23 +685,12 @@ func (box *Int32) Scan(r *pgx.ValueReader) error {
 	return nil
 }
 
-func (box Int32) EncodeText() (val string, status byte, err error) {
+func (box Int32) FormatCode() int16 {
 	var nv pgx.NullInt32
-	nv.Int32 = box.value
-
-	switch box.status {
-	case Full:
-		nv.Valid = true
-	case Null:
-		nv.Valid = false
-	case Undefined:
-		return "", 0, errors.New("cannot encode undefined box")
-	}
-
-	return nv.EncodeText()
+	return nv.FormatCode()
 }
 
-func (box Int32) EncodeBinary(w *pgx.WriteBuf, oid pgx.Oid) error {
+func (box Int32) Encode(w *pgx.WriteBuf, oid pgx.Oid) error {
 	var nv pgx.NullInt32
 	nv.Int32 = box.value
 
@@ -736,7 +703,7 @@ func (box Int32) EncodeBinary(w *pgx.WriteBuf, oid pgx.Oid) error {
 		return errors.New("cannot encode undefined box")
 	}
 
-	return nv.EncodeBinary(w, oid)
+	return nv.Encode(w, oid)
 }
 
 func (box *Int64) Scan(r *pgx.ValueReader) error {
@@ -756,23 +723,12 @@ func (box *Int64) Scan(r *pgx.ValueReader) error {
 	return nil
 }
 
-func (box Int64) EncodeText() (val string, status byte, err error) {
+func (box Int64) FormatCode() int16 {
 	var nv pgx.NullInt64
-	nv.Int64 = box.value
-
-	switch box.status {
-	case Full:
-		nv.Valid = true
-	case Null:
-		nv.Valid = false
-	case Undefined:
-		return "", 0, errors.New("cannot encode undefined box")
-	}
-
-	return nv.EncodeText()
+	return nv.FormatCode()
 }
 
-func (box Int64) EncodeBinary(w *pgx.WriteBuf, oid pgx.Oid) error {
+func (box Int64) Encode(w *pgx.WriteBuf, oid pgx.Oid) error {
 	var nv pgx.NullInt64
 	nv.Int64 = box.value
 
@@ -785,7 +741,7 @@ func (box Int64) EncodeBinary(w *pgx.WriteBuf, oid pgx.Oid) error {
 		return errors.New("cannot encode undefined box")
 	}
 
-	return nv.EncodeBinary(w, oid)
+	return nv.Encode(w, oid)
 }
 
 func (box *String) Scan(r *pgx.ValueReader) error {
@@ -805,7 +761,12 @@ func (box *String) Scan(r *pgx.ValueReader) error {
 	return nil
 }
 
-func (box String) EncodeText() (val string, status byte, err error) {
+func (box String) FormatCode() int16 {
+	var nv pgx.NullString
+	return nv.FormatCode()
+}
+
+func (box String) Encode(w *pgx.WriteBuf, oid pgx.Oid) error {
 	var nv pgx.NullString
 	nv.String = box.value
 
@@ -815,10 +776,10 @@ func (box String) EncodeText() (val string, status byte, err error) {
 	case Null:
 		nv.Valid = false
 	case Undefined:
-		return "", 0, errors.New("cannot encode undefined box")
+		return errors.New("cannot encode undefined box")
 	}
 
-	return nv.EncodeText()
+	return nv.Encode(w, oid)
 }
 
 func (box *Time) Scan(r *pgx.ValueReader) error {
@@ -838,23 +799,12 @@ func (box *Time) Scan(r *pgx.ValueReader) error {
 	return nil
 }
 
-func (box Time) EncodeText() (val string, status byte, err error) {
+func (box Time) FormatCode() int16 {
 	var nv pgx.NullTime
-	nv.Time = box.value
-
-	switch box.status {
-	case Full:
-		nv.Valid = true
-	case Null:
-		nv.Valid = false
-	case Undefined:
-		return "", 0, errors.New("cannot encode undefined box")
-	}
-
-	return nv.EncodeText()
+	return nv.FormatCode()
 }
 
-func (box Time) EncodeBinary(w *pgx.WriteBuf, oid pgx.Oid) error {
+func (box Time) Encode(w *pgx.WriteBuf, oid pgx.Oid) error {
 	var nv pgx.NullTime
 	nv.Time = box.value
 
@@ -867,5 +817,5 @@ func (box Time) EncodeBinary(w *pgx.WriteBuf, oid pgx.Oid) error {
 		return errors.New("cannot encode undefined box")
 	}
 
-	return nv.EncodeBinary(w, oid)
+	return nv.Encode(w, oid)
 }

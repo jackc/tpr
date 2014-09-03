@@ -23,6 +23,35 @@ func closeDB(t *testing.T, db *sql.DB) {
 	}
 }
 
+// Do a simple query to ensure the connection is still usable
+func ensureConnValid(t *testing.T, db *sql.DB) {
+	var sum, rowCount int32
+
+	rows, err := db.Query("select generate_series(1,$1)", 10)
+	if err != nil {
+		t.Fatalf("db.Query failed: ", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var n int32
+		rows.Scan(&n)
+		sum += n
+		rowCount++
+	}
+
+	if rows.Err() != nil {
+		t.Fatalf("db.Query failed: ", err)
+	}
+
+	if rowCount != 10 {
+		t.Error("Select called onDataRow wrong number of times")
+	}
+	if sum != 55 {
+		t.Error("Wrong values returned")
+	}
+}
+
 type preparer interface {
 	Prepare(query string) (*sql.Stmt, error)
 }
@@ -84,6 +113,8 @@ func TestNormalLifeCycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("rows.Close unexpectedly failed: %v", err)
 	}
+
+	ensureConnValid(t, db)
 }
 
 func TestSqlOpenDoesNotHavePool(t *testing.T) {
@@ -165,6 +196,8 @@ func TestStmtExec(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tx.Commit unexpectedly failed: %v", err)
 	}
+
+	ensureConnValid(t, db)
 }
 
 func TestQueryCloseRowsEarly(t *testing.T) {
@@ -220,6 +253,8 @@ func TestQueryCloseRowsEarly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("rows.Close unexpectedly failed: %v", err)
 	}
+
+	ensureConnValid(t, db)
 }
 
 func TestConnExec(t *testing.T) {
@@ -243,6 +278,8 @@ func TestConnExec(t *testing.T) {
 	if n != 1 {
 		t.Fatalf("Expected 1, received %d", n)
 	}
+
+	ensureConnValid(t, db)
 }
 
 func TestConnQuery(t *testing.T) {
@@ -283,6 +320,8 @@ func TestConnQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("rows.Close unexpectedly failed: %v", err)
 	}
+
+	ensureConnValid(t, db)
 }
 
 func TestConnQueryFailure(t *testing.T) {
@@ -293,6 +332,50 @@ func TestConnQueryFailure(t *testing.T) {
 	if _, ok := err.(pgx.PgError); !ok {
 		t.Fatalf("Expected db.Query to return pgx.PgError, but instead received: %v", err)
 	}
+
+	ensureConnValid(t, db)
+}
+
+// Test type that pgx would handle natively in binary, but since it is not a
+// database/sql native type should be passed through as a string
+func TestConnQueryRowPgxBinary(t *testing.T) {
+	db := openDB(t)
+	defer closeDB(t, db)
+
+	sql := "select $1::int4[]"
+	expected := "{1,2,3}"
+	var actual string
+
+	err := db.QueryRow(sql, expected).Scan(&actual)
+	if err != nil {
+		t.Errorf("Unexpected failure: %v (sql -> %v)", err, sql)
+	}
+
+	if actual != expected {
+		t.Errorf(`Expected "%v", got "%v" (sql -> %v)`, expected, actual, sql)
+	}
+
+	ensureConnValid(t, db)
+}
+
+func TestConnQueryRowUnknownType(t *testing.T) {
+	db := openDB(t)
+	defer closeDB(t, db)
+
+	sql := "select $1::inet"
+	expected := "127.0.0.1"
+	var actual string
+
+	err := db.QueryRow(sql, expected).Scan(&actual)
+	if err != nil {
+		t.Errorf("Unexpected failure: %v (sql -> %v)", err, sql)
+	}
+
+	if actual != expected {
+		t.Errorf(`Expected "%v", got "%v" (sql -> %v)`, expected, actual, sql)
+	}
+
+	ensureConnValid(t, db)
 }
 
 func TestTransactionLifeCycle(t *testing.T) {
@@ -350,4 +433,6 @@ func TestTransactionLifeCycle(t *testing.T) {
 	if n != 1 {
 		t.Fatalf("Expected 1 rows due to rollback, instead found %d", n)
 	}
+
+	ensureConnValid(t, db)
 }
