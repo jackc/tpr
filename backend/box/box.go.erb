@@ -50,15 +50,6 @@ func (box *<%= box_type %>) GetCoerceNil() interface{} {
 	}
 }
 
-// SetCoerceNil places v in box if v is not nil, otherwise it sets box to nilStatus
-func (box *<%= box_type %>) SetCoerceNil(v interface{}, nilStatus byte) {
-	if v != nil {
-		box.Set(v.(<%= value_type %>))
-	} else {
-	  box.status = nilStatus
-	}
-}
-
 // GetCoerceZero returns value if the box is full, otherwise it returns the zero value
 func (box *<%= box_type %>) GetCoerceZero() <%= value_type %> {
 	if box.status == Full {

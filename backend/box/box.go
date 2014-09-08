@@ -40,15 +40,6 @@ func (box *Bool) GetCoerceNil() interface{} {
 	}
 }
 
-// SetCoerceNil places v in box if v is not nil, otherwise it sets box to nilStatus
-func (box *Bool) SetCoerceNil(v interface{}, nilStatus byte) {
-	if v != nil {
-		box.Set(v.(bool))
-	} else {
-		box.status = nilStatus
-	}
-}
-
 // GetCoerceZero returns value if the box is full, otherwise it returns the zero value
 func (box *Bool) GetCoerceZero() bool {
 	if box.status == Full {
@@ -127,15 +118,6 @@ func (box *Int16) GetCoerceNil() interface{} {
 		return box.value
 	} else {
 		return nil
-	}
-}
-
-// SetCoerceNil places v in box if v is not nil, otherwise it sets box to nilStatus
-func (box *Int16) SetCoerceNil(v interface{}, nilStatus byte) {
-	if v != nil {
-		box.Set(v.(int16))
-	} else {
-		box.status = nilStatus
 	}
 }
 
@@ -220,15 +202,6 @@ func (box *Int32) GetCoerceNil() interface{} {
 	}
 }
 
-// SetCoerceNil places v in box if v is not nil, otherwise it sets box to nilStatus
-func (box *Int32) SetCoerceNil(v interface{}, nilStatus byte) {
-	if v != nil {
-		box.Set(v.(int32))
-	} else {
-		box.status = nilStatus
-	}
-}
-
 // GetCoerceZero returns value if the box is full, otherwise it returns the zero value
 func (box *Int32) GetCoerceZero() int32 {
 	if box.status == Full {
@@ -307,15 +280,6 @@ func (box *Int64) GetCoerceNil() interface{} {
 		return box.value
 	} else {
 		return nil
-	}
-}
-
-// SetCoerceNil places v in box if v is not nil, otherwise it sets box to nilStatus
-func (box *Int64) SetCoerceNil(v interface{}, nilStatus byte) {
-	if v != nil {
-		box.Set(v.(int64))
-	} else {
-		box.status = nilStatus
 	}
 }
 
@@ -400,15 +364,6 @@ func (box *String) GetCoerceNil() interface{} {
 	}
 }
 
-// SetCoerceNil places v in box if v is not nil, otherwise it sets box to nilStatus
-func (box *String) SetCoerceNil(v interface{}, nilStatus byte) {
-	if v != nil {
-		box.Set(v.(string))
-	} else {
-		box.status = nilStatus
-	}
-}
-
 // GetCoerceZero returns value if the box is full, otherwise it returns the zero value
 func (box *String) GetCoerceZero() string {
 	if box.status == Full {
@@ -487,15 +442,6 @@ func (box *Time) GetCoerceNil() interface{} {
 		return box.value
 	} else {
 		return nil
-	}
-}
-
-// SetCoerceNil places v in box if v is not nil, otherwise it sets box to nilStatus
-func (box *Time) SetCoerceNil(v interface{}, nilStatus byte) {
-	if v != nil {
-		box.Set(v.(time.Time))
-	} else {
-		box.status = nilStatus
 	}
 }
 

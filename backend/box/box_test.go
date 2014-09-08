@@ -64,14 +64,6 @@ func (s *MySuite) TestGetCoerceNil(c *C) {
 	c.Check(b.GetCoerceNil(), Equals, val)
 }
 
-func (s *MySuite) TestSetCoerceNil(c *C) {
-	var b box.Time
-
-	b.SetCoerceNil(nil, box.Null)
-
-	c.Check(b.Status(), Equals, byte(box.Null))
-}
-
 func (s *MySuite) TestGetCoerceZero(c *C) {
 	var b box.Time
 	var zero time.Time
