@@ -56,7 +56,7 @@ end
 
 desc "Watch for source changes and rebuild and rerun"
 task :rerun do
-  exec "rerun -d backend -p '**/*.*' rake run"
+  exec "react2fs -dir backend rake run"
 end
 
 task spec_server: "build:binary" do

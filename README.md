@@ -42,8 +42,14 @@ For security reasons, The Pithy Reader is designed to run with a limited databas
 
 Database migrations are managed with [tern](https://github.com/jackc/tern). Install tern if you don't already have it.
 
-    go get github.com/jackc/tern
+    go get -d github.com/jackc/tern
     cd $GOPATH/src/github.com/jackc/tern
+    godep go install
+
+Automatic server rebuild and restart are managed with [react2fs](https://github.com/jackc/react2fs). Install react2fs if you don't already have it.
+
+    go get -d github.com/jackc/react2fs
+    cd $GOPATH/src/github.com/jackc/react2fs
     godep go install
 
 Go back to The Pithy Reader directory.

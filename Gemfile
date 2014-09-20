@@ -12,7 +12,6 @@ gem 'oj' # faster JS compiles
 gem 'pg'
 gem 'pry'
 gem 'rake'
-gem 'rerun'
 gem 'rspec'
 gem 'scrypt'
 gem 'selenium-webdriver'
