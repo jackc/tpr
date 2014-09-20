@@ -56,14 +56,25 @@ type FieldDescription struct {
 	AttributeNumber int16
 	DataType        Oid
 	DataTypeSize    int16
+	DataTypeName    string
 	Modifier        int32
 	FormatCode      int16
 }
 
+// PgError represents an error reported by the PostgreSQL server. See
+// http://www.postgresql.org/docs/9.3/static/protocol-error-fields.html for
+// detailed field description.
 type PgError struct {
-	Severity string
-	Code     string
-	Message  string
+	Severity       string
+	Code           string
+	Message        string
+	Detail         string
+	Hint           string
+	SchemaName     string
+	TableName      string
+	ColumnName     string
+	DataTypeName   string
+	ConstraintName string
 }
 
 func (self PgError) Error() string {
@@ -76,7 +87,7 @@ func newWriteBuf(buf []byte, t byte) *WriteBuf {
 }
 
 // WrifeBuf is used build messages to send to the PostgreSQL server. It is used
-// by the BinaryEncoder interface when implementing custom encoders.
+// by the Encoder interface when implementing custom encoders.
 type WriteBuf struct {
 	buf     []byte
 	sizeIdx int

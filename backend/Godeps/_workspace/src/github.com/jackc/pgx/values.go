@@ -1,10 +1,12 @@
 package pgx
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 	"time"
 	"unsafe"
 )
@@ -39,27 +41,32 @@ const (
 	BinaryFormatCode = 1
 )
 
-var DefaultOidFormats map[Oid]int16
+// DefaultTypeFormats maps type names to their default requested format (text
+// or binary). In theory the Scanner interface should be the one to determine
+// the format of the returned values. However, the query has already been
+// executed by the time Scan is called so it has no chance to set the format.
+// So for types that should be returned in binary th
+var DefaultTypeFormats map[string]int16
 
 func init() {
-	DefaultOidFormats = make(map[Oid]int16)
-	DefaultOidFormats[BoolOid] = BinaryFormatCode
-	DefaultOidFormats[ByteaOid] = BinaryFormatCode
-	DefaultOidFormats[Int2Oid] = BinaryFormatCode
-	DefaultOidFormats[Int4Oid] = BinaryFormatCode
-	DefaultOidFormats[Int8Oid] = BinaryFormatCode
-	DefaultOidFormats[Float4Oid] = BinaryFormatCode
-	DefaultOidFormats[Float8Oid] = BinaryFormatCode
-	DefaultOidFormats[DateOid] = BinaryFormatCode
-	DefaultOidFormats[TimestampTzOid] = BinaryFormatCode
-	DefaultOidFormats[Int2ArrayOid] = BinaryFormatCode
-	DefaultOidFormats[Int4ArrayOid] = BinaryFormatCode
-	DefaultOidFormats[Int8ArrayOid] = BinaryFormatCode
-	DefaultOidFormats[Float4ArrayOid] = BinaryFormatCode
-	DefaultOidFormats[Float8ArrayOid] = BinaryFormatCode
-	DefaultOidFormats[TextArrayOid] = BinaryFormatCode
-	DefaultOidFormats[VarcharArrayOid] = BinaryFormatCode
-	DefaultOidFormats[OidOid] = BinaryFormatCode
+	DefaultTypeFormats = make(map[string]int16)
+	DefaultTypeFormats["_float4"] = BinaryFormatCode
+	DefaultTypeFormats["_float8"] = BinaryFormatCode
+	DefaultTypeFormats["_int2"] = BinaryFormatCode
+	DefaultTypeFormats["_int4"] = BinaryFormatCode
+	DefaultTypeFormats["_int8"] = BinaryFormatCode
+	DefaultTypeFormats["_text"] = BinaryFormatCode
+	DefaultTypeFormats["_varchar"] = BinaryFormatCode
+	DefaultTypeFormats["bool"] = BinaryFormatCode
+	DefaultTypeFormats["bytea"] = BinaryFormatCode
+	DefaultTypeFormats["date"] = BinaryFormatCode
+	DefaultTypeFormats["float4"] = BinaryFormatCode
+	DefaultTypeFormats["float8"] = BinaryFormatCode
+	DefaultTypeFormats["int2"] = BinaryFormatCode
+	DefaultTypeFormats["int4"] = BinaryFormatCode
+	DefaultTypeFormats["int8"] = BinaryFormatCode
+	DefaultTypeFormats["oid"] = BinaryFormatCode
+	DefaultTypeFormats["timestamptz"] = BinaryFormatCode
 }
 
 type SerializationError string
@@ -70,9 +77,11 @@ func (e SerializationError) Error() string {
 
 // Scanner is an interface used to decode values from the PostgreSQL server.
 type Scanner interface {
-	// Scan MUST check r.Type().DataType and r.Type().FormatCode before decoding.
-	// It should not assume that it was called on a data type or format that it
-	// understands.
+	// Scan MUST check r.Type().DataType (to check by OID) or
+	// r.Type().DataTypeName (to check by name) to ensure that it is scanning an
+	// expected column type. It also MUST check r.Type().FormatCode before
+	// decoding. It should not assume that it was called on a data type or format
+	// that it understands.
 	Scan(r *ValueReader) error
 }
 
@@ -95,10 +104,9 @@ type Encoder interface {
 	FormatCode() int16
 }
 
-// NullFloat32 represents an float4 that may be null.
-// NullFloat32 implements the Scanner, TextEncoder, and BinaryEncoder interfaces
-// so it may be used both as an argument to Query[Row] and a destination for
-// Scan for prepared and unprepared queries.
+// NullFloat32 represents an float4 that may be null. NullFloat32 implements the
+// Scanner and Encoder interfaces so it may be used both as an argument to
+// Query[Row] and a destination for Scan.
 //
 // If Valid is false then the value is NULL.
 type NullFloat32 struct {
@@ -135,10 +143,9 @@ func (n NullFloat32) Encode(w *WriteBuf, oid Oid) error {
 	return encodeFloat4(w, n.Float32)
 }
 
-// NullFloat64 represents an float8 that may be null.
-// NullFloat64 implements the Scanner, TextEncoder, and BinaryEncoder interfaces
-// so it may be used both as an argument to Query[Row] and a destination for
-// Scan for prepared and unprepared queries.
+// NullFloat64 represents an float8 that may be null. NullFloat64 implements the
+// Scanner and Encoder interfaces so it may be used both as an argument to
+// Query[Row] and a destination for Scan.
 //
 // If Valid is false then the value is NULL.
 type NullFloat64 struct {
@@ -175,10 +182,9 @@ func (n NullFloat64) Encode(w *WriteBuf, oid Oid) error {
 	return encodeFloat8(w, n.Float64)
 }
 
-// NullString represents an string that may be null. NullString implements
-// the Scanner and TextEncoder interfaces so it may be used both as an
-// argument to Query[Row] and a destination for Scan for prepared and
-// unprepared queries.
+// NullString represents an string that may be null. NullString implements the
+// Scanner Encoder interfaces so it may be used both as an argument to
+// Query[Row] and a destination for Scan.
 //
 // If Valid is false then the value is NULL.
 type NullString struct {
@@ -210,10 +216,9 @@ func (s NullString) Encode(w *WriteBuf, oid Oid) error {
 	return encodeText(w, s.String)
 }
 
-// NullInt16 represents an smallint that may be null.
-// NullInt16 implements the Scanner, TextEncoder, and BinaryEncoder interfaces
-// so it may be used both as an argument to Query[Row] and a destination for
-// Scan for prepared and unprepared queries.
+// NullInt16 represents an smallint that may be null. NullInt16 implements the
+// Scanner and Encoder interfaces so it may be used both as an argument to
+// Query[Row] and a destination for Scan for prepared and unprepared queries.
 //
 // If Valid is false then the value is NULL.
 type NullInt16 struct {
@@ -250,10 +255,9 @@ func (n NullInt16) Encode(w *WriteBuf, oid Oid) error {
 	return encodeInt2(w, n.Int16)
 }
 
-// NullInt32 represents an integer that may be null.
-// NullInt32 implements the Scanner, TextEncoder, and BinaryEncoder interfaces
-// so it may be used both as an argument to Query[Row] and a destination for
-// Scan for prepared and unprepared queries.
+// NullInt32 represents an integer that may be null. NullInt32 implements the
+// Scanner and Encoder interfaces so it may be used both as an argument to
+// Query[Row] and a destination for Scan.
 //
 // If Valid is false then the value is NULL.
 type NullInt32 struct {
@@ -290,10 +294,9 @@ func (n NullInt32) Encode(w *WriteBuf, oid Oid) error {
 	return encodeInt4(w, n.Int32)
 }
 
-// NullInt64 represents an bigint that may be null.
-// NullInt64 implements the Scanner, TextEncoder, and BinaryEncoder interfaces
-// so it may be used both as an argument to Query[Row] and a destination for
-// Scan for prepared and unprepared queries.
+// NullInt64 represents an bigint that may be null. NullInt64 implements the
+// Scanner and Encoder interfaces so it may be used both as an argument to
+// Query[Row] and a destination for Scan.
 //
 // If Valid is false then the value is NULL.
 type NullInt64 struct {
@@ -330,10 +333,9 @@ func (n NullInt64) Encode(w *WriteBuf, oid Oid) error {
 	return encodeInt8(w, n.Int64)
 }
 
-// NullBool represents an bool that may be null.
-// NullBool implements the Scanner, TextEncoder, and BinaryEncoder interfaces
-// so it may be used both as an argument to Query[Row] and a destination for
-// Scan for prepared and unprepared queries.
+// NullBool represents an bool that may be null. NullBool implements the Scanner
+// and Encoder interfaces so it may be used both as an argument to Query[Row]
+// and a destination for Scan.
 //
 // If Valid is false then the value is NULL.
 type NullBool struct {
@@ -370,10 +372,9 @@ func (n NullBool) Encode(w *WriteBuf, oid Oid) error {
 	return encodeBool(w, n.Bool)
 }
 
-// NullTime represents an bigint that may be null.
-// NullTime implements the Scanner, TextEncoder, and BinaryEncoder interfaces
-// so it may be used both as an argument to Query[Row] and a destination for
-// Scan for prepared and unprepared queries.
+// NullTime represents an bigint that may be null. NullTime implements the
+// Scanner and Encoder interfaces so it may be used both as an argument to
+// Query[Row] and a destination for Scan.
 //
 // If Valid is false then the value is NULL.
 type NullTime struct {
@@ -410,6 +411,140 @@ func (n NullTime) Encode(w *WriteBuf, oid Oid) error {
 	}
 
 	return encodeTimestampTz(w, n.Time)
+}
+
+// Hstore represents an hstore column. It does not support a null column or null
+// key values (use NullHstore for this). Hstore implements the Scanner and
+// Encoder interfaces so it may be used both as an argument to Query[Row] and a
+// destination for Scan.
+type Hstore map[string]string
+
+func (h *Hstore) Scan(vr *ValueReader) error {
+	//oid for hstore not standardized, so we check its type name
+	if vr.Type().DataTypeName != "hstore" {
+		vr.Fatal(ProtocolError(fmt.Sprintf("Cannot decode type %s into Hstore", vr.Type().DataTypeName)))
+		return nil
+	}
+
+	if vr.Len() == -1 {
+		vr.Fatal(ProtocolError("Cannot decode null column into Hstore"))
+		return nil
+	}
+
+	switch vr.Type().FormatCode {
+	case TextFormatCode:
+		m, err := parseHstoreToMap(vr.ReadString(vr.Len()))
+		if err != nil {
+			vr.Fatal(ProtocolError(fmt.Sprintf("Can't decode hstore column: %v", err)))
+			return nil
+		}
+		hm := Hstore(m)
+		*h = hm
+		return nil
+	case BinaryFormatCode:
+		vr.Fatal(ProtocolError("Can't decode binary hstore"))
+		return nil
+	default:
+		vr.Fatal(ProtocolError(fmt.Sprintf("Unknown field description format code: %v", vr.Type().FormatCode)))
+		return nil
+	}
+}
+
+func (h Hstore) FormatCode() int16 { return TextFormatCode }
+
+func (h Hstore) Encode(w *WriteBuf, oid Oid) error {
+	var buf bytes.Buffer
+
+	i := 0
+	for k, v := range h {
+		i++
+		ks := strings.Replace(k, `\`, `\\`, -1)
+		ks = strings.Replace(ks, `"`, `\"`, -1)
+		vs := strings.Replace(v, `\`, `\\`, -1)
+		vs = strings.Replace(vs, `"`, `\"`, -1)
+		buf.WriteString(fmt.Sprintf(`"%s"=>"%s"`, ks, vs))
+		if i < len(h) {
+			buf.WriteString(", ")
+		}
+	}
+	w.WriteInt32(int32(buf.Len()))
+	w.WriteBytes(buf.Bytes())
+	return nil
+}
+
+// NullHstore represents an hstore column that can be null or have null values
+// associated with its keys.  NullHstore implements the Scanner and Encoder
+// interfaces so it may be used both as an argument to Query[Row] and a
+// destination for Scan.
+//
+// If Valid is false, then the value of the entire hstore column is NULL
+// If any of the NullString values in Store has Valid set to false, the key
+// appears in the hstore column, but its value is explicitly set to NULL.
+type NullHstore struct {
+	Hstore map[string]NullString
+	Valid  bool
+}
+
+func (h *NullHstore) Scan(vr *ValueReader) error {
+	//oid for hstore not standardized, so we check its type name
+	if vr.Type().DataTypeName != "hstore" {
+		vr.Fatal(ProtocolError(fmt.Sprintf("Cannot decode type %s into NullHstore", vr.Type().DataTypeName)))
+		return nil
+	}
+
+	if vr.Len() == -1 {
+		h.Valid = false
+		return nil
+	}
+
+	switch vr.Type().FormatCode {
+	case TextFormatCode:
+		store, err := parseHstoreToNullHstore(vr.ReadString(vr.Len()))
+		if err != nil {
+			vr.Fatal(ProtocolError(fmt.Sprintf("Can't decode hstore column: %v", err)))
+			return nil
+		}
+		h.Valid = true
+		h.Hstore = store
+		return nil
+	case BinaryFormatCode:
+		vr.Fatal(ProtocolError("Can't decode binary hstore"))
+		return nil
+	default:
+		vr.Fatal(ProtocolError(fmt.Sprintf("Unknown field description format code: %v", vr.Type().FormatCode)))
+		return nil
+	}
+}
+
+func (h NullHstore) FormatCode() int16 { return TextFormatCode }
+
+func (h NullHstore) Encode(w *WriteBuf, oid Oid) error {
+	var buf bytes.Buffer
+
+	if !h.Valid {
+		w.WriteInt32(-1)
+		return nil
+	}
+
+	i := 0
+	for k, v := range h.Hstore {
+		i++
+		ks := strings.Replace(k, `\`, `\\`, -1)
+		ks = strings.Replace(ks, `"`, `\"`, -1)
+		if v.Valid {
+			vs := strings.Replace(v.String, `\`, `\\`, -1)
+			vs = strings.Replace(vs, `"`, `\"`, -1)
+			buf.WriteString(fmt.Sprintf(`"%s"=>"%s"`, ks, vs))
+		} else {
+			buf.WriteString(fmt.Sprintf(`"%s"=>NULL`, ks))
+		}
+		if i < len(h.Hstore) {
+			buf.WriteString(", ")
+		}
+	}
+	w.WriteInt32(int32(buf.Len()))
+	w.WriteBytes(buf.Bytes())
+	return nil
 }
 
 func decodeBool(vr *ValueReader) bool {
@@ -1036,8 +1171,6 @@ func encodeTimestamp(w *WriteBuf, value interface{}) error {
 
 	s := t.Format("2006-01-02 15:04:05.999999")
 	return encodeText(w, s)
-
-	return nil
 }
 
 func decode1dArrayHeader(vr *ValueReader) (length int32, err error) {

@@ -3,7 +3,6 @@ package pgx
 import (
 	"errors"
 	"fmt"
-	log "gopkg.in/inconshreveable/log15.v2"
 	"time"
 )
 
@@ -50,7 +49,7 @@ type Rows struct {
 	startTime time.Time
 	sql       string
 	args      []interface{}
-	logger    log.Logger
+	logger    Logger
 }
 
 func (rows *Rows) FieldDescriptions() []FieldDescription {
@@ -71,9 +70,9 @@ func (rows *Rows) close() {
 
 	if rows.err == nil {
 		endTime := time.Now()
-		rows.logger.Info("Query", "sql", rows.sql, "args", rows.args, "time", endTime.Sub(rows.startTime), "rowCount", rows.rowCount)
+		rows.logger.Info("Query", "sql", rows.sql, "args", logQueryArgs(rows.args), "time", endTime.Sub(rows.startTime), "rowCount", rows.rowCount)
 	} else {
-		rows.logger.Error("Query", "sql", rows.sql, "args", rows.args)
+		rows.logger.Error("Query", "sql", rows.sql, "args", logQueryArgs(rows.args))
 	}
 }
 
@@ -104,10 +103,8 @@ func (rows *Rows) readUntilReadyForQuery() {
 	}
 }
 
-// Close closes the rows, making the connection ready for use again. It is not
-// usually necessary to call Close explicitly because reading all returned rows
-// with Next automatically closes Rows. It is safe to call Close after rows is
-// already closed.
+// Close closes the rows, making the connection ready for use again. It is safe
+// to call Close after rows is already closed.
 func (rows *Rows) Close() {
 	if rows.closed {
 		return
@@ -206,7 +203,7 @@ func (rows *Rows) nextColumn() (*ValueReader, bool) {
 // dest can include pointers to core types and the Scanner interface.
 func (rows *Rows) Scan(dest ...interface{}) (err error) {
 	if len(rows.fields) != len(dest) {
-		err = errors.New("Scan received wrong number of arguments")
+		err = fmt.Errorf("Scan received wrong number of arguments, got %d but expected %d", len(dest), len(rows.fields))
 		rows.Fatal(err)
 		return err
 	}
@@ -255,7 +252,6 @@ func (rows *Rows) Scan(dest ...interface{}) (err error) {
 			default:
 				rows.Fatal(fmt.Errorf("Can't convert OID %v to time.Time", vr.Type().DataType))
 			}
-
 		case Scanner:
 			err = d.Scan(vr)
 			if err != nil {
@@ -355,8 +351,7 @@ func (rows *Rows) Values() ([]interface{}, error) {
 // be returned in an error state. So it is allowed to ignore the error returned
 // from Query and handle it in *Rows.
 func (c *Conn) Query(sql string, args ...interface{}) (*Rows, error) {
-	c.rows = Rows{conn: c, startTime: time.Now(), sql: sql, args: args, logger: c.logger}
-	rows := &c.rows
+	rows := &Rows{conn: c, startTime: time.Now(), sql: sql, args: args, logger: c.logger}
 
 	ps, ok := c.preparedStatements[sql]
 	if !ok {
