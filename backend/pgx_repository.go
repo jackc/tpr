@@ -151,24 +151,24 @@ func (repo *pgxRepository) UpdateFeedWithFetchFailure(feedID int32, failure stri
 }
 
 func (repo *pgxRepository) CopySubscriptionsForUserAsJSON(w io.Writer, userID int32) error {
-	var s string
-	err := repo.pool.QueryRow("getFeedsForUser", userID).Scan(&s)
+	var b []byte
+	err := repo.pool.QueryRow("getFeedsForUser", userID).Scan(&b)
 	if err != nil {
 		return err
 	}
 
-	_, err = w.Write([]byte(s))
+	_, err = w.Write(b)
 	return err
 }
 
 func (repo *pgxRepository) CopyUnreadItemsAsJSONByUserID(w io.Writer, userID int32) error {
-	var s string
-	err := repo.pool.QueryRow("getUnreadItems", userID).Scan(&s)
+	var b []byte
+	err := repo.pool.QueryRow("getUnreadItems", userID).Scan(&b)
 	if err != nil {
 		return err
 	}
 
-	_, err = w.Write([]byte(s))
+	_, err = w.Write(b)
 	return err
 }
 

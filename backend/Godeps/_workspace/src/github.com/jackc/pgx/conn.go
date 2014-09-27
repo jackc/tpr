@@ -132,7 +132,8 @@ func Connect(config ConnConfig) (c *Conn, err error) {
 		}
 	} else {
 		c.logger.Info(fmt.Sprintf("Dialing PostgreSQL server at host: %s:%d", c.config.Host, c.config.Port))
-		c.conn, err = net.Dial("tcp", fmt.Sprintf("%s:%d", c.config.Host, c.config.Port))
+		d := net.Dialer{KeepAlive: 5 * time.Minute}
+		c.conn, err = d.Dial("tcp", fmt.Sprintf("%s:%d", c.config.Host, c.config.Port))
 		if err != nil {
 			c.logger.Error(fmt.Sprintf("Connection failed: %v", err))
 			return nil, err
@@ -348,7 +349,6 @@ func (c *Conn) Deallocate(name string) (err error) {
 
 	// flush
 	wbuf.startMsg('H')
-	wbuf.closeMsg()
 	wbuf.closeMsg()
 
 	_, err = c.conn.Write(wbuf.buf)
@@ -646,6 +646,8 @@ func (c *Conn) processContextFreeMsg(t byte, r *msgReader) (err error) {
 	case errorResponse:
 		return c.rxErrorResponse(r)
 	case noticeResponse:
+		return nil
+	case emptyQueryResponse:
 		return nil
 	case notificationResponse:
 		c.rxNotificationResponse(r)
