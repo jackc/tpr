@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jackc/tpr/backend/box"
+	"golang.org/x/net/html/charset"
 	log "gopkg.in/inconshreveable/log15.v2"
 	"io/ioutil"
 	"net/http"
@@ -262,6 +263,7 @@ func parseAtom(body []byte) (*parsedFeed, error) {
 func parseXML(body []byte, doc interface{}) error {
 	buf := bytes.NewBuffer(body)
 	decoder := xml.NewDecoder(buf)
+	decoder.CharsetReader = charset.NewReaderLabel
 
 	decoder.Entity = xml.HTMLEntity
 

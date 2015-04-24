@@ -153,6 +153,38 @@ var feedParsingTests = []struct {
 			}},
 		"",
 	},
+	{"Atom - with encoding ISO-8859-1",
+		[]byte(`<?xml version='1.0' encoding='ISO-8859-1'?>
+<feed>
+  <title>News</title>
+  <entry>
+    <title>Snow Storm</title>
+    <link href="http://example.org/snow-storm" />
+    <published>2014-01-03T22:45:00Z</published>
+  </entry>
+  <entry>
+    <title>Blizzard</title>
+    <link href="http://example.org/blizzard" />
+    <published>2014-01-04T08:15:00Z</published>
+  </entry>
+</feed>
+</xml>`),
+		&parsedFeed{
+			name: "News",
+			items: []parsedItem{
+				{
+					title:           "Snow Storm",
+					url:             "http://example.org/snow-storm",
+					publicationTime: box.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
+				},
+				{
+					title:           "Blizzard",
+					url:             "http://example.org/blizzard",
+					publicationTime: box.NewTime(time.Date(2014, 1, 4, 8, 15, 0, 0, time.UTC)),
+				},
+			}},
+		"",
+	},
 }
 
 func TestParseFeed(t *testing.T) {
