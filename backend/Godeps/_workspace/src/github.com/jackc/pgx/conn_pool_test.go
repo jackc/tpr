@@ -168,9 +168,10 @@ func TestPoolReleaseWithTransactions(t *testing.T) {
 		t.Fatalf("Unable to acquire connection: %v", err)
 	}
 	mustExec(t, conn, "begin")
-	if _, err = conn.Exec("select"); err == nil {
+	if _, err = conn.Exec("selct"); err == nil {
 		t.Fatal("Did not receive expected error")
 	}
+
 	if conn.TxStatus != 'E' {
 		t.Fatalf("Expected TxStatus to be 'E', instead it was '%c'", conn.TxStatus)
 	}
@@ -416,8 +417,12 @@ func TestConnPoolQueryConcurrentLoad(t *testing.T) {
 	pool := createConnPool(t, 10)
 	defer pool.Close()
 
-	for i := 0; i < 100; i++ {
+	n := 100
+	done := make(chan bool)
+
+	for i := 0; i < n; i++ {
 		go func() {
+			defer func() { done <- true }()
 			var rowCount int32
 
 			rows, err := pool.Query("select generate_series(1,$1)", 1000)
@@ -446,6 +451,10 @@ func TestConnPoolQueryConcurrentLoad(t *testing.T) {
 				t.Error("Select called onDataRow wrong number of times")
 			}
 		}()
+	}
+
+	for i := 0; i < n; i++ {
+		<-done
 	}
 }
 

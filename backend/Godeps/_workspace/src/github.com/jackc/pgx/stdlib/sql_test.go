@@ -1,6 +1,7 @@
 package stdlib_test
 
 import (
+	"bytes"
 	"database/sql"
 	"github.com/jackc/pgx"
 	"github.com/jackc/pgx/stdlib"
@@ -319,6 +320,63 @@ func TestConnQuery(t *testing.T) {
 	err = rows.Close()
 	if err != nil {
 		t.Fatalf("rows.Close unexpectedly failed: %v", err)
+	}
+
+	ensureConnValid(t, db)
+}
+
+func TestConnQueryNull(t *testing.T) {
+	db := openDB(t)
+	defer closeDB(t, db)
+
+	rows, err := db.Query("select $1::int", nil)
+	if err != nil {
+		t.Fatalf("db.Query unexpectedly failed: %v", err)
+	}
+
+	rowCount := int64(0)
+
+	for rows.Next() {
+		rowCount++
+
+		var n sql.NullInt64
+		if err := rows.Scan(&n); err != nil {
+			t.Fatalf("rows.Scan unexpectedly failed: %v", err)
+		}
+		if n.Valid != false {
+			t.Errorf("Expected n to be null, but it was %v", n)
+		}
+	}
+	err = rows.Err()
+	if err != nil {
+		t.Fatalf("rows.Err unexpectedly is: %v", err)
+	}
+	if rowCount != 1 {
+		t.Fatalf("Expected to receive 11 rows, instead received %d", rowCount)
+	}
+
+	err = rows.Close()
+	if err != nil {
+		t.Fatalf("rows.Close unexpectedly failed: %v", err)
+	}
+
+	ensureConnValid(t, db)
+}
+
+func TestConnQueryRowByteSlice(t *testing.T) {
+	db := openDB(t)
+	defer closeDB(t, db)
+
+	expected := []byte{222, 173, 190, 239}
+	var actual []byte
+
+	err := db.QueryRow(`select E'\\xdeadbeef'::bytea`).Scan(&actual)
+	if err != nil {
+		t.Fatalf("db.QueryRow unexpectedly failed: %v", err)
+	}
+
+	if bytes.Compare(actual, expected) != 0 {
+		t.Fatalf("Expected %v, but got %v", expected, actual)
 	}
 
 	ensureConnValid(t, db)

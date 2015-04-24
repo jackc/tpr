@@ -1,7 +1,11 @@
 package pgx_test
 
 import (
+	"fmt"
 	"github.com/jackc/pgx"
+	"net"
+	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -194,6 +198,34 @@ func TestConnectWithConnectionRefused(t *testing.T) {
 	}
 }
 
+func TestConnectCustomDialer(t *testing.T) {
+	t.Parallel()
+
+	if customDialerConnConfig == nil {
+		return
+	}
+
+	dialled := false
+	conf := *customDialerConnConfig
+	conf.Dial = func(network, address string) (net.Conn, error) {
+		dialled = true
+		return net.Dial(network, address)
+	}
+
+	conn, err := pgx.Connect(conf)
+	if err != nil {
+		t.Fatalf("Unable to establish connection: %s", err)
+	}
+	if !dialled {
+		t.Fatal("Connect did not use custom dialer")
+	}
+
+	err = conn.Close()
+	if err != nil {
+		t.Fatal("Unable to close connection")
+	}
+}
+
 func TestParseURI(t *testing.T) {
 	t.Parallel()
 
@@ -247,7 +279,56 @@ func TestParseURI(t *testing.T) {
 			continue
 		}
 
-		if connParams != tt.connParams {
+		if !reflect.DeepEqual(connParams, tt.connParams) {
+			t.Errorf("%d. expected %#v got %#v", i, tt.connParams, connParams)
+		}
+	}
+}
+
+func TestParseDSN(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		url        string
+		connParams pgx.ConnConfig
+	}{
+		{
+			url: "user=jack password=secret host=localhost port=5432 dbname=mydb",
+			connParams: pgx.ConnConfig{
+				User:     "jack",
+				Password: "secret",
+				Host:     "localhost",
+				Port:     5432,
+				Database: "mydb",
+			},
+		},
+		{
+			url: "user=jack host=localhost port=5432 dbname=mydb",
+			connParams: pgx.ConnConfig{
+				User:     "jack",
+				Host:     "localhost",
+				Port:     5432,
+				Database: "mydb",
+			},
+		},
+		{
+			url: "user=jack host=localhost dbname=mydb",
+			connParams: pgx.ConnConfig{
+				User:     "jack",
+				Host:     "localhost",
+				Database: "mydb",
+			},
+		},
+	}
+
+	for i, tt := range tests {
+		connParams, err := pgx.ParseDSN(tt.url)
+		if err != nil {
+			t.Errorf("%d. Unexpected error from pgx.ParseDSN(%q) => %v", i, tt.url, err)
+			continue
+		}
+
+		if !reflect.DeepEqual(connParams, tt.connParams) {
 			t.Errorf("%d. expected %#v got %#v", i, tt.connParams, connParams)
 		}
 	}
@@ -294,7 +375,7 @@ func TestExecFailure(t *testing.T) {
 	conn := mustConnect(t, *defaultConnConfig)
 	defer closeConn(t, conn)
 
-	if _, err := conn.Exec("select;"); err == nil {
+	if _, err := conn.Exec("selct;"); err == nil {
 		t.Fatal("Expected SQL syntax error")
 	}
 
@@ -357,7 +438,7 @@ func TestPrepare(t *testing.T) {
 	}
 }
 
-func TestPrepareFailure(t *testing.T) {
+func TestPrepareBadSQLFailure(t *testing.T) {
 	t.Parallel()
 
 	conn := mustConnect(t, *defaultConnConfig)
@@ -365,6 +446,76 @@ func TestPrepareFailure(t *testing.T) {
 
 	if _, err := conn.Prepare("badSQL", "select foo"); err == nil {
 		t.Fatal("Prepare should have failed with syntax error")
+	}
+
+	ensureConnValid(t, conn)
+}
+
+func TestPrepareQueryManyParameters(t *testing.T) {
+	t.Parallel()
+
+	conn := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, conn)
+
+	tests := []struct {
+		count   int
+		succeed bool
+	}{
+		{
+			count:   65534,
+			succeed: true,
+		},
+		{
+			count:   65535,
+			succeed: true,
+		},
+		{
+			count:   65536,
+			succeed: false,
+		},
+		{
+			count:   65537,
+			succeed: false,
+		},
+	}
+
+	for i, tt := range tests {
+		params := make([]string, 0, tt.count)
+		args := make([]interface{}, 0, tt.count)
+		for j := 0; j < tt.count; j++ {
+			params = append(params, fmt.Sprintf("($%d::text)", j+1))
+			args = append(args, strconv.FormatInt(int64(j), 10))
+		}
+
+		sql := "values" + strings.Join(params, ", ")
+
+		psName := fmt.Sprintf("manyParams%d", i)
+		_, err := conn.Prepare(psName, sql)
+		if err != nil {
+			if tt.succeed {
+				t.Errorf("%d. %v", i, err)
+			}
+			continue
+		}
+		if !tt.succeed {
+			t.Errorf("%d. Expected error but succeeded", i)
+			continue
+		}
+
+		rows, err := conn.Query(psName, args...)
+		if err != nil {
+			t.Errorf("conn.Query failed: %v", err)
+			continue
+		}
+
+		for rows.Next() {
+			var s string
+			rows.Scan(&s)
+		}
+
+		if rows.Err() != nil {
+			t.Errorf("Reading query result failed: %v", err)
+		}
 	}
 
 	ensureConnValid(t, conn)
@@ -513,5 +664,37 @@ func TestCommandTag(t *testing.T) {
 		if tt.rowsAffected != actual {
 			t.Errorf(`%d. "%s" should have affected %d rows but it was %d`, i, tt.commandTag, tt.rowsAffected, actual)
 		}
+	}
+}
+
+func TestInsertBoolArray(t *testing.T) {
+	t.Parallel()
+
+	conn := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, conn)
+
+	if results := mustExec(t, conn, "create temporary table foo(spice bool[]);"); results != "CREATE TABLE" {
+		t.Error("Unexpected results from Exec")
+	}
+
+	// Accept parameters
+	if results := mustExec(t, conn, "insert into foo(spice) values($1)", []bool{true, false, true}); results != "INSERT 0 1" {
+		t.Errorf("Unexpected results from Exec: %v", results)
+	}
+}
+
+func TestInsertTimestampArray(t *testing.T) {
+	t.Parallel()
+
+	conn := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, conn)
+
+	if results := mustExec(t, conn, "create temporary table foo(spice timestamp[]);"); results != "CREATE TABLE" {
+		t.Error("Unexpected results from Exec")
+	}
+
+	// Accept parameters
+	if results := mustExec(t, conn, "insert into foo(spice) values($1)", []time.Time{time.Unix(1419143667, 0), time.Unix(1419143672, 0)}); results != "INSERT 0 1" {
+		t.Errorf("Unexpected results from Exec: %v", results)
 	}
 }

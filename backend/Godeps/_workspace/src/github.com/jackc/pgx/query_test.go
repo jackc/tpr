@@ -395,7 +395,8 @@ func TestQueryRowCoreByteSlice(t *testing.T) {
 		expected []byte
 	}{
 		{"select $1::text", "Jack", []byte("Jack")},
-		{"select $1::varchar", "Jack", []byte("Jack")},
+		{"select $1::text", []byte("Jack"), []byte("Jack")},
+		{"select $1::varchar", []byte("Jack"), []byte("Jack")},
 		{"select $1::bytea", []byte{0, 15, 255, 17}, []byte{0, 15, 255, 17}},
 	}
 
@@ -462,7 +463,7 @@ func TestQueryRowErrors(t *testing.T) {
 		{"select $1::badtype", []interface{}{"Jack"}, []interface{}{&actual.i16}, `type "badtype" does not exist`},
 		{"SYNTAX ERROR", []interface{}{}, []interface{}{&actual.i16}, "SQLSTATE 42601"},
 		{"select $1::text", []interface{}{"Jack"}, []interface{}{&actual.i16}, "Cannot decode oid 25 into int16"},
-		{"select $1::int8range", []interface{}{int(705)}, []interface{}{&actual.s}, "Cannot encode int into oid 3926 - int must implement Encoder or be converted to a string"},
+		{"select $1::point", []interface{}{int(705)}, []interface{}{&actual.s}, "Cannot encode int into oid 600 - int must implement Encoder or be converted to a string"},
 		{"select 42::int4", []interface{}{}, []interface{}{&actual.i}, "Scan cannot decode into *int"},
 	}
 
@@ -784,4 +785,64 @@ func TestQueryRowCoreStringSlice(t *testing.T) {
 	}
 
 	ensureConnValid(t, conn)
+}
+
+func TestReadingValueAfterEmptyArray(t *testing.T) {
+	conn := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, conn)
+
+	var a []string
+	var b int32
+	err := conn.QueryRow("select '{}'::text[], 42::integer").Scan(&a, &b)
+	if err != nil {
+		t.Fatalf("conn.QueryRow failed: ", err)
+	}
+
+	if len(a) != 0 {
+		t.Errorf("Expected 'a' to have length 0, but it was: ", len(a))
+	}
+
+	if b != 42 {
+		t.Errorf("Expected 'b' to 42, but it was: ", b)
+	}
+}
+
+func TestReadingNullByteArray(t *testing.T) {
+	conn := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, conn)
+
+	var a []byte
+	err := conn.QueryRow("select null::text").Scan(&a)
+	if err != nil {
+		t.Fatalf("conn.QueryRow failed: ", err)
+	}
+
+	if a != nil {
+		t.Errorf("Expected 'a' to be nil, but it was: %v", a)
+	}
+}
+
+func TestReadingNullByteArrays(t *testing.T) {
+	conn := mustConnect(t, *defaultConnConfig)
+	defer closeConn(t, conn)
+
+	rows, err := conn.Query("select null::text union all select null::text")
+	if err != nil {
+		t.Fatalf("conn.Query failed: ", err)
+	}
+
+	count := 0
+	for rows.Next() {
+		count++
+		var a []byte
+		if err := rows.Scan(&a); err != nil {
+			t.Fatalf("failed to scan row", err)
+		}
+		if a != nil {
+			t.Errorf("Expected 'a' to be nil, but it was: %v", a)
+		}
+	}
+	if count != 2 {
+		t.Errorf("Expected to read 2 rows, read: ", count)
+	}
 }

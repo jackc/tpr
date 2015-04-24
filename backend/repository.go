@@ -2,11 +2,11 @@ package main
 
 import (
 	"bytes"
-	"code.google.com/p/go.crypto/scrypt"
 	"crypto/rand"
 	"errors"
 	"fmt"
 	"github.com/jackc/tpr/backend/box"
+	"golang.org/x/crypto/scrypt"
 	"io"
 	"time"
 )

@@ -1,12 +1,15 @@
 package log15
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net"
 	"os"
 	"reflect"
 	"sync"
+
+	"gopkg.in/inconshreveable/log15.v2/stack"
 )
 
 // A Logger prints its log records by writing to a Handler.
@@ -91,6 +94,52 @@ func (h *closingHandler) Close() error {
 	return h.WriteCloser.Close()
 }
 
+// CallerFileHandler returns a Handler that adds the line number and file of
+// the calling function to the context with key "caller".
+func CallerFileHandler(h Handler) Handler {
+	return FuncHandler(func(r *Record) error {
+		call := stack.Call(r.CallPC[0])
+		r.Ctx = append(r.Ctx, "caller", fmt.Sprint(call))
+		return h.Log(r)
+	})
+}
+
+// CallerFuncHandler returns a Handler that adds the calling function name to
+// the context with key "fn".
+func CallerFuncHandler(h Handler) Handler {
+	return FuncHandler(func(r *Record) error {
+		call := stack.Call(r.CallPC[0])
+		r.Ctx = append(r.Ctx, "fn", fmt.Sprintf("%+n", call))
+		return h.Log(r)
+	})
+}
+
+// CallerStackHandler returns a Handler that adds a stack trace to the context
+// with key "stack". The stack trace is formated as a space separated list of
+// call sites inside matching []'s. The most recent call site is listed first.
+// Each call site is formatted according to format. See the documentation of
+// log15/stack.Call.Format for the list of supported formats.
+func CallerStackHandler(format string, h Handler) Handler {
+	return FuncHandler(func(r *Record) error {
+		s := stack.Callers().
+			TrimBelow(stack.Call(r.CallPC[0])).
+			TrimRuntime()
+		if len(s) > 0 {
+			buf := &bytes.Buffer{}
+			buf.WriteByte('[')
+			for i, pc := range s {
+				if i > 0 {
+					buf.WriteByte(' ')
+				}
+				fmt.Fprintf(buf, format, pc)
+			}
+			buf.WriteByte(']')
+			r.Ctx = append(r.Ctx, "stack", buf.String())
+		}
+		return h.Log(r)
+	})
+}
+
 // FilterHandler returns a Handler that only writes records to the
 // wrapped Handler if the given function evaluates true. For example,
 // to only log records where the 'err' key is not nil:
@@ -123,11 +172,11 @@ func FilterHandler(fn func(r *Record) bool, h Handler) Handler {
 func MatchFilterHandler(key string, value interface{}, h Handler) Handler {
 	return FilterHandler(func(r *Record) (pass bool) {
 		switch key {
-		case "lvl":
+		case r.KeyNames.Lvl:
 			return r.Lvl == value
-		case "t":
+		case r.KeyNames.Time:
 			return r.Time == value
-		case "msg":
+		case r.KeyNames.Msg:
 			return r.Msg == value
 		}
 
@@ -228,26 +277,6 @@ func BufferedHandler(bufSize int, h Handler) Handler {
 	return ChannelHandler(recs)
 }
 
-// swapHandler wraps another handler that may swapped out
-// dynamically at runtime in a thread-safe fashion.
-type swapHandler struct {
-	mu      sync.RWMutex
-	handler Handler
-}
-
-func (h *swapHandler) Log(r *Record) error {
-	defer h.mu.RUnlock()
-	h.mu.RLock()
-	err := h.handler.Log(r)
-	return err
-}
-
-func (h *swapHandler) Swap(newHandler Handler) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.handler = newHandler
-}
-
 // LazyHandler writes all values to the wrapped handler after evaluating
 // any lazy functions in the record's context. It is already wrapped
 // around StreamHandler and SyslogHandler in this library, you'll only need
@@ -265,6 +294,10 @@ func LazyHandler(h Handler) Handler {
 					hadErr = true
 					r.Ctx[i] = err
 				} else {
+					if cs, ok := v.(stack.Trace); ok {
+						v = cs.TrimBelow(stack.Call(r.CallPC[0])).
+							TrimRuntime()
+					}
 					r.Ctx[i] = v
 				}
 			}

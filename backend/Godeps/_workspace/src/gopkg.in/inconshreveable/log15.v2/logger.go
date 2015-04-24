@@ -2,10 +2,13 @@ package log15
 
 import (
 	"fmt"
+	"runtime"
 	"time"
 )
 
+const timeKey = "t"
 const lvlKey = "lvl"
+const msgKey = "msg"
 const errorKey = "LOG15_ERROR"
 
 type Lvl int
@@ -57,10 +60,18 @@ func LvlFromString(lvlString string) (Lvl, error) {
 
 // A Record is what a Logger asks its handler to write
 type Record struct {
-	Time time.Time
-	Lvl  Lvl
+	Time     time.Time
+	Lvl      Lvl
+	Msg      string
+	Ctx      []interface{}
+	CallPC   [1]uintptr
+	KeyNames RecordKeyNames
+}
+
+type RecordKeyNames struct {
+	Time string
 	Msg  string
-	Ctx  []interface{}
+	Lvl  string
 }
 
 // A Logger writes key/value pairs to a Handler
@@ -85,16 +96,33 @@ type logger struct {
 }
 
 func (l *logger) write(msg string, lvl Lvl, ctx []interface{}) {
-	l.h.Log(&Record{
+	r := Record{
 		Time: time.Now(),
 		Lvl:  lvl,
 		Msg:  msg,
-		Ctx:  append(l.ctx, normalize(ctx)...),
-	})
+		Ctx:  newContext(l.ctx, ctx),
+		KeyNames: RecordKeyNames{
+			Time: timeKey,
+			Msg:  msgKey,
+			Lvl:  lvlKey,
+		},
+	}
+	runtime.Callers(3, r.CallPC[:])
+	l.h.Log(&r)
 }
 
 func (l *logger) New(ctx ...interface{}) Logger {
-	return &logger{append(l.ctx, normalize(ctx)...), l.h}
+	child := &logger{newContext(l.ctx, ctx), new(swapHandler)}
+	child.SetHandler(l.h)
+	return child
+}
+
+func newContext(prefix []interface{}, suffix []interface{}) []interface{} {
+	normalizedSuffix := normalize(suffix)
+	newCtx := make([]interface{}, len(prefix)+len(normalizedSuffix))
+	n := copy(newCtx, prefix)
+	copy(newCtx[n:], normalizedSuffix)
+	return newCtx
 }
 
 func (l *logger) Debug(msg string, ctx ...interface{}) {

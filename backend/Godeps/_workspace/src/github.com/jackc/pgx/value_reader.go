@@ -113,6 +113,11 @@ func (r *ValueReader) ReadBytes(count int32) []byte {
 		return nil
 	}
 
+	if count < 0 {
+		r.Fatal(errors.New("count must not be negative"))
+		return nil
+	}
+
 	r.valueBytesRemaining -= count
 	if r.valueBytesRemaining < 0 {
 		r.Fatal(errors.New("read past end of value"))

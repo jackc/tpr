@@ -68,6 +68,10 @@ func (rows *Rows) close() {
 
 	rows.closed = true
 
+	if rows.logger == dlogger {
+		return
+	}
+
 	if rows.err == nil {
 		endTime := time.Now()
 		rows.logger.Info("Query", "sql", rows.sql, "args", logQueryArgs(rows.args), "time", endTime.Sub(rows.startTime), "rowCount", rows.rowCount)
@@ -149,6 +153,7 @@ func (rows *Rows) Next() bool {
 
 	rows.rowCount++
 	rows.columnIdx = 0
+	rows.vr = ValueReader{}
 
 	for {
 		t, r, err := rows.conn.rxMsg()
@@ -192,6 +197,10 @@ func (rows *Rows) nextColumn() (*ValueReader, bool) {
 		return nil, false
 	}
 
+	if rows.vr.Len() > 0 {
+		rows.mr.readBytes(rows.vr.Len())
+	}
+
 	fd := &rows.fields[rows.columnIdx]
 	rows.columnIdx++
 	size := rows.mr.readInt32()
@@ -219,7 +228,11 @@ func (rows *Rows) Scan(dest ...interface{}) (err error) {
 			if vr.Type().DataType == ByteaOid {
 				*d = decodeBytea(vr)
 			} else {
-				*d = vr.ReadBytes(vr.Len())
+				if vr.Len() != -1 {
+					*d = vr.ReadBytes(vr.Len())
+				} else {
+					*d = nil
+				}
 			}
 		case *int64:
 			*d = decodeInt8(vr)
@@ -235,6 +248,8 @@ func (rows *Rows) Scan(dest ...interface{}) (err error) {
 			*d = decodeFloat4(vr)
 		case *float64:
 			*d = decodeFloat8(vr)
+		case *[]bool:
+			*d = decodeBoolArray(vr)
 		case *[]int16:
 			*d = decodeInt2Array(vr)
 		case *[]int32:
@@ -247,6 +262,8 @@ func (rows *Rows) Scan(dest ...interface{}) (err error) {
 			*d = decodeFloat8Array(vr)
 		case *[]string:
 			*d = decodeTextArray(vr)
+		case *[]time.Time:
+			*d = decodeTimestampArray(vr)
 		case *time.Time:
 			switch vr.Type().DataType {
 			case DateOid:
@@ -316,6 +333,8 @@ func (rows *Rows) Values() ([]interface{}, error) {
 				values = append(values, decodeFloat4(vr))
 			case Float8Oid:
 				values = append(values, decodeFloat8(vr))
+			case BoolArrayOid:
+				values = append(values, decodeBoolArray(vr))
 			case Int2ArrayOid:
 				values = append(values, decodeInt2Array(vr))
 			case Int4ArrayOid:
@@ -328,6 +347,8 @@ func (rows *Rows) Values() ([]interface{}, error) {
 				values = append(values, decodeFloat8Array(vr))
 			case TextArrayOid, VarcharArrayOid:
 				values = append(values, decodeTextArray(vr))
+			case TimestampArrayOid, TimestampTzArrayOid:
+				values = append(values, decodeTimestampArray(vr))
 			case DateOid:
 				values = append(values, decodeDate(vr))
 			case TimestampTzOid:
@@ -357,7 +378,8 @@ func (rows *Rows) Values() ([]interface{}, error) {
 // be returned in an error state. So it is allowed to ignore the error returned
 // from Query and handle it in *Rows.
 func (c *Conn) Query(sql string, args ...interface{}) (*Rows, error) {
-	rows := &Rows{conn: c, startTime: time.Now(), sql: sql, args: args, logger: c.logger}
+	c.lastActivityTime = time.Now()
+	rows := &Rows{conn: c, startTime: c.lastActivityTime, sql: sql, args: args, logger: c.logger}
 
 	ps, ok := c.preparedStatements[sql]
 	if !ok {

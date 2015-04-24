@@ -1,17 +1,7 @@
 {
 	"ImportPath": "github.com/jackc/tpr/backend",
-	"GoVersion": "go1.3",
+	"GoVersion": "go1.4.2",
 	"Deps": [
-		{
-			"ImportPath": "code.google.com/p/go.crypto/pbkdf2",
-			"Comment": "null-185",
-			"Rev": "6478cc9340cbbe6c04511280c5007722269108e9"
-		},
-		{
-			"ImportPath": "code.google.com/p/go.crypto/scrypt",
-			"Comment": "null-185",
-			"Rev": "6478cc9340cbbe6c04511280c5007722269108e9"
-		},
 		{
 			"ImportPath": "github.com/jackc/cli",
 			"Comment": "1.0.0-69-g2bb83f4",
@@ -19,21 +9,45 @@
 		},
 		{
 			"ImportPath": "github.com/jackc/pgx",
-			"Comment": "v2.3.0-22-g4e51ff7",
-			"Rev": "4e51ff728f70d61cd17173b1206166ea192a4441"
+			"Comment": "v2.5.0-1-g784d12c",
+			"Rev": "784d12cbbcfc11c637d8f7931dd87a3f236e5c4d"
 		},
 		{
 			"ImportPath": "github.com/jackc/quo_vadis",
 			"Rev": "d1031e8ac7381963dabd9816f6166a1f272003b7"
 		},
 		{
+			"ImportPath": "github.com/mattn/go-colorable",
+			"Rev": "d67e0b7d1797975196499f79bcc322c08b9f218b"
+		},
+		{
 			"ImportPath": "github.com/vaughan0/go-ini",
 			"Rev": "a98ad7ee00ec53921f08832bc06ecf7fd600e6a1"
 		},
 		{
+			"ImportPath": "golang.org/x/crypto/pbkdf2",
+			"Rev": "c84e1f8e3a7e322d497cd16c0e8a13c7e127baf3"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/scrypt",
+			"Rev": "c84e1f8e3a7e322d497cd16c0e8a13c7e127baf3"
+		},
+		{
+			"ImportPath": "golang.org/x/net/html",
+			"Rev": "ff8eb9a34a5cbb9941ffc6f84a19a8014c2646ad"
+		},
+		{
+			"ImportPath": "golang.org/x/text/encoding",
+			"Rev": "af4c2d73d0954e6f7ed1bd89afe33c9d347d9be5"
+		},
+		{
+			"ImportPath": "golang.org/x/text/transform",
+			"Rev": "af4c2d73d0954e6f7ed1bd89afe33c9d347d9be5"
+		},
+		{
 			"ImportPath": "gopkg.in/inconshreveable/log15.v2",
-			"Comment": "v2.2",
-			"Rev": "6496dcc0b79933520138fe7ab8bb208877c1e2cd"
+			"Comment": "v2.9",
+			"Rev": "f4b937ff5771022dceb1c0ac0397d2457fb5c357"
 		}
 	]
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -84,7 +85,7 @@ func TerminalFormat() Format {
 //
 func LogfmtFormat() Format {
 	return FormatFunc(func(r *Record) []byte {
-		common := []interface{}{"t", r.Time, "lvl", r.Lvl, "msg", r.Msg}
+		common := []interface{}{r.KeyNames.Time, r.Time, r.KeyNames.Lvl, r.Lvl, r.KeyNames.Msg, r.Msg}
 		buf := &bytes.Buffer{}
 		logfmt(buf, append(common, r.Ctx...), 0)
 		return buf.Bytes()
@@ -134,9 +135,9 @@ func JsonFormatEx(pretty, lineSeparated bool) Format {
 	return FormatFunc(func(r *Record) []byte {
 		props := make(map[string]interface{})
 
-		props["t"] = r.Time
-		props["lvl"] = r.Lvl
-		props["msg"] = r.Msg
+		props[r.KeyNames.Time] = r.Time
+		props[r.KeyNames.Lvl] = r.Lvl
+		props[r.KeyNames.Msg] = r.Msg
 
 		for i := 0; i < len(r.Ctx); i += 2 {
 			k, ok := r.Ctx[i].(string)
@@ -162,7 +163,17 @@ func JsonFormatEx(pretty, lineSeparated bool) Format {
 	})
 }
 
-func formatShared(value interface{}) interface{} {
+func formatShared(value interface{}) (result interface{}) {
+	defer func() {
+		if err := recover(); err != nil {
+			if v := reflect.ValueOf(value); v.Kind() == reflect.Ptr && v.IsNil() {
+				result = "nil"
+			} else {
+				panic(err)
+			}
+		}
+	}()
+
 	switch v := value.(type) {
 	case time.Time:
 		return v.Format(timeFormat)
