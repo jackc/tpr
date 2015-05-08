@@ -50,6 +50,40 @@ var feedParsingTests = []struct {
 			}},
 		"",
 	},
+	{"RSS - v1",
+		[]byte(`<?xml version='1.0' encoding='UTF-8'?>
+<rdf>
+  <channel>
+    <title>News</title>
+  </channel>
+  <item>
+    <title>Snow Storm</title>
+    <link>http://example.org/snow-storm</link>
+    <date>Fri, 03 Jan 2014 22:45:00 GMT</date>
+  </item>
+  <item>
+    <title>Blizzard</title>
+    <link>http://example.org/blizzard</link>
+    <date>Sat, 04 Jan 2014 08:15:00 GMT</date>
+  </item>
+</rdf>
+</xml>`),
+		&parsedFeed{
+			name: "News",
+			items: []parsedItem{
+				{
+					title:           "Snow Storm",
+					url:             "http://example.org/snow-storm",
+					publicationTime: box.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
+				},
+				{
+					title:           "Blizzard",
+					url:             "http://example.org/blizzard",
+					publicationTime: box.NewTime(time.Date(2014, 1, 4, 8, 15, 0, 0, time.UTC)),
+				},
+			}},
+		"",
+	},
 	{"RSS - Valid entities converted to UTF-8",
 		[]byte(`<?xml version='1.0' encoding='UTF-8'?>
 <rss>
@@ -295,5 +329,4 @@ func TestFetchFeed(t *testing.T) {
 	if rawFeed.etag.Status() != box.Null {
 		t.Errorf("Expected no ETag to be null but instead it was: %v", rawFeed.etag)
 	}
-
 }

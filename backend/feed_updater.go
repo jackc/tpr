@@ -188,6 +188,7 @@ func parseRSS(body []byte) (*parsedFeed, error) {
 
 	var rss struct {
 		Channel Channel `xml:"channel"`
+		Item    []Item  `xml:"item"`
 	}
 
 	err := parseXML(body, &rss)
@@ -197,8 +198,16 @@ func parseRSS(body []byte) (*parsedFeed, error) {
 
 	var feed parsedFeed
 	feed.name = rss.Channel.Title
-	feed.items = make([]parsedItem, len(rss.Channel.Item))
-	for i, item := range rss.Channel.Item {
+
+	var items []Item
+	if len(rss.Item) > 0 {
+		items = rss.Item
+	} else {
+		items = rss.Channel.Item
+	}
+
+	feed.items = make([]parsedItem, len(items))
+	for i, item := range items {
 		feed.items[i].url = item.Link
 		feed.items[i].title = item.Title
 		if item.Date != "" {
