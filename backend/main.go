@@ -16,7 +16,7 @@ import (
 	"strconv"
 )
 
-const version = "0.7.4"
+const version = "0.7.6"
 
 type httpConfig struct {
 	listenAddress string
