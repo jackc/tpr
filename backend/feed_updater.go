@@ -182,8 +182,9 @@ func parseRSS(body []byte) (*parsedFeed, error) {
 	}
 
 	type Channel struct {
-		Title string `xml:"title"`
-		Item  []Item `xml:"item"`
+		Title       string `xml:"title"`
+		Description string `xml:"description"`
+		Item        []Item `xml:"item"`
 	}
 
 	var rss struct {
@@ -197,7 +198,11 @@ func parseRSS(body []byte) (*parsedFeed, error) {
 	}
 
 	var feed parsedFeed
-	feed.name = rss.Channel.Title
+	if rss.Channel.Title != "" {
+		feed.name = rss.Channel.Title
+	} else {
+		feed.name = rss.Channel.Description
+	}
 
 	var items []Item
 	if len(rss.Item) > 0 {

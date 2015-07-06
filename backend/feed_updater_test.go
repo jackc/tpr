@@ -154,6 +154,29 @@ var feedParsingTests = []struct {
 			}},
 		"",
 	},
+	{"RSS - Empty Channel Title",
+		[]byte(`<?xml version="1.0" encoding="utf-8" ?>
+<rss>
+  <channel>
+    <title></title>
+    <description>Description instead of title</description>
+    <item>
+      <title>Snow Storm</title>
+      <link>http://example.org/snow-storm</link>
+    </item>
+  </channel>
+</rss>
+`),
+		&parsedFeed{
+			name: "Description instead of title",
+			items: []parsedItem{
+				{
+					title: "Snow Storm",
+					url:   "http://example.org/snow-storm",
+				},
+			}},
+		"",
+	},
 
 	{"Atom - Minimal",
 		[]byte(`<?xml version='1.0' encoding='UTF-8'?>
