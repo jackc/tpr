@@ -54,6 +54,12 @@ set :images_dir, 'img'
 
 set :build_dir, '../build/assets'
 
+activate :react
+
+after_configuration do
+  sprockets.append_path File.dirname(::React::Source.bundled_path_for('react.js'))
+end
+
 # Build-specific configuration
 configure :build do
   # For example, change the Compass output style for deployment

@@ -8,6 +8,7 @@ gem 'launchy'
 gem 'md2man'
 gem 'middleman'
 gem 'middleman-core'
+gem 'middleman-react'
 gem 'oj' # faster JS compiles
 gem 'pg'
 gem 'pry'

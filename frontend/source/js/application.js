@@ -18,5 +18,6 @@
 //= require views/working_notice.js
 //= require router.js
 //= require initialize.js
+//= require react
 
 
