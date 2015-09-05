@@ -1,3 +1,4 @@
+//= require react
 //= require date.js
 //= require vendor/signals.min.js
 //= require_tree ./templates
@@ -12,12 +13,12 @@
 //= require views/lost_password.js
 //= require views/reset_password.js
 //= require views/header.js
-//= require views/feeds.js
+//= require views/header.jsx
+//= require views/feeds.jsx
 //= require views/home.js
-//= require views/account.js
+//= require views/account.jsx
 //= require views/working_notice.js
-//= require router.js
+//= require router.jsx
 //= require initialize.js
-//= require react
 
 

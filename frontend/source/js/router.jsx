@@ -17,6 +17,7 @@
       home: "home",
       feeds: "feeds",
       account: "account",
+      react: "react"
     },
 
     login: function() {
@@ -50,7 +51,17 @@
         return;
       }
 
-      this.changePage(App.Views.FeedsPage);
+      if(this.currentPage) {
+        this.currentPage.remove();
+      }
+
+      var view = document.getElementById("view");
+      view.innerHTML = "";
+
+      React.render(
+        <App.Views.FeedsPage />,
+        view
+      );
     },
 
     account: function() {
@@ -59,7 +70,17 @@
         return;
       }
 
-      this.changePage(App.Views.AccountPage);
+      if(this.currentPage) {
+        this.currentPage.remove();
+      }
+
+      var view = document.getElementById("view");
+      view.innerHTML = "";
+
+      React.render(
+        <App.Views.AccountPage />,
+        view
+      );
     },
 
     changePage: function(pageClass, options) {
