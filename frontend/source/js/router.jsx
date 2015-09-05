@@ -38,7 +38,17 @@
         return;
       }
 
-      this.changePage(App.Views.HomePage);
+      if(this.currentPage) {
+        this.currentPage.remove();
+      }
+
+      var view = document.getElementById("view");
+      view.innerHTML = "";
+
+      React.render(
+        <App.Views.HomePage />,
+        view
+      );
     },
 
     register: function() {
