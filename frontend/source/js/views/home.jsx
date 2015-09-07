@@ -177,6 +177,10 @@
   })
 
   App.Views.UnreadItem = React.createClass({
+    shouldComponentUpdate: function(nextProps, nextState) {
+      return nextProps.selected !== this.props.selected
+    },
+
     render: function() {
       return (
         <li className={this.props.selected ? "selected" : ""}>
