@@ -58,30 +58,7 @@
             {
               this.state.feeds.map(function(feed, index) {
                 return (
-                  <li>
-                    <div className="name"><a href={feed.url}>{feed.name}</a></div>
-                    {(function() {
-                      if(feed.last_publication_time) {
-                        return (
-                          <div className="meta">
-                            Last published
-                            {' '}
-                            <time datetime={feed.last_publication_time.toISOString()}>{feed.last_publication_time.toTPRString()}</time>
-                          </div>
-                        )
-                      }
-                    })()}
-                    {(function() {
-                      if(feed.failure_count > 0) {
-                        return (
-                          <div className="error">{feed.last_failure}</div>
-                        )
-                      }
-                    })()}
-                    <div className="actions">
-                      <a href="#" onClick={this.unsubscribe.bind(null, feed)}>Unsubscribe</a>
-                    </div>
-                  </li>
+                  <App.Views.FeedsItem key={feed.url} feed={feed} unsubscribeFn={this.unsubscribe.bind(null, feed)} />
                 )
               }.bind(this))
             }
@@ -120,5 +97,39 @@
         }.bind(this)
       })
     }
+  })
+
+  App.Views.FeedsItem = React.createClass({
+    render: function() {
+      var feed = this.props.feed
+      var unsubscribeFn = this.props.unsubscribeFn
+
+      return (
+        <li>
+          <div className="name"><a href={feed.url}>{feed.name}</a></div>
+          {(function() {
+            if(feed.last_publication_time) {
+              return (
+                <div className="meta">
+                  Last published
+                  {' '}
+                  <time dateTime={feed.last_publication_time.toISOString()}>{feed.last_publication_time.toTPRString()}</time>
+                </div>
+              )
+            }
+          })()}
+          {(function() {
+            if(feed.failure_count > 0) {
+              return (
+                <div className="error">{feed.last_failure}</div>
+              )
+            }
+          })()}
+          <div className="actions">
+            <a href="#" onClick={unsubscribeFn}>Unsubscribe</a>
+          </div>
+        </li>
+      )
+    },
   })
 })()
