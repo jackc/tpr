@@ -46,10 +46,10 @@
 
     login: function(e) {
       e.preventDefault()
-      var form = e.currentTarget
+
       var credentials = {
-        name: form.elements.name.value,
-        password: form.elements.password.value
+        name: this.state.name,
+        password: this.state.password
       }
       conn.login(credentials, {
         succeeded: this.onLoginSuccess,

@@ -10,7 +10,7 @@
 //= require views/view.js
 //= require views/login.jsx
 //= require views/register.js
-//= require views/lost_password.js
+//= require views/lost_password.jsx
 //= require views/reset_password.js
 //= require views/header.jsx
 //= require views/feeds.jsx

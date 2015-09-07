@@ -35,7 +35,17 @@
     },
 
     lostPassword: function() {
-      this.changePage(App.Views.LostPasswordPage);
+      if(this.currentPage) {
+        this.currentPage.remove();
+      }
+
+      var view = document.getElementById("view");
+      view.innerHTML = "";
+
+      React.render(
+        <App.Views.LostPasswordPage />,
+        view
+      );
     },
 
     resetPassword: function() {
