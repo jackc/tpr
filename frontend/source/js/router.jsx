@@ -21,7 +21,17 @@
     },
 
     login: function() {
-      this.changePage(App.Views.LoginPage);
+      if(this.currentPage) {
+        this.currentPage.remove();
+      }
+
+      var view = document.getElementById("view");
+      view.innerHTML = "";
+
+      React.render(
+        <App.Views.LoginPage />,
+        view
+      );
     },
 
     lostPassword: function() {

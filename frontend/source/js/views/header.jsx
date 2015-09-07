@@ -1,7 +1,7 @@
 (function() {
   "use strict"
 
-  App.Views.LoggedInHeaderR = React.createClass({
+  App.Views.LoggedInHeader = React.createClass({
     render: function() {
       return (
         <header>

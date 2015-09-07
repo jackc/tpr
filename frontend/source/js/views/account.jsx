@@ -32,7 +32,7 @@
     render: function() {
       return (
         <div class="account">
-          <App.Views.LoggedInHeaderR />
+          <App.Views.LoggedInHeader />
           <form onSubmit={this.update}>
             <dl>
               <dt>

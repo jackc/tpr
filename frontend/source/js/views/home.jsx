@@ -43,7 +43,7 @@
     render: function() {
       return (
         <div className="home">
-          <App.Views.LoggedInHeaderR />
+          <App.Views.LoggedInHeader />
 
           <App.Views.Actions items={this.state.items} markAllReadFn={this.markAllRead} refreshFn={this.refresh} />
 
