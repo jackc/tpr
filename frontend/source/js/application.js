@@ -6,7 +6,6 @@
 //= require models/item.js
 //= require models/session.js
 //= require collections/unread_items.js
-//= require views/view.js
 //= require views/login.jsx
 //= require views/register.jsx
 //= require views/lost_password.jsx
