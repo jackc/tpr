@@ -5,6 +5,7 @@
     render: function() {
       return (
         <div>
+          <App.Views.WorkingNotice />
           <App.Views.LoggedInHeader />
           <this.props.page />
         </div>

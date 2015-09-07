@@ -185,7 +185,9 @@
           </div>
           <span className="meta">
             <span className="feedName">{this.props.item.feed_name}</span>
+            {' '}
             on
+            {' '}
             <time dateTime={this.props.item.publication_time.toISOString()} className="publication">
               {this.props.item.publication_time.toTPRString()}
             </time>
