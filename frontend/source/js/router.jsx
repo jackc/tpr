@@ -16,8 +16,7 @@
       resetPassword: "resetPassword",
       home: "home",
       feeds: "feeds",
-      account: "account",
-      react: "react"
+      account: "account"
     },
 
     login: function() {
