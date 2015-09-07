@@ -43,8 +43,6 @@
     render: function() {
       return (
         <div className="home">
-          <App.Views.LoggedInHeader />
-
           <App.Views.Actions items={this.state.items} markAllReadFn={this.markAllRead} refreshFn={this.refresh} />
 
           <ul className="unreadItems">

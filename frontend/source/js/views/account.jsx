@@ -31,8 +31,7 @@
 
     render: function() {
       return (
-        <div class="account">
-          <App.Views.LoggedInHeader />
+        <div className="account">
           <form onSubmit={this.update}>
             <dl>
               <dt>

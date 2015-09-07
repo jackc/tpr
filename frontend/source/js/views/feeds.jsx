@@ -30,8 +30,6 @@
     render: function() {
       return (
         <div className="feeds">
-          <App.Views.LoggedInHeader />
-
           <form className="subscribe" onSubmit={this.subscribe}>
             <dl>
               <dt>

@@ -1,6 +1,17 @@
 (function() {
   "use strict";
 
+  App.Views.Layout = React.createClass({
+    render: function() {
+      return (
+        <div>
+          <App.Views.LoggedInHeader />
+          <this.props.page />
+        </div>
+      );
+    }
+  })
+
   App.Router = function(options) {
     if(options) {
       this.name = options.name;
@@ -20,45 +31,15 @@
     },
 
     login: function() {
-      if(this.currentPage) {
-        this.currentPage.remove();
-      }
-
-      var view = document.getElementById("view");
-      view.innerHTML = "";
-
-      React.render(
-        <App.Views.LoginPage />,
-        view
-      );
+      this.changePage(App.Views.LoginPage)
     },
 
     lostPassword: function() {
-      if(this.currentPage) {
-        this.currentPage.remove();
-      }
-
-      var view = document.getElementById("view");
-      view.innerHTML = "";
-
-      React.render(
-        <App.Views.LostPasswordPage />,
-        view
-      );
+      this.changePage(App.Views.LostPasswordPage)
     },
 
     resetPassword: function() {
-      if(this.currentPage) {
-        this.currentPage.remove();
-      }
-
-      var view = document.getElementById("view");
-      view.innerHTML = "";
-
-      React.render(
-        <App.Views.ResetPasswordPage />,
-        view
-      );
+      this.changePage(App.Views.ResetPasswordPage)
     },
 
     home: function() {
@@ -67,31 +48,12 @@
         return;
       }
 
-      if(this.currentPage) {
-        this.currentPage.remove();
-      }
-
-      var view = document.getElementById("view");
-      view.innerHTML = "";
-
-      React.render(
-        <App.Views.HomePage />,
-        view
-      );
+      this.changePage(App.Views.HomePage)
     },
 
     register: function() {
-      if(this.currentPage) {
-        this.currentPage.remove();
-      }
-
-      var view = document.getElementById("view");
-      view.innerHTML = "";
-
-      React.render(
-        <App.Views.RegisterPage />,
-        view
-      );    },
+      this.changePage(App.Views.RegisterPage)
+    },
 
     feeds: function() {
       if(!State.Session.isAuthenticated()) {
@@ -99,17 +61,7 @@
         return;
       }
 
-      if(this.currentPage) {
-        this.currentPage.remove();
-      }
-
-      var view = document.getElementById("view");
-      view.innerHTML = "";
-
-      React.render(
-        <App.Views.FeedsPage />,
-        view
-      );
+      this.changePage(App.Views.FeedsPage)
     },
 
     account: function() {
@@ -118,28 +70,20 @@
         return;
       }
 
-      if(this.currentPage) {
-        this.currentPage.remove();
-      }
-
-      var view = document.getElementById("view");
-      view.innerHTML = "";
-
-      React.render(
-        <App.Views.AccountPage />,
-        view
-      );
+      this.changePage(App.Views.AccountPage)
     },
 
     changePage: function(pageClass, options) {
-      if(this.currentPage) {
-        this.currentPage.remove();
+      if(!this.reactApp) {
+        var el = document.getElementById("view");
+
+        this.reactApp = React.render(
+          <App.Views.Layout page={pageClass}/>,
+          el
+        );
       }
 
-      this.currentPage = new pageClass(options);
-      var view = document.getElementById("view");
-      view.innerHTML = "";
-      view.appendChild(this.currentPage.render());
+      this.reactApp.setProps({page: pageClass})
     },
 
     start: function() {
