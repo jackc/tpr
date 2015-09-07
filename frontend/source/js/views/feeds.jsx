@@ -82,7 +82,10 @@
       e.preventDefault()
       if(confirm("Are you sure you want to unsubscribe from " + feed.name + "?")) {
         conn.deleteSubscription(feed.feed_id)
-        this.fetch()
+        var feeds = this.state.feeds.slice(0)
+        var idx = feeds.indexOf(feed)
+        feeds.splice(idx, 1)
+        this.setState({feeds: feeds})
       }
     },
 
