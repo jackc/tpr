@@ -35,7 +35,7 @@
           <form className="subscribe" onSubmit={this.subscribe}>
             <dl>
               <dt>
-                <label for="feed_url">Feed URL</label>
+                <label htmlFor="feed_url">Feed URL</label>
               </dt>
               <dd><input type="text" id="feed_url" value={this.state.url} onChange={this.handleChange.bind(null, "url")} /></dd>
             </dl>
@@ -45,7 +45,7 @@
           <form className="import" onSubmit={this.import}>
             <dl>
               <dt>
-                <label for="opml_file">OPML File</label>
+                <label htmlFor="opml_file">OPML File</label>
               </dt>
               <dd><input type="file" name="file" id="opml_file" /></dd>
             </dl>

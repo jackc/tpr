@@ -36,25 +36,25 @@
           <form onSubmit={this.update}>
             <dl>
               <dt>
-                <label for="email">Email</label>
+                <label htmlFor="email">Email</label>
               </dt>
               <dd>
                 <input type="email" name="email" id="email" value={this.state.email} onChange={this.handleChange.bind(null, "email")} />
               </dd>
               <dt>
-                <label for="existingPassword">Existing Password</label>
+                <label htmlFor="existingPassword">Existing Password</label>
               </dt>
               <dd>
                 <input type="password" name="existingPassword" id="existingPassword" value={this.state.existingPassword} onChange={this.handleChange.bind(null, "existingPassword")} />
               </dd>
               <dt>
-                <label for="newPassword">New Password</label>
+                <label htmlFor="newPassword">New Password</label>
               </dt>
               <dd>
                 <input type="password" name="newPassword" id="newPassword" value={this.state.newPassword} onChange={this.handleChange.bind(null, "newPassword")} />
               </dd>
               <dt>
-                <label for="passwordConfirmation">Password Confirmation</label>
+                <label htmlFor="passwordConfirmation">Password Confirmation</label>
               </dt>
               <dd>
                 <input type="password" name="passwordConfirmation" id="passwordConfirmation" value={this.state.passwordConfirmation} onChange={this.handleChange.bind(null, "passwordConfirmation")} />

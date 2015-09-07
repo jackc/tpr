@@ -49,7 +49,17 @@
     },
 
     resetPassword: function() {
-      this.changePage(App.Views.ResetPasswordPage);
+      if(this.currentPage) {
+        this.currentPage.remove();
+      }
+
+      var view = document.getElementById("view");
+      view.innerHTML = "";
+
+      React.render(
+        <App.Views.ResetPasswordPage />,
+        view
+      );
     },
 
     home: function() {
