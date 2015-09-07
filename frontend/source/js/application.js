@@ -1,7 +1,6 @@
 //= require react
 //= require date.js
 //= require vendor/signals.min.js
-//= require_tree ./templates
 //= require namespace.js
 //= require connection.js
 //= require models/item.js
@@ -9,7 +8,7 @@
 //= require collections/unread_items.js
 //= require views/view.js
 //= require views/login.jsx
-//= require views/register.js
+//= require views/register.jsx
 //= require views/lost_password.jsx
 //= require views/reset_password.jsx
 //= require views/header.jsx

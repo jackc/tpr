@@ -82,8 +82,17 @@
     },
 
     register: function() {
-      this.changePage(App.Views.RegisterPage);
-    },
+      if(this.currentPage) {
+        this.currentPage.remove();
+      }
+
+      var view = document.getElementById("view");
+      view.innerHTML = "";
+
+      React.render(
+        <App.Views.RegisterPage />,
+        view
+      );    },
 
     feeds: function() {
       if(!State.Session.isAuthenticated()) {
