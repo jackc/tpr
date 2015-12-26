@@ -18,9 +18,6 @@
     render: function() {
       return (
         <div className="login">
-          <header>
-            <h1>The Pithy Reader</h1>
-          </header>
           <form onSubmit={this.login}>
             <dl>
               <dt>
