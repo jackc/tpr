@@ -6,7 +6,7 @@ gem 'ffaker'
 gem 'inifile'
 gem 'launchy'
 gem 'md2man'
-gem 'middleman'
+gem 'middleman', '~> 3.4.1'
 gem 'middleman-core'
 gem 'middleman-react'
 gem 'oj' # faster JS compiles
