@@ -13,10 +13,6 @@ The Pithy Reader is a simple RSS/Atom aggregator.
 
 The Pithy Reader backend is written in [Go](http://golang.org/). The frontend is built with [Middleman](http://middlemanapp.com/) which is a [Ruby](https://www.ruby-lang.org/) project. First ensure [Go](http://golang.org/) and [Ruby](https://www.ruby-lang.org/) are installed.
 
-The Pithy Reader uses [godep](https://github.com/tools/godep) to manage its dependencies. If you don't already have it installed "go get" it.
-
-    go get github.com/tools/godep
-
 Get The Pithy Reader.
 
     go get github.com/jackc/tpr/backend
@@ -42,15 +38,11 @@ For security reasons, The Pithy Reader is designed to run with a limited databas
 
 Database migrations are managed with [tern](https://github.com/jackc/tern). Install tern if you don't already have it.
 
-    go get -d github.com/jackc/tern
-    cd $GOPATH/src/github.com/jackc/tern
-    godep go install
+    go get -u github.com/jackc/tern
 
 Automatic server rebuild and restart are managed with [react2fs](https://github.com/jackc/react2fs). Install react2fs if you don't already have it.
 
-    go get -d github.com/jackc/react2fs
-    cd $GOPATH/src/github.com/jackc/react2fs
-    godep go install
+    go get -u github.com/jackc/react2fs
 
 Go back to The Pithy Reader directory.
 
