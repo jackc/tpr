@@ -659,7 +659,7 @@ func TestPgxRepositoryResetPasswordsLifeCycle(t *testing.T) {
 	input := &PasswordReset{
 		Token:       box.NewString("token"),
 		Email:       box.NewString("test@example.com"),
-		RequestIP:   box.NewString("127.0.0.1"),
+		RequestIP:   box.NewString("127.0.0.1/32"),
 		RequestTime: box.NewTime(time.Date(2014, time.May, 30, 16, 10, 0, 0, time.Local)),
 	}
 	err := repo.CreatePasswordReset(input)
@@ -691,7 +691,7 @@ func TestPgxRepositoryResetPasswordsLifeCycle(t *testing.T) {
 	}
 
 	update := &PasswordReset{
-		CompletionIP:   box.NewString("192.168.0.2"),
+		CompletionIP:   box.NewString("192.168.0.2/32"),
 		CompletionTime: box.NewTime(time.Date(2014, time.May, 30, 16, 15, 0, 0, time.Local)),
 	}
 

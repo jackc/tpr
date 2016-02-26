@@ -17,8 +17,10 @@ type ConnPool struct {
 	cond                 *sync.Cond
 	config               ConnConfig // config used when establishing connection
 	maxConnections       int
+	resetCount           int
 	afterConnect         func(*Conn) error
 	logger               Logger
+	logLevel             int
 	closed               bool
 }
 
@@ -37,15 +39,21 @@ func NewConnPool(config ConnPoolConfig) (p *ConnPool, err error) {
 	if p.maxConnections == 0 {
 		p.maxConnections = 5
 	}
-	if p.maxConnections < 2 {
-		return nil, errors.New("MaxConnections must be at least 2")
+	if p.maxConnections < 1 {
+		return nil, errors.New("MaxConnections must be at least 1")
 	}
 
 	p.afterConnect = config.AfterConnect
-	if config.Logger != nil {
-		p.logger = config.Logger
+
+	if config.LogLevel != 0 {
+		p.logLevel = config.LogLevel
 	} else {
-		p.logger = &discardLogger{}
+		// Preserve pre-LogLevel behavior by defaulting to LogLevelDebug
+		p.logLevel = LogLevelDebug
+	}
+	p.logger = config.Logger
+	if p.logger == nil {
+		p.logLevel = LogLevelNone
 	}
 
 	p.allConnections = make([]*Conn, 0, p.maxConnections)
@@ -76,6 +84,7 @@ func (p *ConnPool) Acquire() (c *Conn, err error) {
 	// A connection is available
 	if len(p.availableConnections) > 0 {
 		c = p.availableConnections[len(p.availableConnections)-1]
+		c.poolResetCount = p.resetCount
 		p.availableConnections = p.availableConnections[:len(p.availableConnections)-1]
 		return
 	}
@@ -86,19 +95,23 @@ func (p *ConnPool) Acquire() (c *Conn, err error) {
 		if err != nil {
 			return
 		}
+		c.poolResetCount = p.resetCount
 		p.allConnections = append(p.allConnections, c)
 		return
 	}
 
 	// All connections are in use and we cannot create more
 	if len(p.availableConnections) == 0 {
-		p.logger.Warn("All connections in pool are busy - waiting...")
+		if p.logLevel >= LogLevelWarn {
+			p.logger.Warn("All connections in pool are busy - waiting...")
+		}
 		for len(p.availableConnections) == 0 {
 			p.cond.Wait()
 		}
 	}
 
 	c = p.availableConnections[len(p.availableConnections)-1]
+	c.poolResetCount = p.resetCount
 	p.availableConnections = p.availableConnections[:len(p.availableConnections)-1]
 
 	return
@@ -110,7 +123,23 @@ func (p *ConnPool) Release(conn *Conn) {
 		conn.Exec("rollback")
 	}
 
+	if len(conn.channels) > 0 {
+		if err := conn.Unlisten("*"); err != nil {
+			conn.die(err)
+		}
+		conn.channels = make(map[string]struct{})
+	}
+	conn.notifications = nil
+
 	p.cond.L.Lock()
+
+	if conn.poolResetCount != p.resetCount {
+		conn.Close()
+		p.cond.L.Unlock()
+		p.cond.Signal()
+		return
+	}
+
 	if conn.IsAlive() {
 		p.availableConnections = append(p.availableConnections, conn)
 	} else {
@@ -146,6 +175,21 @@ func (p *ConnPool) Close() {
 	for _, c := range p.allConnections {
 		_ = c.Close()
 	}
+}
+
+// Reset closes all open connections, but leaves the pool open. It is intended
+// for use when an error is detected that would disrupt all connections (such as
+// a network interruption or a server state change).
+//
+// It is safe to reset a pool while connections are checked out. Those
+// connections will be closed when they are returned to the pool.
+func (p *ConnPool) Reset() {
+	p.cond.L.Lock()
+	defer p.cond.L.Unlock()
+
+	p.resetCount++
+	p.allConnections = make([]*Conn, 0, p.maxConnections)
+	p.availableConnections = make([]*Conn, 0, p.maxConnections)
 }
 
 // Stat returns connection pool statistics
@@ -199,7 +243,8 @@ func (p *ConnPool) Query(sql string, args ...interface{}) (*Rows, error) {
 		return rows, err
 	}
 
-	rows.pool = p
+	rows.AfterClose(p.rowsAfterClose)
+
 	return rows, nil
 }
 
@@ -214,34 +259,44 @@ func (p *ConnPool) QueryRow(sql string, args ...interface{}) *Row {
 // Begin acquires a connection and begins a transaction on it. When the
 // transaction is closed the connection will be automatically released.
 func (p *ConnPool) Begin() (*Tx, error) {
-	c, err := p.Acquire()
-	if err != nil {
-		return nil, err
-	}
-
-	tx, err := c.Begin()
-	if err != nil {
-		return nil, err
-	}
-
-	tx.pool = p
-	return tx, nil
+	return p.BeginIso("")
 }
 
 // BeginIso acquires a connection and begins a transaction in isolation mode iso
 // on it. When the transaction is closed the connection will be automatically
 // released.
 func (p *ConnPool) BeginIso(iso string) (*Tx, error) {
-	c, err := p.Acquire()
-	if err != nil {
-		return nil, err
-	}
+	for {
+		c, err := p.Acquire()
+		if err != nil {
+			return nil, err
+		}
 
-	tx, err := c.BeginIso(iso)
-	if err != nil {
-		return nil, err
-	}
+		tx, err := c.BeginIso(iso)
+		if err != nil {
+			alive := c.IsAlive()
+			p.Release(c)
 
-	tx.pool = p
-	return tx, nil
+			// If connection is still alive then the error is not something trying
+			// again on a new connection would fix, so just return the error. But
+			// if the connection is dead try to acquire a new connection and try
+			// again.
+			if alive {
+				return nil, err
+			} else {
+				continue
+			}
+		}
+
+		tx.AfterClose(p.txAfterClose)
+		return tx, nil
+	}
+}
+
+func (p *ConnPool) txAfterClose(tx *Tx) {
+	p.Release(tx.Conn())
+}
+
+func (p *ConnPool) rowsAfterClose(rows *Rows) {
+	p.Release(rows.Conn())
 }

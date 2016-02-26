@@ -282,7 +282,7 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 			userEmail:  "test@example.com",
 			reqEmail:   "other@example.com",
 			remoteAddr: "192.168.0.1:54678",
-			remoteHost: "192.168.0.1",
+			remoteHost: "192.168.0.1/32",
 		},
 		{
 			descr:      "Email matches user",
@@ -290,7 +290,7 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 			userEmail:  "test@example.com",
 			reqEmail:   "test@example.com",
 			remoteAddr: "192.168.0.1:54678",
-			remoteHost: "192.168.0.1",
+			remoteHost: "192.168.0.1/32",
 			sentMailTo: "test@example.com",
 		},
 	}

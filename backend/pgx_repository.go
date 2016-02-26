@@ -582,7 +582,7 @@ func afterConnect(conn *pgx.Conn) (err error) {
 	}
 
 	_, err = conn.Prepare("getPasswordReset", `
-    select token, email, request_ip, request_time, user_id, completion_ip, completion_time
+    select token, email, request_ip::text, request_time, user_id, completion_ip::text, completion_time
     from password_resets
     where token=$1`)
 	if err != nil {
