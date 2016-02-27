@@ -111,6 +111,19 @@ form {
   }
 }
 
+@media (max-width: 700px) {
+  .pageActions {
+    .button {
+      display: block;
+      text-align: center;
+    }
+
+    .keyboardShortcuts {
+      display: none;
+    }
+  }
+}
+
 a {
   color: $dark-contrast-color;
   text-decoration: none;
@@ -149,7 +162,7 @@ input[type=submit] {
 #view .login, #view .register, #view .lostPassword {
   form {
     margin: 1em auto 0 auto;
-    width: 400px;
+    max-width: 400px;
     padding: 1em;
     background-color: $light-contrast-color;
     border-radius: 8px;
