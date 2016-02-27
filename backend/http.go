@@ -397,10 +397,10 @@ func ExportFeedsHandler(w http.ResponseWriter, req *http.Request, env *environme
 
 	for _, s := range subs {
 		doc.Body.Outlines = append(doc.Body.Outlines, OpmlOutline{
-			Text:  s.Name.MustGet(),
-			Title: s.Name.MustGet(),
+			Text:  s.Name.Value,
+			Title: s.Name.Value,
 			Type:  "rss",
-			URL:   s.URL.MustGet(),
+			URL:   s.URL.Value,
 		})
 	}
 

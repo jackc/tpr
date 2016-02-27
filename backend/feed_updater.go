@@ -5,7 +5,6 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"github.com/jackc/tpr/backend/box"
 	"github.com/jackc/tpr/backend/data"
 	"golang.org/x/net/html/charset"
 	log "gopkg.in/inconshreveable/log15.v2"
@@ -139,7 +138,7 @@ func (u *FeedUpdater) RefreshFeed(staleFeed data.Feed) {
 type parsedItem struct {
 	url             string
 	title           string
-	publicationTime box.Time
+	publicationTime data.Time
 }
 
 func (i *parsedItem) isValid() bool {
@@ -286,7 +285,7 @@ func parseXML(body []byte, doc interface{}) error {
 }
 
 // Try multiple time formats one after another until one works or all fail
-func parseTime(value string) (bt box.Time, err error) {
+func parseTime(value string) (data.Time, error) {
 	formats := []string{
 		"2006-01-02T15:04:05-07:00",
 		"2006-01-02T15:04:05Z",
@@ -301,10 +300,9 @@ func parseTime(value string) (bt box.Time, err error) {
 	for _, f := range formats {
 		t, err := time.Parse(f, value)
 		if err == nil {
-			bt.Set(t)
-			return bt, nil
+			return data.NewTime(t), nil
 		}
 	}
 
-	return bt, errors.New("Unable to parse time")
+	return data.Time{}, errors.New("Unable to parse time")
 }

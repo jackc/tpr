@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/jackc/tpr/backend/box"
 	"github.com/jackc/tpr/backend/data"
 	"net"
 	"testing"
@@ -371,10 +370,10 @@ func TestPgxRepositoryUpdateFeedWithFetchSuccess(t *testing.T) {
 	if len(subscriptions) != 1 {
 		t.Fatalf("Found %d subscriptions, expected 1", len(subscriptions))
 	}
-	feedID := subscriptions[0].FeedID.MustGet()
+	feedID := subscriptions[0].FeedID.Value
 
 	update := &parsedFeed{name: "baz", items: []parsedItem{
-		{url: "http://baz/bar", title: "Baz", publicationTime: box.NewTime(now)},
+		{url: "http://baz/bar", title: "Baz", publicationTime: data.NewTime(now)},
 	}}
 
 	nullString := data.String{Status: data.Null}
@@ -449,7 +448,7 @@ func TestPgxRepositoryUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testin
 	if len(subscriptions) != 1 {
 		t.Fatalf("Found %d subscriptions, expected 1", len(subscriptions))
 	}
-	feedID := subscriptions[0].FeedID.MustGet()
+	feedID := subscriptions[0].FeedID.Value
 
 	update := &parsedFeed{name: "baz", items: []parsedItem{
 		{url: "http://baz/bar", title: "Baz"},
@@ -523,8 +522,8 @@ func TestPgxRepositorySubscriptions(t *testing.T) {
 	if len(subscriptions) != 1 {
 		t.Fatalf("Found %d subscriptions, expected 1", len(subscriptions))
 	}
-	if subscriptions[0].URL.MustGet() != url {
-		t.Fatalf("Expected %v, got %v", url, subscriptions[0].URL.MustGet())
+	if subscriptions[0].URL.Value != url {
+		t.Fatalf("Expected %v, got %v", url, subscriptions[0].URL)
 	}
 }
 
@@ -548,10 +547,10 @@ func TestPgxRepositoryDeleteSubscription(t *testing.T) {
 	if len(subscriptions) != 1 {
 		t.Fatalf("Found %d subscriptions, expected 1", len(subscriptions))
 	}
-	feedID := subscriptions[0].FeedID.MustGet()
+	feedID := subscriptions[0].FeedID.Value
 
 	update := &parsedFeed{name: "baz", items: []parsedItem{
-		{url: "http://baz/bar", title: "Baz", publicationTime: box.NewTime(time.Now())},
+		{url: "http://baz/bar", title: "Baz", publicationTime: data.NewTime(time.Now())},
 	}}
 
 	nullString := data.String{Status: data.Null}

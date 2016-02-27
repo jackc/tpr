@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"github.com/jackc/tpr/backend/box"
 	"github.com/jackc/tpr/backend/data"
 	"golang.org/x/crypto/scrypt"
 	"io"
@@ -80,15 +79,15 @@ func IsPassword(u *data.User, password string) bool {
 }
 
 type Subscription struct {
-	FeedID              box.Int32
-	Name                box.String
-	URL                 box.String
-	LastFetchTime       box.Time
-	LastFailure         box.String
-	LastFailureTime     box.Time
-	FailureCount        box.Int32
-	ItemCount           box.Int64
-	LastPublicationTime box.Time
+	FeedID              data.Int32
+	Name                data.String
+	URL                 data.String
+	LastFetchTime       data.Time
+	LastFailure         data.String
+	LastFailureTime     data.Time
+	FailureCount        data.Int32
+	ItemCount           data.Int64
+	LastPublicationTime data.Time
 }
 
 type staleFeed struct {

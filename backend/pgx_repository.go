@@ -281,7 +281,11 @@ func (repo *pgxRepository) buildNewItemsSQL(feedID int32, items []parsedItem) (s
 		buf.WriteString(strconv.FormatInt(int64(len(args)), 10))
 
 		buf.WriteString(",$")
-		args = append(args, item.publicationTime.GetCoerceNil())
+		if item.publicationTime.Status == data.Present {
+			args = append(args, item.publicationTime.Value)
+		} else {
+			args = append(args, nil)
+		}
 		buf.WriteString(strconv.FormatInt(int64(len(args)), 10))
 		buf.WriteString("::timestamptz)")
 	}
