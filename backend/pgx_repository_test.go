@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/jackc/tpr/backend/box"
 	"github.com/jackc/tpr/backend/data"
+	"net"
 	"testing"
 	"time"
 )
@@ -654,70 +655,72 @@ func TestPgxRepositorySessions(t *testing.T) {
 func TestPgxRepositoryResetPasswordsLifeCycle(t *testing.T) {
 	repo := newRepository(t)
 
-	input := &PasswordReset{
-		Token:       box.NewString("token"),
-		Email:       box.NewString("test@example.com"),
-		RequestIP:   box.NewString("127.0.0.1/32"),
-		RequestTime: box.NewTime(time.Date(2014, time.May, 30, 16, 10, 0, 0, time.Local)),
+	_, localhost, _ := net.ParseCIDR("127.0.0.1/32")
+	input := &data.PasswordReset{
+		Token:       data.String{Value: "token", Status: data.Present},
+		Email:       data.String{Value: "test@example.com", Status: data.Present},
+		RequestIP:   data.IPNet{Value: *localhost, Status: data.Present},
+		RequestTime: data.Time{Value: time.Date(2014, time.May, 30, 16, 10, 0, 0, time.Local), Status: data.Present},
 	}
 	err := repo.CreatePasswordReset(input)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	reset, err := repo.GetPasswordReset(input.Token.MustGet())
+	reset, err := repo.GetPasswordReset(input.Token.Value)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reset.Token.GetCoerceNil() != input.Token.GetCoerceNil() {
-		t.Errorf("Expected %v, got %v", input.Token.GetCoerceNil(), reset.Token.GetCoerceNil())
+	if reset.Token != input.Token {
+		t.Errorf("Expected %v, got %v", input.Token, reset.Token)
 	}
-	if reset.Email.GetCoerceNil() != input.Email.GetCoerceNil() {
-		t.Errorf("Expected %v, got %v", input.Email.GetCoerceNil(), reset.Email.GetCoerceNil())
+	if reset.Email != input.Email {
+		t.Errorf("Expected %v, got %v", input.Email, reset.Email)
 	}
-	if reset.RequestIP.GetCoerceNil() != input.RequestIP.GetCoerceNil() {
-		t.Errorf("Expected %v, got %v", input.RequestIP.GetCoerceNil(), reset.RequestIP.GetCoerceNil())
+	if reset.RequestIP.Value.String() != input.RequestIP.Value.String() {
+		t.Errorf("Expected %v, got %v", input.RequestIP, reset.RequestIP)
 	}
-	if reset.RequestTime.GetCoerceNil() != input.RequestTime.GetCoerceNil() {
-		t.Errorf("Expected %v, got %v", input.RequestTime.GetCoerceNil(), reset.RequestTime.GetCoerceNil())
+	if reset.RequestTime != input.RequestTime {
+		t.Errorf("Expected %v, got %v", input.RequestTime, reset.RequestTime)
 	}
-	if v, present := reset.CompletionTime.Get(); present {
-		t.Errorf("CompletionTime should have been empty, but contained %v", v)
+	if reset.CompletionTime.Status != data.Null {
+		t.Errorf("CompletionTime should have been empty, but contained %v", reset.CompletionTime)
 	}
-	if v, present := reset.CompletionIP.Get(); present {
-		t.Errorf("CompletionIP should have been empty, but contained %v", v)
-	}
-
-	update := &PasswordReset{
-		CompletionIP:   box.NewString("192.168.0.2/32"),
-		CompletionTime: box.NewTime(time.Date(2014, time.May, 30, 16, 15, 0, 0, time.Local)),
+	if reset.CompletionIP.Status != data.Null {
+		t.Errorf("CompletionIP should have been empty, but contained %v", reset.CompletionIP)
 	}
 
-	err = repo.UpdatePasswordReset(input.Token.MustGet(), update)
+	_, ipnet, _ := net.ParseCIDR("192.168.0.2/32")
+	update := &data.PasswordReset{
+		CompletionIP:   data.IPNet{Value: *ipnet, Status: data.Present},
+		CompletionTime: data.Time{Value: time.Date(2014, time.May, 30, 16, 15, 0, 0, time.Local), Status: data.Present},
+	}
+
+	err = repo.UpdatePasswordReset(input.Token.Value, update)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	reset, err = repo.GetPasswordReset(input.Token.MustGet())
+	reset, err = repo.GetPasswordReset(input.Token.Value)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reset.Token.GetCoerceNil() != input.Token.GetCoerceNil() {
-		t.Errorf("Expected %v, got %v", input.Token.GetCoerceNil(), reset.Token.GetCoerceNil())
+	if reset.Token != input.Token {
+		t.Errorf("Expected %v, got %v", input.Token, reset.Token)
 	}
-	if reset.Email.GetCoerceNil() != input.Email.GetCoerceNil() {
-		t.Errorf("Expected %v, got %v", input.Email.GetCoerceNil(), reset.Email.GetCoerceNil())
+	if reset.Email != input.Email {
+		t.Errorf("Expected %v, got %v", input.Email, reset.Email)
 	}
-	if reset.RequestIP.GetCoerceNil() != input.RequestIP.GetCoerceNil() {
-		t.Errorf("Expected %v, got %v", input.RequestIP.GetCoerceNil(), reset.RequestIP.GetCoerceNil())
+	if reset.RequestIP.Value.String() != input.RequestIP.Value.String() {
+		t.Errorf("Expected %v, got %v", input.RequestIP, reset.RequestIP)
 	}
-	if reset.RequestTime.GetCoerceNil() != input.RequestTime.GetCoerceNil() {
-		t.Errorf("Expected %v, got %v", input.RequestTime.GetCoerceNil(), reset.RequestTime.GetCoerceNil())
+	if reset.RequestTime != input.RequestTime {
+		t.Errorf("Expected %v, got %v", input.RequestTime, reset.RequestTime)
 	}
-	if reset.CompletionIP.GetCoerceNil() != update.CompletionIP.GetCoerceNil() {
-		t.Errorf("Expected %v, got %v", update.CompletionIP.GetCoerceNil(), reset.CompletionIP.GetCoerceNil())
+	if reset.CompletionIP.Value.String() != update.CompletionIP.Value.String() {
+		t.Errorf("Expected %v, got %v", update.CompletionIP, reset.CompletionIP)
 	}
-	if reset.CompletionTime.GetCoerceNil() != update.CompletionTime.GetCoerceNil() {
-		t.Errorf("Expected %v, got %v", update.CompletionTime.GetCoerceNil(), reset.CompletionTime.GetCoerceNil())
+	if reset.CompletionTime != update.CompletionTime {
+		t.Errorf("Expected %v, got %v", update.CompletionTime, reset.CompletionTime)
 	}
 }

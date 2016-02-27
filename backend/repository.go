@@ -33,9 +33,9 @@ type repository interface {
 	DeleteSession(id []byte) (err error)
 	GetUserBySessionID(id []byte) (*data.User, error)
 
-	CreatePasswordReset(*PasswordReset) error
-	GetPasswordReset(token string) (*PasswordReset, error)
-	UpdatePasswordReset(string, *PasswordReset) error
+	CreatePasswordReset(*data.PasswordReset) error
+	GetPasswordReset(token string) (*data.PasswordReset, error)
+	UpdatePasswordReset(string, *data.PasswordReset) error
 
 	GetFeedsUncheckedSince(since time.Time) (feeds []data.Feed, err error)
 	UpdateFeedWithFetchSuccess(feedID int32, update *parsedFeed, etag data.String, fetchTime time.Time) error
@@ -89,16 +89,6 @@ type Subscription struct {
 	FailureCount        box.Int32
 	ItemCount           box.Int64
 	LastPublicationTime box.Time
-}
-
-type PasswordReset struct {
-	Token          box.String
-	Email          box.String
-	RequestIP      box.String
-	RequestTime    box.Time
-	UserID         box.Int32
-	CompletionIP   box.String
-	CompletionTime box.Time
 }
 
 type staleFeed struct {

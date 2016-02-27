@@ -20,3 +20,8 @@ struct_name = "Feed"
   [[tables.columns]]
   column_name = "etag"
   field_name = "ETag"
+
+[[tables]]
+table_name = "password_resets"
+struct_name = "PasswordReset"
+primary_key = ["token"]

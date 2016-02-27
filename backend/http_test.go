@@ -3,10 +3,10 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/jackc/tpr/backend/box"
 	"github.com/jackc/tpr/backend/data"
 	"github.com/vaughan0/go-ini"
 	log "gopkg.in/inconshreveable/log15.v2"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -343,16 +343,16 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 			continue
 		}
 
-		if pwr.Email.GetCoerceNil() != tt.reqEmail {
-			t.Errorf("%s: PasswordReset.Email should be %s, but instead is %v", tt.descr, tt.reqEmail, pwr.Email.MustGet())
+		if pwr.Email.Value != tt.reqEmail {
+			t.Errorf("%s: PasswordReset.Email should be %s, but instead is %v", tt.descr, tt.reqEmail, pwr.Email)
 		}
-		if pwr.RequestIP.GetCoerceNil() != tt.remoteHost {
+		if pwr.RequestIP.Value.String() != tt.remoteHost {
 			t.Errorf("%s: PasswordReset.RequestIP should be %s, but instead is %v", tt.descr, tt.remoteHost, pwr.RequestIP)
 		}
-		if tt.reqEmail == tt.userEmail && userID != pwr.UserID.GetCoerceNil() {
+		if tt.reqEmail == tt.userEmail && userID != pwr.UserID.Value {
 			t.Errorf("%s: PasswordReset.UserID should be %d, but instead is %v", tt.descr, userID, pwr.UserID)
 		}
-		if tt.reqEmail != tt.userEmail && pwr.UserID.GetCoerceNil() != nil {
+		if tt.reqEmail != tt.userEmail && pwr.UserID.Status != data.Null {
 			t.Errorf("%s: PasswordReset.UserID should be nil, but instead is %v", tt.descr, pwr.UserID)
 		}
 
@@ -372,7 +372,7 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 		if sentMails[0].to != tt.sentMailTo {
 			t.Errorf("%s: Expected to send reset mail to %s, instead sent it to %d", tt.descr, tt.sentMailTo, sentMails[0].to)
 		}
-		if sentMails[0].token != pwr.Token.GetCoerceNil() {
+		if sentMails[0].token != pwr.Token.Value {
 			t.Errorf("%s: Reset mail (%v) and password reset (%v) do not have the same token", tt.descr, sentMails[0].token, pwr.Token)
 		}
 	}
@@ -391,12 +391,13 @@ func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
 		t.Fatalf("repo.CreateUser returned error: %v", err)
 	}
 
-	pwr := &PasswordReset{
-		Token:       box.NewString("0123456789abcdef"),
-		Email:       box.NewString("test@example.com"),
-		UserID:      box.NewInt32(userID),
-		RequestTime: box.NewTime(time.Now()),
-		RequestIP:   box.NewString("127.0.0.1"),
+	_, requestIP, _ := net.ParseCIDR("127.0.0.1/32")
+	pwr := &data.PasswordReset{
+		Token:       data.String{Value: "0123456789abcdef", Status: data.Present},
+		Email:       data.String{Value: "test@example.com", Status: data.Present},
+		UserID:      data.Int32{Value: userID, Status: data.Present},
+		RequestTime: data.Time{Value: time.Now(), Status: data.Present},
+		RequestIP:   data.IPNet{Value: *requestIP, Status: data.Present},
 	}
 
 	err = repo.CreatePasswordReset(pwr)
@@ -452,14 +453,15 @@ func TestResetPasswordHandlerTokenMatchestUsedPasswordReset(t *testing.T) {
 		t.Fatalf("repo.CreateUser returned error: %v", err)
 	}
 
-	pwr := &PasswordReset{
-		Token:          box.NewString("0123456789abcdef"),
-		Email:          box.NewString("test@example.com"),
-		UserID:         box.NewInt32(userID),
-		RequestTime:    box.NewTime(time.Now()),
-		RequestIP:      box.NewString("127.0.0.1"),
-		CompletionTime: box.NewTime(time.Now()),
-		CompletionIP:   box.NewString("127.0.0.1"),
+	_, localhost, _ := net.ParseCIDR("127.0.0.1/32")
+	pwr := &data.PasswordReset{
+		Token:          data.String{Value: "0123456789abcdef", Status: data.Present},
+		Email:          data.String{Value: "test@example.com", Status: data.Present},
+		UserID:         data.Int32{Value: userID, Status: data.Present},
+		RequestTime:    data.Time{Value: time.Now(), Status: data.Present},
+		RequestIP:      data.IPNet{Value: *localhost, Status: data.Present},
+		CompletionTime: data.Time{Value: time.Now(), Status: data.Present},
+		CompletionIP:   data.IPNet{Value: *localhost, Status: data.Present},
 	}
 
 	err = repo.CreatePasswordReset(pwr)
@@ -495,11 +497,12 @@ func TestResetPasswordHandlerTokenMatchestUsedPasswordReset(t *testing.T) {
 func TestResetPasswordHandlerTokenMatchestInvalidPasswordReset(t *testing.T) {
 	repo := newRepository(t)
 
-	pwr := &PasswordReset{
-		Token:       box.NewString("0123456789abcdef"),
-		Email:       box.NewString("test@example.com"),
-		RequestTime: box.NewTime(time.Now()),
-		RequestIP:   box.NewString("127.0.0.1"),
+	_, localhost, _ := net.ParseCIDR("127.0.0.1/32")
+	pwr := &data.PasswordReset{
+		Token:       data.String{Value: "0123456789abcdef", Status: data.Present},
+		Email:       data.String{Value: "test@example.com", Status: data.Present},
+		RequestTime: data.Time{Value: time.Now(), Status: data.Present},
+		RequestIP:   data.IPNet{Value: *localhost, Status: data.Present},
 	}
 
 	err := repo.CreatePasswordReset(pwr)

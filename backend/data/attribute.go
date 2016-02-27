@@ -2,704 +2,697 @@
 package data
 
 import (
-  "encoding/json"
-  "errors"
-  "fmt"
-  "net"
-  "strconv"
-  "time"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
+	"strconv"
+	"time"
 
-  "github.com/jackc/pgx"
+	"github.com/jackc/pgx"
 )
 
 type Status byte
 
 const (
-  Undefined Status = iota
-  Null
-  Present
+	Undefined Status = iota
+	Null
+	Present
 )
 
 func (s Status) String() string {
-  switch s {
-  case Undefined:
-    return "Undefined"
-  case Null:
-    return "Null"
-  case Present:
-    return "Present"
-  }
+	switch s {
+	case Undefined:
+		return "Undefined"
+	case Null:
+		return "Null"
+	case Present:
+		return "Present"
+	}
 
-  return "Invalid status"
+	return "Invalid status"
 }
 
-
 type Bool struct {
-  Value  bool
-  Status Status
+	Value  bool
+	Status Status
 }
 
 func (attr *Bool) String() string {
-  if attr.Status == Present {
-    return fmt.Sprintf("%v", attr.Value)
-  }
-  return attr.Status.String()
+	if attr.Status == Present {
+		return fmt.Sprintf("%v", attr.Value)
+	}
+	return attr.Status.String()
 }
 
 func (attr *Bool) addUpdate(columnName string, sets *[]string, args *pgx.QueryArgs) {
-  switch attr.Status {
-    case Present, Null:
-      *sets = append(*sets, columnName+"="+args.Append(attr))
-  }
+	switch attr.Status {
+	case Present, Null:
+		*sets = append(*sets, columnName+"="+args.Append(attr))
+	}
 }
 
 func (attr *Bool) addInsert(columnName string, sets, values *[]string, args *pgx.QueryArgs) {
-  switch attr.Status {
-    case Present, Null:
-      *sets = append(*sets, columnName)
-      *values = append(*values, args.Append(attr))
-  }
+	switch attr.Status {
+	case Present, Null:
+		*sets = append(*sets, columnName)
+		*values = append(*values, args.Append(attr))
+	}
 }
 
 func (attr *Bool) FormatCode() int16 {
-  return pgx.BinaryFormatCode
+	return pgx.BinaryFormatCode
 }
 
 type Int16 struct {
-  Value  int16
-  Status Status
+	Value  int16
+	Status Status
 }
 
 func (attr *Int16) String() string {
-  if attr.Status == Present {
-    return fmt.Sprintf("%v", attr.Value)
-  }
-  return attr.Status.String()
+	if attr.Status == Present {
+		return fmt.Sprintf("%v", attr.Value)
+	}
+	return attr.Status.String()
 }
 
 func (attr *Int16) addUpdate(columnName string, sets *[]string, args *pgx.QueryArgs) {
-  switch attr.Status {
-    case Present, Null:
-      *sets = append(*sets, columnName+"="+args.Append(attr))
-  }
+	switch attr.Status {
+	case Present, Null:
+		*sets = append(*sets, columnName+"="+args.Append(attr))
+	}
 }
 
 func (attr *Int16) addInsert(columnName string, sets, values *[]string, args *pgx.QueryArgs) {
-  switch attr.Status {
-    case Present, Null:
-      *sets = append(*sets, columnName)
-      *values = append(*values, args.Append(attr))
-  }
+	switch attr.Status {
+	case Present, Null:
+		*sets = append(*sets, columnName)
+		*values = append(*values, args.Append(attr))
+	}
 }
 
 func (attr *Int16) FormatCode() int16 {
-  return pgx.BinaryFormatCode
+	return pgx.BinaryFormatCode
 }
 
 type Int32 struct {
-  Value  int32
-  Status Status
+	Value  int32
+	Status Status
 }
 
 func (attr *Int32) String() string {
-  if attr.Status == Present {
-    return fmt.Sprintf("%v", attr.Value)
-  }
-  return attr.Status.String()
+	if attr.Status == Present {
+		return fmt.Sprintf("%v", attr.Value)
+	}
+	return attr.Status.String()
 }
 
 func (attr *Int32) addUpdate(columnName string, sets *[]string, args *pgx.QueryArgs) {
-  switch attr.Status {
-    case Present, Null:
-      *sets = append(*sets, columnName+"="+args.Append(attr))
-  }
+	switch attr.Status {
+	case Present, Null:
+		*sets = append(*sets, columnName+"="+args.Append(attr))
+	}
 }
 
 func (attr *Int32) addInsert(columnName string, sets, values *[]string, args *pgx.QueryArgs) {
-  switch attr.Status {
-    case Present, Null:
-      *sets = append(*sets, columnName)
-      *values = append(*values, args.Append(attr))
-  }
+	switch attr.Status {
+	case Present, Null:
+		*sets = append(*sets, columnName)
+		*values = append(*values, args.Append(attr))
+	}
 }
 
 func (attr *Int32) FormatCode() int16 {
-  return pgx.BinaryFormatCode
+	return pgx.BinaryFormatCode
 }
 
 type Int64 struct {
-  Value  int64
-  Status Status
+	Value  int64
+	Status Status
 }
 
 func (attr *Int64) String() string {
-  if attr.Status == Present {
-    return fmt.Sprintf("%v", attr.Value)
-  }
-  return attr.Status.String()
+	if attr.Status == Present {
+		return fmt.Sprintf("%v", attr.Value)
+	}
+	return attr.Status.String()
 }
 
 func (attr *Int64) addUpdate(columnName string, sets *[]string, args *pgx.QueryArgs) {
-  switch attr.Status {
-    case Present, Null:
-      *sets = append(*sets, columnName+"="+args.Append(attr))
-  }
+	switch attr.Status {
+	case Present, Null:
+		*sets = append(*sets, columnName+"="+args.Append(attr))
+	}
 }
 
 func (attr *Int64) addInsert(columnName string, sets, values *[]string, args *pgx.QueryArgs) {
-  switch attr.Status {
-    case Present, Null:
-      *sets = append(*sets, columnName)
-      *values = append(*values, args.Append(attr))
-  }
+	switch attr.Status {
+	case Present, Null:
+		*sets = append(*sets, columnName)
+		*values = append(*values, args.Append(attr))
+	}
 }
 
 func (attr *Int64) FormatCode() int16 {
-  return pgx.BinaryFormatCode
+	return pgx.BinaryFormatCode
 }
 
 type String struct {
-  Value  string
-  Status Status
+	Value  string
+	Status Status
 }
 
 func (attr *String) String() string {
-  if attr.Status == Present {
-    return fmt.Sprintf("%v", attr.Value)
-  }
-  return attr.Status.String()
+	if attr.Status == Present {
+		return fmt.Sprintf("%v", attr.Value)
+	}
+	return attr.Status.String()
 }
 
 func (attr *String) addUpdate(columnName string, sets *[]string, args *pgx.QueryArgs) {
-  switch attr.Status {
-    case Present, Null:
-      *sets = append(*sets, columnName+"="+args.Append(attr))
-  }
+	switch attr.Status {
+	case Present, Null:
+		*sets = append(*sets, columnName+"="+args.Append(attr))
+	}
 }
 
 func (attr *String) addInsert(columnName string, sets, values *[]string, args *pgx.QueryArgs) {
-  switch attr.Status {
-    case Present, Null:
-      *sets = append(*sets, columnName)
-      *values = append(*values, args.Append(attr))
-  }
+	switch attr.Status {
+	case Present, Null:
+		*sets = append(*sets, columnName)
+		*values = append(*values, args.Append(attr))
+	}
 }
 
 func (attr *String) FormatCode() int16 {
-  return pgx.TextFormatCode
+	return pgx.TextFormatCode
 }
 
 type Time struct {
-  Value  time.Time
-  Status Status
+	Value  time.Time
+	Status Status
 }
 
 func (attr *Time) String() string {
-  if attr.Status == Present {
-    return fmt.Sprintf("%v", attr.Value)
-  }
-  return attr.Status.String()
+	if attr.Status == Present {
+		return fmt.Sprintf("%v", attr.Value)
+	}
+	return attr.Status.String()
 }
 
 func (attr *Time) addUpdate(columnName string, sets *[]string, args *pgx.QueryArgs) {
-  switch attr.Status {
-    case Present, Null:
-      *sets = append(*sets, columnName+"="+args.Append(attr))
-  }
+	switch attr.Status {
+	case Present, Null:
+		*sets = append(*sets, columnName+"="+args.Append(attr))
+	}
 }
 
 func (attr *Time) addInsert(columnName string, sets, values *[]string, args *pgx.QueryArgs) {
-  switch attr.Status {
-    case Present, Null:
-      *sets = append(*sets, columnName)
-      *values = append(*values, args.Append(attr))
-  }
+	switch attr.Status {
+	case Present, Null:
+		*sets = append(*sets, columnName)
+		*values = append(*values, args.Append(attr))
+	}
 }
 
 func (attr *Time) FormatCode() int16 {
-  return pgx.BinaryFormatCode
+	return pgx.BinaryFormatCode
 }
 
 type IPNet struct {
-  Value  net.IPNet
-  Status Status
+	Value  net.IPNet
+	Status Status
 }
 
 func (attr *IPNet) String() string {
-  if attr.Status == Present {
-    return fmt.Sprintf("%v", attr.Value)
-  }
-  return attr.Status.String()
+	if attr.Status == Present {
+		return fmt.Sprintf("%v", attr.Value)
+	}
+	return attr.Status.String()
 }
 
 func (attr *IPNet) addUpdate(columnName string, sets *[]string, args *pgx.QueryArgs) {
-  switch attr.Status {
-    case Present, Null:
-      *sets = append(*sets, columnName+"="+args.Append(attr))
-  }
+	switch attr.Status {
+	case Present, Null:
+		*sets = append(*sets, columnName+"="+args.Append(attr))
+	}
 }
 
 func (attr *IPNet) addInsert(columnName string, sets, values *[]string, args *pgx.QueryArgs) {
-  switch attr.Status {
-    case Present, Null:
-      *sets = append(*sets, columnName)
-      *values = append(*values, args.Append(attr))
-  }
+	switch attr.Status {
+	case Present, Null:
+		*sets = append(*sets, columnName)
+		*values = append(*values, args.Append(attr))
+	}
 }
 
 func (attr *IPNet) FormatCode() int16 {
-  return pgx.BinaryFormatCode
+	return pgx.BinaryFormatCode
 }
 
-
 func (attr *Bool) Scan(vr *pgx.ValueReader) error {
-  if vr.Type().DataType != pgx.BoolOid {
-    return pgx.SerializationError(fmt.Sprintf("Bool.Scan cannot decode OID %d", vr.Type().DataType))
-  }
+	if vr.Type().DataType != pgx.BoolOid {
+		return pgx.SerializationError(fmt.Sprintf("Bool.Scan cannot decode OID %d", vr.Type().DataType))
+	}
 
-  if vr.Len() == -1 {
-    attr.Value = false
-    attr.Status = Null
-    return nil
-  }
+	if vr.Len() == -1 {
+		attr.Value = false
+		attr.Status = Null
+		return nil
+	}
 
-  err := pgx.Decode(vr, &attr.Value)
-  if err != nil {
-    return err
-  }
-  attr.Status = Present
+	err := pgx.Decode(vr, &attr.Value)
+	if err != nil {
+		return err
+	}
+	attr.Status = Present
 
-  return vr.Err()
+	return vr.Err()
 }
 
 func (attr *Bool) Encode(w *pgx.WriteBuf, oid pgx.Oid) error {
-  if oid != pgx.BoolOid {
-    return pgx.SerializationError(fmt.Sprintf("Bool.Encode cannot encode into OID %d", oid))
-  }
+	if oid != pgx.BoolOid {
+		return pgx.SerializationError(fmt.Sprintf("Bool.Encode cannot encode into OID %d", oid))
+	}
 
-  switch attr.Status {
-  case Present:
-    return pgx.Encode(w, oid, attr.Value)
-  case Null:
-    w.WriteInt32(-1)
-    return nil
-  case Undefined:
-    return errors.New("cannot encode undefined attr")
-  default:
-    panic("unreachable")
-  }
+	switch attr.Status {
+	case Present:
+		return pgx.Encode(w, oid, attr.Value)
+	case Null:
+		w.WriteInt32(-1)
+		return nil
+	case Undefined:
+		return errors.New("cannot encode undefined attr")
+	default:
+		panic("unreachable")
+	}
 }
 
 func (attr *Int16) Scan(vr *pgx.ValueReader) error {
-  if vr.Type().DataType != pgx.Int2Oid {
-    return pgx.SerializationError(fmt.Sprintf("Int16.Scan cannot decode OID %d", vr.Type().DataType))
-  }
+	if vr.Type().DataType != pgx.Int2Oid {
+		return pgx.SerializationError(fmt.Sprintf("Int16.Scan cannot decode OID %d", vr.Type().DataType))
+	}
 
-  if vr.Len() == -1 {
-    attr.Value = 0
-    attr.Status = Null
-    return nil
-  }
+	if vr.Len() == -1 {
+		attr.Value = 0
+		attr.Status = Null
+		return nil
+	}
 
-  err := pgx.Decode(vr, &attr.Value)
-  if err != nil {
-    return err
-  }
-  attr.Status = Present
+	err := pgx.Decode(vr, &attr.Value)
+	if err != nil {
+		return err
+	}
+	attr.Status = Present
 
-  return vr.Err()
+	return vr.Err()
 }
 
 func (attr *Int16) Encode(w *pgx.WriteBuf, oid pgx.Oid) error {
-  if oid != pgx.Int2Oid {
-    return pgx.SerializationError(fmt.Sprintf("Int16.Encode cannot encode into OID %d", oid))
-  }
+	if oid != pgx.Int2Oid {
+		return pgx.SerializationError(fmt.Sprintf("Int16.Encode cannot encode into OID %d", oid))
+	}
 
-  switch attr.Status {
-  case Present:
-    return pgx.Encode(w, oid, attr.Value)
-  case Null:
-    w.WriteInt32(-1)
-    return nil
-  case Undefined:
-    return errors.New("cannot encode undefined attr")
-  default:
-    panic("unreachable")
-  }
+	switch attr.Status {
+	case Present:
+		return pgx.Encode(w, oid, attr.Value)
+	case Null:
+		w.WriteInt32(-1)
+		return nil
+	case Undefined:
+		return errors.New("cannot encode undefined attr")
+	default:
+		panic("unreachable")
+	}
 }
 
 func (attr *Int32) Scan(vr *pgx.ValueReader) error {
-  if vr.Type().DataType != pgx.Int4Oid {
-    return pgx.SerializationError(fmt.Sprintf("Int32.Scan cannot decode OID %d", vr.Type().DataType))
-  }
+	if vr.Type().DataType != pgx.Int4Oid {
+		return pgx.SerializationError(fmt.Sprintf("Int32.Scan cannot decode OID %d", vr.Type().DataType))
+	}
 
-  if vr.Len() == -1 {
-    attr.Value = 0
-    attr.Status = Null
-    return nil
-  }
+	if vr.Len() == -1 {
+		attr.Value = 0
+		attr.Status = Null
+		return nil
+	}
 
-  err := pgx.Decode(vr, &attr.Value)
-  if err != nil {
-    return err
-  }
-  attr.Status = Present
+	err := pgx.Decode(vr, &attr.Value)
+	if err != nil {
+		return err
+	}
+	attr.Status = Present
 
-  return vr.Err()
+	return vr.Err()
 }
 
 func (attr *Int32) Encode(w *pgx.WriteBuf, oid pgx.Oid) error {
-  if oid != pgx.Int4Oid {
-    return pgx.SerializationError(fmt.Sprintf("Int32.Encode cannot encode into OID %d", oid))
-  }
+	if oid != pgx.Int4Oid {
+		return pgx.SerializationError(fmt.Sprintf("Int32.Encode cannot encode into OID %d", oid))
+	}
 
-  switch attr.Status {
-  case Present:
-    return pgx.Encode(w, oid, attr.Value)
-  case Null:
-    w.WriteInt32(-1)
-    return nil
-  case Undefined:
-    return errors.New("cannot encode undefined attr")
-  default:
-    panic("unreachable")
-  }
+	switch attr.Status {
+	case Present:
+		return pgx.Encode(w, oid, attr.Value)
+	case Null:
+		w.WriteInt32(-1)
+		return nil
+	case Undefined:
+		return errors.New("cannot encode undefined attr")
+	default:
+		panic("unreachable")
+	}
 }
 
 func (attr *Int64) Scan(vr *pgx.ValueReader) error {
-  if vr.Type().DataType != pgx.Int8Oid {
-    return pgx.SerializationError(fmt.Sprintf("Int64.Scan cannot decode OID %d", vr.Type().DataType))
-  }
+	if vr.Type().DataType != pgx.Int8Oid {
+		return pgx.SerializationError(fmt.Sprintf("Int64.Scan cannot decode OID %d", vr.Type().DataType))
+	}
 
-  if vr.Len() == -1 {
-    attr.Value = 0
-    attr.Status = Null
-    return nil
-  }
+	if vr.Len() == -1 {
+		attr.Value = 0
+		attr.Status = Null
+		return nil
+	}
 
-  err := pgx.Decode(vr, &attr.Value)
-  if err != nil {
-    return err
-  }
-  attr.Status = Present
+	err := pgx.Decode(vr, &attr.Value)
+	if err != nil {
+		return err
+	}
+	attr.Status = Present
 
-  return vr.Err()
+	return vr.Err()
 }
 
 func (attr *Int64) Encode(w *pgx.WriteBuf, oid pgx.Oid) error {
-  if oid != pgx.Int8Oid {
-    return pgx.SerializationError(fmt.Sprintf("Int64.Encode cannot encode into OID %d", oid))
-  }
+	if oid != pgx.Int8Oid {
+		return pgx.SerializationError(fmt.Sprintf("Int64.Encode cannot encode into OID %d", oid))
+	}
 
-  switch attr.Status {
-  case Present:
-    return pgx.Encode(w, oid, attr.Value)
-  case Null:
-    w.WriteInt32(-1)
-    return nil
-  case Undefined:
-    return errors.New("cannot encode undefined attr")
-  default:
-    panic("unreachable")
-  }
+	switch attr.Status {
+	case Present:
+		return pgx.Encode(w, oid, attr.Value)
+	case Null:
+		w.WriteInt32(-1)
+		return nil
+	case Undefined:
+		return errors.New("cannot encode undefined attr")
+	default:
+		panic("unreachable")
+	}
 }
 
 func (attr *String) Scan(vr *pgx.ValueReader) error {
-  if vr.Len() == -1 {
-    attr.Value = ""
-    attr.Status = Null
-    return nil
-  }
+	if vr.Len() == -1 {
+		attr.Value = ""
+		attr.Status = Null
+		return nil
+	}
 
-  err := pgx.Decode(vr, &attr.Value)
-  if err != nil {
-    return err
-  }
-  attr.Status = Present
+	err := pgx.Decode(vr, &attr.Value)
+	if err != nil {
+		return err
+	}
+	attr.Status = Present
 
-  return vr.Err()
+	return vr.Err()
 }
 
 func (attr *String) Encode(w *pgx.WriteBuf, oid pgx.Oid) error {
-  switch attr.Status {
-  case Present:
-    return pgx.Encode(w, oid, attr.Value)
-  case Null:
-    w.WriteInt32(-1)
-    return nil
-  case Undefined:
-    return errors.New("cannot encode undefined attr")
-  default:
-    panic("unreachable")
-  }
+	switch attr.Status {
+	case Present:
+		return pgx.Encode(w, oid, attr.Value)
+	case Null:
+		w.WriteInt32(-1)
+		return nil
+	case Undefined:
+		return errors.New("cannot encode undefined attr")
+	default:
+		panic("unreachable")
+	}
 }
 
 func (attr *Time) Scan(vr *pgx.ValueReader) error {
-  oid := vr.Type().DataType
-  if oid != pgx.TimestampTzOid && oid != pgx.TimestampOid && oid != pgx.DateOid {
-    return pgx.SerializationError(fmt.Sprintf("Time.Scan cannot decode OID %d", vr.Type().DataType))
-  }
+	oid := vr.Type().DataType
+	if oid != pgx.TimestampTzOid && oid != pgx.TimestampOid && oid != pgx.DateOid {
+		return pgx.SerializationError(fmt.Sprintf("Time.Scan cannot decode OID %d", vr.Type().DataType))
+	}
 
-  if vr.Len() == -1 {
-    attr.Value = time.Time{}
-    attr.Status = Null
-    return nil
-  }
+	if vr.Len() == -1 {
+		attr.Value = time.Time{}
+		attr.Status = Null
+		return nil
+	}
 
-  err := pgx.Decode(vr, &attr.Value)
-  if err != nil {
-    return err
-  }
-  attr.Status = Present
+	err := pgx.Decode(vr, &attr.Value)
+	if err != nil {
+		return err
+	}
+	attr.Status = Present
 
-  return vr.Err()
+	return vr.Err()
 }
 
 func (attr *Time) Encode(w *pgx.WriteBuf, oid pgx.Oid) error {
-  if oid != pgx.TimestampTzOid && oid != pgx.TimestampOid && oid != pgx.DateOid {
-    return pgx.SerializationError(fmt.Sprintf("Time.Encode cannot encode into OID %d", oid))
-  }
+	if oid != pgx.TimestampTzOid && oid != pgx.TimestampOid && oid != pgx.DateOid {
+		return pgx.SerializationError(fmt.Sprintf("Time.Encode cannot encode into OID %d", oid))
+	}
 
-  switch attr.Status {
-  case Present:
-    return pgx.Encode(w, oid, attr.Value)
-  case Null:
-    w.WriteInt32(-1)
-    return nil
-  case Undefined:
-    return errors.New("cannot encode undefined attr")
-  default:
-    panic("unreachable")
-  }
+	switch attr.Status {
+	case Present:
+		return pgx.Encode(w, oid, attr.Value)
+	case Null:
+		w.WriteInt32(-1)
+		return nil
+	case Undefined:
+		return errors.New("cannot encode undefined attr")
+	default:
+		panic("unreachable")
+	}
 }
 
 func (attr *IPNet) Scan(vr *pgx.ValueReader) error {
-  oid := vr.Type().DataType
-  if oid != pgx.InetOid && oid != pgx.CidrOid {
-    return pgx.SerializationError(fmt.Sprintf("IPNet.Scan cannot decode OID %d", vr.Type().DataType))
-  }
+	oid := vr.Type().DataType
+	if oid != pgx.InetOid && oid != pgx.CidrOid {
+		return pgx.SerializationError(fmt.Sprintf("IPNet.Scan cannot decode OID %d", vr.Type().DataType))
+	}
 
-  if vr.Len() == -1 {
-    attr.Value = net.IPNet{}
-    attr.Status = Null
-    return nil
-  }
+	if vr.Len() == -1 {
+		attr.Value = net.IPNet{}
+		attr.Status = Null
+		return nil
+	}
 
-  attr.Status = Present
-  err := pgx.Decode(vr, &attr.Value)
-  if err != nil {
-    return err
-  }
+	attr.Status = Present
+	err := pgx.Decode(vr, &attr.Value)
+	if err != nil {
+		return err
+	}
 
-  return vr.Err()
+	return vr.Err()
 }
 
 func (attr *IPNet) Encode(w *pgx.WriteBuf, oid pgx.Oid) error {
-  if oid != pgx.InetOid && oid != pgx.CidrOid {
-    return pgx.SerializationError(fmt.Sprintf("IPNet.Encode cannot encode into OID %d", oid))
-  }
+	if oid != pgx.InetOid && oid != pgx.CidrOid {
+		return pgx.SerializationError(fmt.Sprintf("IPNet.Encode cannot encode into OID %d", oid))
+	}
 
-  switch attr.Status {
-  case Present:
-    return pgx.Encode(w, oid, attr.Value)
-  case Null:
-    w.WriteInt32(-1)
-    return nil
-  case Undefined:
-    return errors.New("cannot encode undefined attr")
-  default:
-    panic("unreachable")
-  }
+	switch attr.Status {
+	case Present:
+		return pgx.Encode(w, oid, attr.Value)
+	case Null:
+		w.WriteInt32(-1)
+		return nil
+	case Undefined:
+		return errors.New("cannot encode undefined attr")
+	default:
+		panic("unreachable")
+	}
 }
 
 type Bytes struct {
-  Value  []byte
-  Status Status
+	Value  []byte
+	Status Status
 }
 
 func (attr *Bytes) addUpdate(columnName string, sets *[]string, args *pgx.QueryArgs) {
-  switch attr.Status {
-    case Present:
-      *sets = append(*sets, columnName+"="+args.Append(attr.Value))
-    case Null:
-      *sets = append(*sets, columnName+"="+args.Append(nil))
-  }
+	switch attr.Status {
+	case Present:
+		*sets = append(*sets, columnName+"="+args.Append(attr.Value))
+	case Null:
+		*sets = append(*sets, columnName+"="+args.Append(nil))
+	}
 }
 
 func (attr *Bytes) addInsert(columnName string, sets, values *[]string, args *pgx.QueryArgs) {
-  switch attr.Status {
-    case Present:
-      *sets = append(*sets, columnName)
-      *values = append(*values, args.Append(attr.Value))
-    case Null:
-      *sets = append(*sets, columnName)
-      *values = append(*values, args.Append(nil))
-  }
+	switch attr.Status {
+	case Present:
+		*sets = append(*sets, columnName)
+		*values = append(*values, args.Append(attr.Value))
+	case Null:
+		*sets = append(*sets, columnName)
+		*values = append(*values, args.Append(nil))
+	}
 }
 
 func (attr *Bytes) Scan(vr *pgx.ValueReader) error {
-  if vr.Len() == -1 {
-    attr.Value = nil
-    attr.Status = Null
-    return nil
-  }
+	if vr.Len() == -1 {
+		attr.Value = nil
+		attr.Status = Null
+		return nil
+	}
 
-  attr.Value = vr.ReadBytes(vr.Len())
-  attr.Status = Present
-  return vr.Err()
+	attr.Value = vr.ReadBytes(vr.Len())
+	attr.Status = Present
+	return vr.Err()
 }
 
-
 func (attr Bytes) FormatCode() int16 {
-  return pgx.BinaryFormatCode
+	return pgx.BinaryFormatCode
 }
 
 func (attr Bytes) Encode(w *pgx.WriteBuf, oid pgx.Oid) error {
-  if oid != pgx.ByteaOid {
-    return pgx.SerializationError(fmt.Sprintf("Bytes.Encode cannot encode into OID %d", oid))
-  }
+	if oid != pgx.ByteaOid {
+		return pgx.SerializationError(fmt.Sprintf("Bytes.Encode cannot encode into OID %d", oid))
+	}
 
-  if attr.Status != Present {
-    w.WriteInt32(-1)
-    return nil
-  }
+	if attr.Status != Present {
+		w.WriteInt32(-1)
+		return nil
+	}
 
-  w.WriteBytes(attr.Value)
-  return nil
+	w.WriteBytes(attr.Value)
+	return nil
 }
 
-
 func (attr Bool) MarshalJSON() ([]byte, error) {
-  if attr.Status != Present {
-    return []byte("null"), nil
-  }
-  if attr.Value {
-    return []byte("true"), nil
-  }
-  return []byte("false"), nil
+	if attr.Status != Present {
+		return []byte("null"), nil
+	}
+	if attr.Value {
+		return []byte("true"), nil
+	}
+	return []byte("false"), nil
 }
 
 func (attr *Bool) UnmarshalJSON(bval []byte) error {
-  sval := string(bval)
+	sval := string(bval)
 
-  switch sval {
-  case "true":
-    attr.Value = true
-    attr.Status = Present
-  case "false":
-    attr.Value = false
-    attr.Status = Present
-  case "null":
-    attr.Status = Null
-  default:
-    return errors.New("unknown Bool value")
-  }
+	switch sval {
+	case "true":
+		attr.Value = true
+		attr.Status = Present
+	case "false":
+		attr.Value = false
+		attr.Status = Present
+	case "null":
+		attr.Status = Null
+	default:
+		return errors.New("unknown Bool value")
+	}
 
-  return nil
+	return nil
 }
 
-
-
 func (attr Int16) MarshalJSON() ([]byte, error) {
-  if attr.Status != Present {
-    return []byte("null"), nil
-  }
-  return []byte(strconv.FormatInt(int64(attr.Value), 10)), nil
+	if attr.Status != Present {
+		return []byte("null"), nil
+	}
+	return []byte(strconv.FormatInt(int64(attr.Value), 10)), nil
 }
 
 func (attr *Int16) UnmarshalJSON(bval []byte) error {
-  sval := string(bval)
+	sval := string(bval)
 
-  if sval == "null" {
-    attr.Status = Null
-    return nil
-  }
+	if sval == "null" {
+		attr.Status = Null
+		return nil
+	}
 
-  nval, err := strconv.ParseInt(sval, 10, 16)
-  if err != nil {
-    return err
-  }
+	nval, err := strconv.ParseInt(sval, 10, 16)
+	if err != nil {
+		return err
+	}
 
-  attr.Value = int16(nval)
-  attr.Status = Present
+	attr.Value = int16(nval)
+	attr.Status = Present
 
-  return nil
+	return nil
 }
 
 func (attr Int32) MarshalJSON() ([]byte, error) {
-  if attr.Status != Present {
-    return []byte("null"), nil
-  }
-  return []byte(strconv.FormatInt(int64(attr.Value), 10)), nil
+	if attr.Status != Present {
+		return []byte("null"), nil
+	}
+	return []byte(strconv.FormatInt(int64(attr.Value), 10)), nil
 }
 
 func (attr *Int32) UnmarshalJSON(bval []byte) error {
-  sval := string(bval)
+	sval := string(bval)
 
-  if sval == "null" {
-    attr.Status = Null
-    return nil
-  }
+	if sval == "null" {
+		attr.Status = Null
+		return nil
+	}
 
-  nval, err := strconv.ParseInt(sval, 10, 32)
-  if err != nil {
-    return err
-  }
+	nval, err := strconv.ParseInt(sval, 10, 32)
+	if err != nil {
+		return err
+	}
 
-  attr.Value = int32(nval)
-  attr.Status = Present
+	attr.Value = int32(nval)
+	attr.Status = Present
 
-  return nil
+	return nil
 }
 
 func (attr Int64) MarshalJSON() ([]byte, error) {
-  if attr.Status != Present {
-    return []byte("null"), nil
-  }
-  return []byte(strconv.FormatInt(int64(attr.Value), 10)), nil
+	if attr.Status != Present {
+		return []byte("null"), nil
+	}
+	return []byte(strconv.FormatInt(int64(attr.Value), 10)), nil
 }
 
 func (attr *Int64) UnmarshalJSON(bval []byte) error {
-  sval := string(bval)
+	sval := string(bval)
 
-  if sval == "null" {
-    attr.Status = Null
-    return nil
-  }
+	if sval == "null" {
+		attr.Status = Null
+		return nil
+	}
 
-  nval, err := strconv.ParseInt(sval, 10, 64)
-  if err != nil {
-    return err
-  }
+	nval, err := strconv.ParseInt(sval, 10, 64)
+	if err != nil {
+		return err
+	}
 
-  attr.Value = int64(nval)
-  attr.Status = Present
+	attr.Value = int64(nval)
+	attr.Status = Present
 
-  return nil
+	return nil
 }
 
-
 func (attr String) MarshalJSON() ([]byte, error) {
-  if attr.Status != Present {
-    return []byte("null"), nil
-  }
+	if attr.Status != Present {
+		return []byte("null"), nil
+	}
 
-  return json.Marshal(attr.Value)
+	return json.Marshal(attr.Value)
 }
 
 func (attr *String) UnmarshalJSON(bval []byte) error {
-  sval := string(bval)
+	sval := string(bval)
 
-  if sval == "null" {
-    attr.Status = Null
-    return nil
-  }
+	if sval == "null" {
+		attr.Status = Null
+		return nil
+	}
 
-  err := json.Unmarshal(bval, &attr.Value)
-  if err != nil {
-    return err
-  }
+	err := json.Unmarshal(bval, &attr.Value)
+	if err != nil {
+		return err
+	}
 
-  attr.Status = Present
-  return nil
+	attr.Status = Present
+	return nil
 }

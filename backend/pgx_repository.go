@@ -216,43 +216,8 @@ func (repo *pgxRepository) DeleteSession(id []byte) error {
 	return nil
 }
 
-func (repo *pgxRepository) CreatePasswordReset(attrs *PasswordReset) error {
-	columns := make([]string, 0, 7)
-	placeholders := make([]string, 0, 7)
-	args := pgx.QueryArgs(make([]interface{}, 0, 7))
-
-	if v, ok := attrs.Token.Get(); ok {
-		columns = append(columns, "token")
-		placeholders = append(placeholders, args.Append(v))
-	}
-	if v, ok := attrs.Email.Get(); ok {
-		columns = append(columns, "email")
-		placeholders = append(placeholders, args.Append(v))
-	}
-	if v, ok := attrs.RequestIP.Get(); ok {
-		columns = append(columns, "request_ip")
-		placeholders = append(placeholders, args.Append(v))
-	}
-	if v, ok := attrs.RequestTime.Get(); ok {
-		columns = append(columns, "request_time")
-		placeholders = append(placeholders, args.Append(v))
-	}
-	if v, ok := attrs.UserID.Get(); ok {
-		columns = append(columns, "user_id")
-		placeholders = append(placeholders, args.Append(v))
-	}
-	if v, ok := attrs.CompletionTime.Get(); ok {
-		columns = append(columns, "completion_time")
-		placeholders = append(placeholders, args.Append(v))
-	}
-	if v, ok := attrs.CompletionIP.Get(); ok {
-		columns = append(columns, "completion_ip")
-		placeholders = append(placeholders, args.Append(v))
-	}
-
-	sql := "insert into password_resets(" + strings.Join(columns, ", ") + ") values(" + strings.Join(placeholders, ", ") + ")"
-
-	_, err := repo.pool.Exec(sql, args...)
+func (repo *pgxRepository) CreatePasswordReset(attrs *data.PasswordReset) error {
+	err := data.InsertPasswordReset(repo.pool, attrs)
 	if err != nil {
 		if strings.Contains(err.Error(), "password_resets_pkey") {
 			return DuplicationError{Field: "token"}
@@ -263,48 +228,20 @@ func (repo *pgxRepository) CreatePasswordReset(attrs *PasswordReset) error {
 	return nil
 }
 
-func (repo *pgxRepository) GetPasswordReset(token string) (*PasswordReset, error) {
-	var pwr PasswordReset
-	err := repo.pool.QueryRow("getPasswordReset", token).Scan(&pwr.Token, &pwr.Email, &pwr.RequestIP, &pwr.RequestTime, &pwr.UserID, &pwr.CompletionIP, &pwr.CompletionTime)
-	if err == pgx.ErrNoRows {
+func (repo *pgxRepository) GetPasswordReset(token string) (*data.PasswordReset, error) {
+	pwr, err := data.SelectPasswordResetByPK(repo.pool, token)
+	if err == data.ErrNotFound {
 		return nil, notFound
 	}
-	return &pwr, err
+	return pwr, err
 }
 
-func (repo *pgxRepository) UpdatePasswordReset(token string, attrs *PasswordReset) error {
-	sets := make([]string, 0, 7)
-	args := pgx.QueryArgs(make([]interface{}, 0, 7))
-
-	if v, ok := attrs.Token.Get(); ok {
-		sets = append(sets, "token="+args.Append(v))
-	}
-	if v, ok := attrs.Email.Get(); ok {
-		sets = append(sets, "email="+args.Append(v))
-	}
-	if v, ok := attrs.RequestIP.Get(); ok {
-		sets = append(sets, "request_ip="+args.Append(v))
-	}
-	if v, ok := attrs.RequestTime.Get(); ok {
-		sets = append(sets, "request_time="+args.Append(v))
-	}
-	if v, ok := attrs.CompletionTime.Get(); ok {
-		sets = append(sets, "completion_time="+args.Append(v))
-	}
-	if v, ok := attrs.CompletionIP.Get(); ok {
-		sets = append(sets, "completion_ip="+args.Append(v))
-	}
-
-	sql := "update password_resets set " + strings.Join(sets, ", ") + " where token=" + args.Append(token)
-
-	commandTag, err := repo.pool.Exec(sql, args...)
-	if err != nil {
-		return err
-	}
-	if commandTag.RowsAffected() != 1 {
+func (repo *pgxRepository) UpdatePasswordReset(token string, attrs *data.PasswordReset) error {
+	err := data.UpdatePasswordReset(repo.pool, token, attrs)
+	if err == data.ErrNotFound {
 		return notFound
 	}
-	return nil
+	return err
 }
 
 // Empty all data in the entire repository
@@ -551,14 +488,6 @@ func afterConnect(conn *pgx.Conn) (err error) {
 	}
 
 	_, err = conn.Prepare("getUserByEmail", `select id, name, email, password_digest, password_salt from users where email=$1`)
-	if err != nil {
-		return
-	}
-
-	_, err = conn.Prepare("getPasswordReset", `
-    select token, email, request_ip::text, request_time, user_id, completion_ip::text, completion_time
-    from password_resets
-    where token=$1`)
 	if err != nil {
 		return
 	}

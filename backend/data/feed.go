@@ -2,32 +2,32 @@
 package data
 
 import (
-  "strings"
+	"strings"
 
-  "github.com/jackc/pgx"
+	"github.com/jackc/pgx"
 )
 
 type Feed struct {
-  ID Int32
-  Name String
-  URL String
-  LastFetchTime Time
-  ETag String
-  LastFailure String
-  LastFailureTime Time
-  FailureCount Int32
-  CreationTime Time
+	ID              Int32
+	Name            String
+	URL             String
+	LastFetchTime   Time
+	ETag            String
+	LastFailure     String
+	LastFailureTime Time
+	FailureCount    Int32
+	CreationTime    Time
 }
 
 func CountFeed(db Queryer) (int64, error) {
-  var n int64
-  sql := `select count(*) from "feeds"`
-  err := db.QueryRow(sql).Scan(&n)
-  return n, err
+	var n int64
+	sql := `select count(*) from "feeds"`
+	err := db.QueryRow(sql).Scan(&n)
+	return n, err
 }
 
 func SelectAllFeed(db Queryer) ([]Feed, error) {
-  sql := `select
+	sql := `select
   "id",
   "name",
   "url",
@@ -39,41 +39,41 @@ func SelectAllFeed(db Queryer) ([]Feed, error) {
   "creation_time"
 from "feeds"`
 
-  var rows []Feed
+	var rows []Feed
 
-  dbRows, err := db.Query(sql)
-  if err != nil {
-    return nil, err
-  }
+	dbRows, err := db.Query(sql)
+	if err != nil {
+		return nil, err
+	}
 
-  for dbRows.Next() {
-    var row Feed
-    dbRows.Scan(
-&row.ID,
-    &row.Name,
-    &row.URL,
-    &row.LastFetchTime,
-    &row.ETag,
-    &row.LastFailure,
-    &row.LastFailureTime,
-    &row.FailureCount,
-    &row.CreationTime,
-    )
-    rows = append(rows, row)
-  }
+	for dbRows.Next() {
+		var row Feed
+		dbRows.Scan(
+			&row.ID,
+			&row.Name,
+			&row.URL,
+			&row.LastFetchTime,
+			&row.ETag,
+			&row.LastFailure,
+			&row.LastFailureTime,
+			&row.FailureCount,
+			&row.CreationTime,
+		)
+		rows = append(rows, row)
+	}
 
-  if dbRows.Err() != nil {
-    return nil, dbRows.Err()
-  }
+	if dbRows.Err() != nil {
+		return nil, dbRows.Err()
+	}
 
-  return rows, nil
+	return rows, nil
 }
 
 func SelectFeedByPK(
-  db Queryer,
-  id int32,
+	db Queryer,
+	id int32,
 ) (*Feed, error) {
-  sql := `select
+	sql := `select
   "id",
   "name",
   "url",
@@ -86,99 +86,96 @@ func SelectFeedByPK(
 from "feeds"
 where "id"=$1`
 
-  var row Feed
-  err := db.QueryRow(sql , id).Scan(
-&row.ID,
-    &row.Name,
-    &row.URL,
-    &row.LastFetchTime,
-    &row.ETag,
-    &row.LastFailure,
-    &row.LastFailureTime,
-    &row.FailureCount,
-    &row.CreationTime,
-    )
-  if err == pgx.ErrNoRows {
-    return nil, ErrNotFound
-  } else if err != nil {
-    return nil, err
-  }
+	var row Feed
+	err := db.QueryRow(sql, id).Scan(
+		&row.ID,
+		&row.Name,
+		&row.URL,
+		&row.LastFetchTime,
+		&row.ETag,
+		&row.LastFailure,
+		&row.LastFailureTime,
+		&row.FailureCount,
+		&row.CreationTime,
+	)
+	if err == pgx.ErrNoRows {
+		return nil, ErrNotFound
+	} else if err != nil {
+		return nil, err
+	}
 
-  return &row, nil
+	return &row, nil
 }
 
 func InsertFeed(db Queryer, row *Feed) error {
-  args := pgx.QueryArgs(make([]interface{}, 0, 9))
+	args := pgx.QueryArgs(make([]interface{}, 0, 9))
 
-  var columns, values []string
+	var columns, values []string
 
-  row.ID.addInsert(`id`, &columns, &values, &args)
-  row.Name.addInsert(`name`, &columns, &values, &args)
-  row.URL.addInsert(`url`, &columns, &values, &args)
-  row.LastFetchTime.addInsert(`last_fetch_time`, &columns, &values, &args)
-  row.ETag.addInsert(`etag`, &columns, &values, &args)
-  row.LastFailure.addInsert(`last_failure`, &columns, &values, &args)
-  row.LastFailureTime.addInsert(`last_failure_time`, &columns, &values, &args)
-  row.FailureCount.addInsert(`failure_count`, &columns, &values, &args)
-  row.CreationTime.addInsert(`creation_time`, &columns, &values, &args)
+	row.ID.addInsert(`id`, &columns, &values, &args)
+	row.Name.addInsert(`name`, &columns, &values, &args)
+	row.URL.addInsert(`url`, &columns, &values, &args)
+	row.LastFetchTime.addInsert(`last_fetch_time`, &columns, &values, &args)
+	row.ETag.addInsert(`etag`, &columns, &values, &args)
+	row.LastFailure.addInsert(`last_failure`, &columns, &values, &args)
+	row.LastFailureTime.addInsert(`last_failure_time`, &columns, &values, &args)
+	row.FailureCount.addInsert(`failure_count`, &columns, &values, &args)
+	row.CreationTime.addInsert(`creation_time`, &columns, &values, &args)
 
-
-  sql := `insert into "feeds"(` + strings.Join(columns, ", ") + `)
+	sql := `insert into "feeds"(` + strings.Join(columns, ", ") + `)
 values(` + strings.Join(values, ",") + `)
 returning "id"
   `
 
-  return db.QueryRow(sql, args...).Scan(&row.ID)
+	return db.QueryRow(sql, args...).Scan(&row.ID)
 }
 
 func UpdateFeed(db Queryer,
-  id int32,
-  row *Feed,
+	id int32,
+	row *Feed,
 ) error {
-  sets := make([]string, 0, 9)
-  args := pgx.QueryArgs(make([]interface{}, 0, 9))
+	sets := make([]string, 0, 9)
+	args := pgx.QueryArgs(make([]interface{}, 0, 9))
 
-  row.ID.addUpdate(`id`, &sets, &args)
-  row.Name.addUpdate(`name`, &sets, &args)
-  row.URL.addUpdate(`url`, &sets, &args)
-  row.LastFetchTime.addUpdate(`last_fetch_time`, &sets, &args)
-  row.ETag.addUpdate(`etag`, &sets, &args)
-  row.LastFailure.addUpdate(`last_failure`, &sets, &args)
-  row.LastFailureTime.addUpdate(`last_failure_time`, &sets, &args)
-  row.FailureCount.addUpdate(`failure_count`, &sets, &args)
-  row.CreationTime.addUpdate(`creation_time`, &sets, &args)
+	row.ID.addUpdate(`id`, &sets, &args)
+	row.Name.addUpdate(`name`, &sets, &args)
+	row.URL.addUpdate(`url`, &sets, &args)
+	row.LastFetchTime.addUpdate(`last_fetch_time`, &sets, &args)
+	row.ETag.addUpdate(`etag`, &sets, &args)
+	row.LastFailure.addUpdate(`last_failure`, &sets, &args)
+	row.LastFailureTime.addUpdate(`last_failure_time`, &sets, &args)
+	row.FailureCount.addUpdate(`failure_count`, &sets, &args)
+	row.CreationTime.addUpdate(`creation_time`, &sets, &args)
 
+	if len(sets) == 0 {
+		return nil
+	}
 
-  if len(sets) == 0 {
-    return nil
-  }
+	sql := `update "feeds" set ` + strings.Join(sets, ", ") + ` where ` + `"id"=` + args.Append(id)
 
-  sql := `update "feeds" set ` + strings.Join(sets, ", ") + ` where `  + `"id"=` + args.Append(id)
-
-  commandTag, err := db.Exec(sql, args...)
-  if err != nil {
-    return err
-  }
-  if commandTag.RowsAffected() != 1 {
-    return ErrNotFound
-  }
-  return nil
+	commandTag, err := db.Exec(sql, args...)
+	if err != nil {
+		return err
+	}
+	if commandTag.RowsAffected() != 1 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func DeleteFeed(db Queryer,
-  id int32,
+	id int32,
 ) error {
-  args := pgx.QueryArgs(make([]interface{}, 0, 1))
+	args := pgx.QueryArgs(make([]interface{}, 0, 1))
 
-  sql := `delete from "feeds" where `  + `"id"=` + args.Append(id)
+	sql := `delete from "feeds" where ` + `"id"=` + args.Append(id)
 
-  commandTag, err := db.Exec(sql, args...)
-  if err != nil {
-    return err
-  }
-  if commandTag.RowsAffected() != 1 {
-    return pgx.ErrNoRows
-  }
-  return nil
+	commandTag, err := db.Exec(sql, args...)
+	if err != nil {
+		return err
+	}
+	if commandTag.RowsAffected() != 1 {
+		return pgx.ErrNoRows
+	}
+	return nil
 }
-

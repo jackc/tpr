@@ -2,9 +2,9 @@
 package data
 
 import (
-  "errors"
+	"errors"
 
-  "github.com/jackc/pgx"
+	"github.com/jackc/pgx"
 )
 
 const PGXDATA_VERSION = "0.0.2"
@@ -12,7 +12,7 @@ const PGXDATA_VERSION = "0.0.2"
 var ErrNotFound = errors.New("not found")
 
 type Queryer interface {
-  Query(sql string, args ...interface{}) (*pgx.Rows, error)
-  QueryRow(sql string, args ...interface{}) *pgx.Row
-  Exec(sql string, arguments ...interface{}) (pgx.CommandTag, error)
+	Query(sql string, args ...interface{}) (*pgx.Rows, error)
+	QueryRow(sql string, args ...interface{}) *pgx.Row
+	Exec(sql string, arguments ...interface{}) (pgx.CommandTag, error)
 }

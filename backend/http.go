@@ -6,7 +6,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	qv "github.com/jackc/quo_vadis"
-	"github.com/jackc/tpr/backend/box"
 	"github.com/jackc/tpr/backend/data"
 	log "gopkg.in/inconshreveable/log15.v2"
 	"net"
@@ -478,11 +477,14 @@ func UpdateAccountHandler(w http.ResponseWriter, req *http.Request, env *environ
 }
 
 func RequestPasswordResetHandler(w http.ResponseWriter, req *http.Request, env *environment) {
-	pwr := &PasswordReset{}
-	pwr.RequestTime.Set(time.Now())
+	pwr := &data.PasswordReset{}
+	pwr.RequestTime = data.Time{Value: time.Now(), Status: data.Present}
 
 	if host, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
-		pwr.RequestIP.Set(host)
+		if ip := net.ParseIP(host); ip != nil {
+			mask := net.CIDRMask(len(ip)*8, len(ip)*8)
+			pwr.RequestIP = data.IPNet{Value: net.IPNet{IP: ip, Mask: mask}, Status: data.Present}
+		}
 	}
 
 	token, err := genLostPasswordToken()
@@ -492,7 +494,7 @@ func RequestPasswordResetHandler(w http.ResponseWriter, req *http.Request, env *
 		env.logger.Error("getLostPasswordToken failed", "error", err)
 		return
 	}
-	pwr.Token.Set(token)
+	pwr.Token = newString(token)
 
 	var reset struct {
 		Email string `json:"email"`
@@ -510,12 +512,12 @@ func RequestPasswordResetHandler(w http.ResponseWriter, req *http.Request, env *
 		return
 	}
 
-	pwr.Email.Set(reset.Email)
+	pwr.Email = newString(reset.Email)
 
 	user, err := env.repo.GetUserByEmail(reset.Email)
 	switch err {
 	case nil:
-		pwr.UserID = box.NewInt32(user.ID.Value)
+		pwr.UserID = user.ID
 	case notFound:
 	default:
 		w.WriteHeader(500)
@@ -575,14 +577,12 @@ func ResetPasswordHandler(w http.ResponseWriter, req *http.Request, env *environ
 		return
 	}
 
-	userID, ok := pwr.UserID.Get()
-	if !ok {
+	if pwr.UserID.Status != data.Present {
 		w.WriteHeader(404)
 		return
 	}
 
-	_, ok = pwr.CompletionTime.Get()
-	if ok {
+	if pwr.CompletionTime.Status == data.Present {
 		w.WriteHeader(404)
 		return
 	}
@@ -590,13 +590,13 @@ func ResetPasswordHandler(w http.ResponseWriter, req *http.Request, env *environ
 	attrs := &data.User{}
 	SetPassword(attrs, resetPassword.Password)
 
-	err = env.repo.UpdateUser(userID, attrs)
+	err = env.repo.UpdateUser(pwr.UserID.Value, attrs)
 	if err != nil {
 		w.WriteHeader(500)
 		return
 	}
 
-	user, err := env.repo.GetUser(userID)
+	user, err := env.repo.GetUser(pwr.UserID.Value)
 	if err != nil {
 		w.WriteHeader(500)
 		return
