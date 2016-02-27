@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"github.com/jackc/tpr/backend/box"
+	"github.com/jackc/tpr/backend/data"
 	"github.com/vaughan0/go-ini"
 	log "gopkg.in/inconshreveable/log15.v2"
 	"net/http"
@@ -62,11 +63,11 @@ func newRepository(t testing.TB) repository {
 
 func TestExportOPML(t *testing.T) {
 	repo := newRepository(t)
-	userID, err := repo.CreateUser(&User{
-		Name:           box.NewString("test"),
-		Email:          box.NewString("test@example.com"),
-		PasswordDigest: []byte("digest"),
-		PasswordSalt:   []byte("salt"),
+	userID, err := repo.CreateUser(&data.User{
+		Name:           newString("test"),
+		Email:          newString("test@example.com"),
+		PasswordDigest: data.Bytes{Value: []byte("digest"), Status: data.Present},
+		PasswordSalt:   data.Bytes{Value: []byte("salt"), Status: data.Present},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -83,7 +84,7 @@ func TestExportOPML(t *testing.T) {
 	}
 
 	env := &environment{}
-	env.user = &User{ID: box.NewInt32(userID), Name: box.NewString("test")}
+	env.user = &data.User{ID: data.Int32{Value: userID, Status: data.Present}, Name: newString("test")}
 	env.repo = repo
 
 	w := httptest.NewRecorder()
@@ -104,11 +105,11 @@ func TestExportOPML(t *testing.T) {
 
 func TestGetAccountHandler(t *testing.T) {
 	repo := newRepository(t)
-	user := &User{
-		Name:  box.NewString("test"),
-		Email: box.NewString("test@example.com"),
+	user := &data.User{
+		Name:  newString("test"),
+		Email: newString("test@example.com"),
 	}
-	user.SetPassword("password")
+	SetPassword(user, "password")
 
 	userID, err := repo.CreateUser(user)
 	if err != nil {
@@ -144,16 +145,16 @@ func TestGetAccountHandler(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if user.ID.MustGet() != resp.ID {
-		t.Errorf("Expected id %d, instead received %d", user.ID.MustGet(), resp.ID)
+	if user.ID.Value != resp.ID {
+		t.Errorf("Expected id %d, instead received %d", user.ID.Value, resp.ID)
 	}
 
-	if user.Name.MustGet() != resp.Name {
-		t.Errorf("Expected name %s, instead received %s", user.Name.MustGet(), resp.Name)
+	if user.Name.Value != resp.Name {
+		t.Errorf("Expected name %s, instead received %s", user.Name.Value, resp.Name)
 	}
 
-	if user.Email.MustGet() != resp.Email {
-		t.Errorf("Expected email %s, instead received %s", user.Email.MustGet(), resp.Email)
+	if user.Email.Value != resp.Email {
+		t.Errorf("Expected email %s, instead received %s", user.Email.Value, resp.Email)
 	}
 }
 
@@ -210,11 +211,11 @@ func TestUpdateAccountHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		repo := newRepository(t)
-		user := &User{
-			Name:  box.NewString("test"),
-			Email: box.NewString(origEmail),
+		user := &data.User{
+			Name:  newString("test"),
+			Email: newString(origEmail),
 		}
-		user.SetPassword(origPassword)
+		SetPassword(user, origPassword)
 
 		userID, err := repo.CreateUser(user)
 		if err != nil {
@@ -255,11 +256,11 @@ func TestUpdateAccountHandler(t *testing.T) {
 			continue
 		}
 
-		if user.Email.MustGet() != tt.actualEmail {
-			t.Errorf("%s: Expected email %s, instead received %s", tt.descr, tt.actualEmail, user.Email.MustGet())
+		if user.Email.Value != tt.actualEmail {
+			t.Errorf("%s: Expected email %s, instead received %s", tt.descr, tt.actualEmail, user.Email.Value)
 		}
 
-		if !user.IsPassword(tt.actualPassword) {
+		if !IsPassword(user, tt.actualPassword) {
 			t.Errorf("%s: Expected password to be %s, but it wasn't", tt.descr, tt.actualPassword)
 		}
 	}
@@ -297,11 +298,11 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		repo := newRepository(t)
-		user := &User{
-			Name:  box.NewString("test"),
-			Email: box.NewString(tt.userEmail),
+		user := &data.User{
+			Name:  newString("test"),
+			Email: newString(tt.userEmail),
 		}
-		user.SetPassword("password")
+		SetPassword(user, "password")
 
 		userID, err := repo.CreateUser(user)
 		if err != nil {
@@ -379,11 +380,11 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 
 func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
 	repo := newRepository(t)
-	user := &User{
-		Name:  box.NewString("test"),
-		Email: box.NewString("test@example.com"),
+	user := &data.User{
+		Name:  newString("test"),
+		Email: newString("test@example.com"),
 	}
-	user.SetPassword("password")
+	SetPassword(user, "password")
 
 	userID, err := repo.CreateUser(user)
 	if err != nil {
@@ -423,7 +424,7 @@ func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
 		t.Fatalf("repo.GetUser returned error: %v", err)
 	}
 
-	if !user.IsPassword("bigsecret") {
+	if !IsPassword(user, "bigsecret") {
 		t.Error("Expected password to be changed but it was not")
 	}
 
@@ -440,11 +441,11 @@ func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
 
 func TestResetPasswordHandlerTokenMatchestUsedPasswordReset(t *testing.T) {
 	repo := newRepository(t)
-	user := &User{
-		Name:  box.NewString("test"),
-		Email: box.NewString("test@example.com"),
+	user := &data.User{
+		Name:  newString("test"),
+		Email: newString("test@example.com"),
 	}
-	user.SetPassword("password")
+	SetPassword(user, "password")
 
 	userID, err := repo.CreateUser(user)
 	if err != nil {
@@ -486,7 +487,7 @@ func TestResetPasswordHandlerTokenMatchestUsedPasswordReset(t *testing.T) {
 		t.Fatalf("repo.GetUser returned error: %v", err)
 	}
 
-	if user.IsPassword("bigsecret") {
+	if IsPassword(user, "bigsecret") {
 		t.Error("Expected password not to be changed but it was")
 	}
 }

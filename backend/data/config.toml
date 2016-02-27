@@ -1,0 +1,14 @@
+package = "data"
+
+# Database connection information can be specified here or in PG* environment variables
+#
+[database]
+host = "/private/tmp"
+# port = 5432
+database = "tpr_development"
+# user = "myuser"
+# password = "secret"
+
+[[tables]]
+table_name = "users"
+struct_name = "User"

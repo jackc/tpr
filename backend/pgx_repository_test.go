@@ -5,38 +5,39 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/jackc/tpr/backend/box"
+	"github.com/jackc/tpr/backend/data"
 	"testing"
 	"time"
 )
 
-func newUser() *User {
-	return &User{
-		Name:           box.NewString("test"),
-		PasswordDigest: []byte("digest"),
-		PasswordSalt:   []byte("salt"),
+func newUser() *data.User {
+	return &data.User{
+		Name:           newString("test"),
+		PasswordDigest: data.Bytes{Value: []byte("digest"), Status: data.Present},
+		PasswordSalt:   data.Bytes{Value: []byte("salt"), Status: data.Present},
 	}
 }
 
 func TestPgxRepositoryUsersLifeCycle(t *testing.T) {
 	repo := newRepository(t)
 
-	input := &User{
-		Name:           box.NewString("test"),
-		Email:          box.NewString("test@example.com"),
-		PasswordDigest: []byte("digest"),
-		PasswordSalt:   []byte("salt"),
+	input := &data.User{
+		Name:           newString("test"),
+		Email:          newString("test@example.com"),
+		PasswordDigest: data.Bytes{Value: []byte("digest"), Status: data.Present},
+		PasswordSalt:   data.Bytes{Value: []byte("salt"), Status: data.Present},
 	}
 	userID, err := repo.CreateUser(input)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	user, err := repo.GetUserByName(input.Name.MustGet())
+	user, err := repo.GetUserByName(input.Name.Value)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if user.ID.GetCoerceZero() != userID {
-		t.Errorf("Expected %v, got %v", userID, user.ID.GetCoerceNil())
+	if user.ID.Value != userID {
+		t.Errorf("Expected %v, got %v", userID, user.ID)
 	}
 	if user.Name != input.Name {
 		t.Errorf("Expected %v, got %v", input.Name, user.Name)
@@ -44,19 +45,19 @@ func TestPgxRepositoryUsersLifeCycle(t *testing.T) {
 	if user.Email != input.Email {
 		t.Errorf("Expected %v, got %v", input.Email, user.Email)
 	}
-	if bytes.Compare(user.PasswordDigest, input.PasswordDigest) != 0 {
+	if bytes.Compare(user.PasswordDigest.Value, input.PasswordDigest.Value) != 0 {
 		t.Errorf("Expected user (%v) and input (%v) PasswordDigest to match, but they did not", user.PasswordDigest, input.PasswordDigest)
 	}
-	if bytes.Compare(user.PasswordSalt, input.PasswordSalt) != 0 {
+	if bytes.Compare(user.PasswordSalt.Value, input.PasswordSalt.Value) != 0 {
 		t.Errorf("Expected user (%v), and input (%v) PasswordSalt to match, but they did not", user.PasswordSalt, input.PasswordSalt)
 	}
 
-	user, err = repo.GetUserByEmail(input.Email.MustGet())
+	user, err = repo.GetUserByEmail(input.Email.Value)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if user.ID.GetCoerceZero() != userID {
-		t.Errorf("Expected %v, got %v", userID, user.ID.GetCoerceNil())
+	if user.ID.Value != userID {
+		t.Errorf("Expected %v, got %v", userID, user.ID)
 	}
 	if user.Name != input.Name {
 		t.Errorf("Expected %v, got %v", input.Name, user.Name)
@@ -64,10 +65,10 @@ func TestPgxRepositoryUsersLifeCycle(t *testing.T) {
 	if user.Email != input.Email {
 		t.Errorf("Expected %v, got %v", input.Email, user.Email)
 	}
-	if bytes.Compare(user.PasswordDigest, input.PasswordDigest) != 0 {
+	if bytes.Compare(user.PasswordDigest.Value, input.PasswordDigest.Value) != 0 {
 		t.Errorf("Expected user (%v) and input (%v) PasswordDigest to match, but they did not", user.PasswordDigest, input.PasswordDigest)
 	}
-	if bytes.Compare(user.PasswordSalt, input.PasswordSalt) != 0 {
+	if bytes.Compare(user.PasswordSalt.Value, input.PasswordSalt.Value) != 0 {
 		t.Errorf("Expected user (%v), and input (%v) PasswordSalt to match, but they did not", user.PasswordSalt, input.PasswordSalt)
 	}
 
@@ -75,8 +76,8 @@ func TestPgxRepositoryUsersLifeCycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if user.ID.GetCoerceZero() != userID {
-		t.Errorf("Expected %v, got %v", userID, user.ID.GetCoerceNil())
+	if user.ID.Value != userID {
+		t.Errorf("Expected %v, got %v", userID, user.ID)
 	}
 	if user.Name != input.Name {
 		t.Errorf("Expected %v, got %v", input.Name, user.Name)
@@ -84,10 +85,10 @@ func TestPgxRepositoryUsersLifeCycle(t *testing.T) {
 	if user.Email != input.Email {
 		t.Errorf("Expected %v, got %v", input.Email, user.Email)
 	}
-	if bytes.Compare(user.PasswordDigest, input.PasswordDigest) != 0 {
+	if bytes.Compare(user.PasswordDigest.Value, input.PasswordDigest.Value) != 0 {
 		t.Errorf("Expected user (%v) and input (%v) PasswordDigest to match, but they did not", user.PasswordDigest, input.PasswordDigest)
 	}
-	if bytes.Compare(user.PasswordSalt, input.PasswordSalt) != 0 {
+	if bytes.Compare(user.PasswordSalt.Value, input.PasswordSalt.Value) != 0 {
 		t.Errorf("Expected user (%v), and input (%v) PasswordSalt to match, but they did not", user.PasswordSalt, input.PasswordSalt)
 	}
 }
@@ -101,6 +102,7 @@ func TestPgxRepositoryCreateUserHandlesNameUniqueness(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	u = newUser()
 	_, err = repo.CreateUser(u)
 	if err != (DuplicationError{Field: "name"}) {
 		t.Fatalf("Expected %v, got %v", DuplicationError{Field: "name"}, err)
@@ -111,13 +113,13 @@ func TestPgxRepositoryCreateUserHandlesEmailUniqueness(t *testing.T) {
 	repo := newRepository(t)
 
 	u := newUser()
-	u.Email.Set("test@example.com")
+	u.Email = newString("test@example.com")
 	_, err := repo.CreateUser(u)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	u.Name.Set("othername")
+	u.Name = newString("othername")
 	_, err = repo.CreateUser(u)
 	if err != (DuplicationError{Field: "email"}) {
 		t.Fatalf("Expected %v, got %v", DuplicationError{Field: "email"}, err)
@@ -152,7 +154,7 @@ func BenchmarkPgxRepositoryGetUserByName(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := repo.GetUserByName(user.Name.MustGet())
+		_, err := repo.GetUserByName(user.Name.Value)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -162,42 +164,42 @@ func BenchmarkPgxRepositoryGetUserByName(b *testing.B) {
 func TestPgxRepositoryUpdateUser(t *testing.T) {
 	repo := newRepository(t)
 
-	err := repo.UpdateUser(42, &User{Name: box.NewString("john")})
+	err := repo.UpdateUser(42, &data.User{Name: newString("john")})
 	if err != notFound {
-		t.Errorf("Expected %v, got %v", notFound, err)
+		t.Errorf("Expected %#v, got %#v", notFound, err)
 	}
 
 	tests := []struct {
-		update *User
+		update *data.User
 	}{
 		{
-			update: &User{Name: box.NewString("john")},
+			update: &data.User{Name: newString("john")},
 		},
 		{
-			update: &User{Email: box.NewString("john@example.com")},
+			update: &data.User{Email: newString("john@example.com")},
 		},
 		{
-			update: &User{
-				PasswordDigest: []byte("newdigest"),
-				PasswordSalt:   []byte("newsalt"),
+			update: &data.User{
+				PasswordDigest: data.Bytes{Value: []byte("newdigest"), Status: data.Present},
+				PasswordSalt:   data.Bytes{Value: []byte("newsalt"), Status: data.Present},
 			},
 		},
 		{
-			update: &User{
-				Name:           box.NewString("bill"),
-				Email:          box.NewString("bill@example.com"),
-				PasswordDigest: []byte("newdigest"),
-				PasswordSalt:   []byte("newsalt"),
+			update: &data.User{
+				Name:           newString("bill"),
+				Email:          newString("bill@example.com"),
+				PasswordDigest: data.Bytes{Value: []byte("newdigest"), Status: data.Present},
+				PasswordSalt:   data.Bytes{Value: []byte("newsalt"), Status: data.Present},
 			},
 		},
 	}
 
 	for i, tt := range tests {
-		userID, err := repo.CreateUser(&User{
-			Name:           box.NewString(fmt.Sprintf("test%d", i)),
-			Email:          box.NewString(fmt.Sprintf("test%d@example.com", i)),
-			PasswordDigest: []byte("digest"),
-			PasswordSalt:   []byte("salt"),
+		userID, err := repo.CreateUser(&data.User{
+			Name:           newString(fmt.Sprintf("test%d", i)),
+			Email:          newString(fmt.Sprintf("test%d@example.com", i)),
+			PasswordDigest: data.Bytes{Value: []byte("digest"), Status: data.Present},
+			PasswordSalt:   data.Bytes{Value: []byte("salt"), Status: data.Present},
 		})
 		if err != nil {
 			t.Errorf("%d. %v", i, err)
@@ -209,19 +211,19 @@ func TestPgxRepositoryUpdateUser(t *testing.T) {
 			continue
 		}
 
-		if _, ok := tt.update.ID.Get(); ok {
+		if tt.update.ID.Status != data.Undefined {
 			expected.ID = tt.update.ID
 		}
-		if _, ok := tt.update.Name.Get(); ok {
+		if tt.update.Name.Status != data.Undefined {
 			expected.Name = tt.update.Name
 		}
-		if _, ok := tt.update.Email.Get(); ok {
+		if tt.update.Email.Status != data.Undefined {
 			expected.Email = tt.update.Email
 		}
-		if tt.update.PasswordDigest != nil {
+		if tt.update.PasswordDigest.Status != data.Undefined {
 			expected.PasswordDigest = tt.update.PasswordDigest
 		}
-		if tt.update.PasswordSalt != nil {
+		if tt.update.PasswordSalt.Status != data.Undefined {
 			expected.PasswordSalt = tt.update.PasswordSalt
 		}
 
@@ -248,11 +250,11 @@ func TestPgxRepositoryUpdateUser(t *testing.T) {
 			t.Errorf("%d. Email was %v, expected %v", i, user.Email, expected.Email)
 		}
 
-		if bytes.Compare(expected.PasswordDigest, user.PasswordDigest) != 0 {
+		if bytes.Compare(expected.PasswordDigest.Value, user.PasswordDigest.Value) != 0 {
 			t.Errorf("%d. PasswordDigest was %v, expected %v", i, user.PasswordDigest, expected.PasswordDigest)
 		}
 
-		if bytes.Compare(expected.PasswordSalt, user.PasswordSalt) != 0 {
+		if bytes.Compare(expected.PasswordSalt.Value, user.PasswordSalt.Value) != 0 {
 			t.Errorf("%d. PasswordSalt was %v, expected %v", i, user.PasswordSalt, expected.PasswordSalt)
 		}
 	}
@@ -633,8 +635,8 @@ func TestPgxRepositorySessions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if user.ID.MustGet() != userID {
-		t.Errorf("Expected %v, got %v", userID, user.ID.MustGet())
+	if user.ID.Value != userID {
+		t.Errorf("Expected %v, got %v", userID, user.ID)
 	}
 
 	err = repo.DeleteSession(sessionID)

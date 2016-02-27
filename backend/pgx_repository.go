@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/jackc/pgx"
 	"github.com/jackc/tpr/backend/box"
+	"github.com/jackc/tpr/backend/data"
 	"io"
 	"strconv"
 	"strings"
@@ -25,10 +26,8 @@ func NewPgxRepository(connPoolConfig pgx.ConnPoolConfig) (*pgxRepository, error)
 	return repo, nil
 }
 
-func (repo *pgxRepository) CreateUser(user *User) (int32, error) {
-	var id int32
-
-	err := repo.pool.QueryRow("insertUser", user.Name, user.Email.GetCoerceNil(), user.PasswordDigest, user.PasswordSalt).Scan(&id)
+func (repo *pgxRepository) CreateUser(user *data.User) (int32, error) {
+	err := data.InsertUser(repo.pool, user)
 	if err != nil {
 		if strings.Contains(err.Error(), "users_name_unq") {
 			return 0, DuplicationError{Field: "name"}
@@ -39,11 +38,11 @@ func (repo *pgxRepository) CreateUser(user *User) (int32, error) {
 		return 0, err
 	}
 
-	return id, nil
+	return user.ID.Value, nil
 }
 
-func (repo *pgxRepository) getUser(sql string, arg interface{}) (*User, error) {
-	user := User{}
+func (repo *pgxRepository) getUser(sql string, arg interface{}) (*data.User, error) {
+	user := data.User{}
 
 	err := repo.pool.QueryRow(sql, arg).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordDigest, &user.PasswordSalt)
 	if err == pgx.ErrNoRows {
@@ -56,48 +55,24 @@ func (repo *pgxRepository) getUser(sql string, arg interface{}) (*User, error) {
 	return &user, nil
 }
 
-func (repo *pgxRepository) GetUser(userID int32) (*User, error) {
+func (repo *pgxRepository) GetUser(userID int32) (*data.User, error) {
 	return repo.getUser("getUser", userID)
 }
 
-func (repo *pgxRepository) GetUserByName(name string) (*User, error) {
+func (repo *pgxRepository) GetUserByName(name string) (*data.User, error) {
 	return repo.getUser("getUserByName", name)
 }
 
-func (repo *pgxRepository) GetUserByEmail(email string) (*User, error) {
+func (repo *pgxRepository) GetUserByEmail(email string) (*data.User, error) {
 	return repo.getUser("getUserByEmail", email)
 }
 
-func (repo *pgxRepository) UpdateUser(userID int32, attributes *User) error {
-	var sets []string
-	args := pgx.QueryArgs(make([]interface{}, 0, 6))
-
-	if v, ok := attributes.ID.Get(); ok {
-		sets = append(sets, "id="+args.Append(v))
-	}
-	if v, ok := attributes.Name.Get(); ok {
-		sets = append(sets, "name="+args.Append(v))
-	}
-	if v, ok := attributes.Email.Get(); ok {
-		sets = append(sets, "email="+args.Append(v))
-	}
-	if attributes.PasswordDigest != nil {
-		sets = append(sets, "password_digest="+args.Append(attributes.PasswordDigest))
-	}
-	if attributes.PasswordSalt != nil {
-		sets = append(sets, "password_salt="+args.Append(attributes.PasswordSalt))
-	}
-
-	sql := "update users set " + strings.Join(sets, ", ") + " where id=" + args.Append(userID)
-
-	commandTag, err := repo.pool.Exec(sql, args...)
-	if err != nil {
-		return err
-	}
-	if commandTag.RowsAffected() != 1 {
+func (repo *pgxRepository) UpdateUser(userID int32, attributes *data.User) error {
+	err := data.UpdateUser(repo.pool, userID, attributes)
+	if err == data.ErrNotFound {
 		return notFound
 	}
-	return nil
+	return err
 }
 
 func (repo *pgxRepository) GetFeedsUncheckedSince(since time.Time) ([]Feed, error) {
@@ -226,7 +201,7 @@ func (repo *pgxRepository) CreateSession(id []byte, userID int32) (err error) {
 	return err
 }
 
-func (repo *pgxRepository) GetUserBySessionID(id []byte) (*User, error) {
+func (repo *pgxRepository) GetUserBySessionID(id []byte) (*data.User, error) {
 	return repo.getUser("getUserBySessionID", id)
 }
 

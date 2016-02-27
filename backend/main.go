@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/jackc/cli"
 	"github.com/jackc/pgx"
+	"github.com/jackc/tpr/backend/data"
 	"github.com/vaughan0/go-ini"
 	log "gopkg.in/inconshreveable/log15.v2"
 	"net/http"
@@ -306,10 +307,10 @@ func ResetPassword(c *cli.Context) {
 		os.Exit(1)
 	}
 
-	update := &User{}
-	update.SetPassword(password)
+	update := &data.User{}
+	SetPassword(update, password)
 
-	err = repo.UpdateUser(user.ID.MustGet(), update)
+	err = repo.UpdateUser(user.ID.Value, update)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
