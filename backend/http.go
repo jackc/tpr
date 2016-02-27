@@ -85,10 +85,6 @@ func getUserFromSession(req *http.Request, repo repository) *data.User {
 	return user
 }
 
-func newString(value string) data.String {
-	return data.String{Value: value, Status: data.Present}
-}
-
 func newStringFallback(value string, status data.Status) data.String {
 	if value == "" {
 		return data.String{Status: status}
@@ -131,7 +127,7 @@ func RegisterHandler(w http.ResponseWriter, req *http.Request, env *environment)
 	}
 
 	user := &data.User{}
-	user.Name = newString(registration.Name)
+	user.Name = data.NewString(registration.Name)
 	user.Email = newStringFallback(registration.Email, data.Undefined)
 	SetPassword(user, registration.Password)
 
@@ -478,12 +474,12 @@ func UpdateAccountHandler(w http.ResponseWriter, req *http.Request, env *environ
 
 func RequestPasswordResetHandler(w http.ResponseWriter, req *http.Request, env *environment) {
 	pwr := &data.PasswordReset{}
-	pwr.RequestTime = data.Time{Value: time.Now(), Status: data.Present}
+	pwr.RequestTime = data.NewTime(time.Now())
 
 	if host, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
 		if ip := net.ParseIP(host); ip != nil {
 			mask := net.CIDRMask(len(ip)*8, len(ip)*8)
-			pwr.RequestIP = data.IPNet{Value: net.IPNet{IP: ip, Mask: mask}, Status: data.Present}
+			pwr.RequestIP = data.NewIPNet(net.IPNet{IP: ip, Mask: mask})
 		}
 	}
 
@@ -494,7 +490,7 @@ func RequestPasswordResetHandler(w http.ResponseWriter, req *http.Request, env *
 		env.logger.Error("getLostPasswordToken failed", "error", err)
 		return
 	}
-	pwr.Token = newString(token)
+	pwr.Token = data.NewString(token)
 
 	var reset struct {
 		Email string `json:"email"`
@@ -512,7 +508,7 @@ func RequestPasswordResetHandler(w http.ResponseWriter, req *http.Request, env *
 		return
 	}
 
-	pwr.Email = newString(reset.Email)
+	pwr.Email = data.NewString(reset.Email)
 
 	user, err := env.repo.GetUserByEmail(reset.Email)
 	switch err {

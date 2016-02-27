@@ -64,10 +64,10 @@ func newRepository(t testing.TB) repository {
 func TestExportOPML(t *testing.T) {
 	repo := newRepository(t)
 	userID, err := repo.CreateUser(&data.User{
-		Name:           newString("test"),
-		Email:          newString("test@example.com"),
-		PasswordDigest: data.Bytes{Value: []byte("digest"), Status: data.Present},
-		PasswordSalt:   data.Bytes{Value: []byte("salt"), Status: data.Present},
+		Name:           data.NewString("test"),
+		Email:          data.NewString("test@example.com"),
+		PasswordDigest: data.NewBytes([]byte("digest")),
+		PasswordSalt:   data.NewBytes([]byte("salt")),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -84,7 +84,7 @@ func TestExportOPML(t *testing.T) {
 	}
 
 	env := &environment{}
-	env.user = &data.User{ID: data.Int32{Value: userID, Status: data.Present}, Name: newString("test")}
+	env.user = &data.User{ID: data.NewInt32(userID), Name: data.NewString("test")}
 	env.repo = repo
 
 	w := httptest.NewRecorder()
@@ -106,8 +106,8 @@ func TestExportOPML(t *testing.T) {
 func TestGetAccountHandler(t *testing.T) {
 	repo := newRepository(t)
 	user := &data.User{
-		Name:  newString("test"),
-		Email: newString("test@example.com"),
+		Name:  data.NewString("test"),
+		Email: data.NewString("test@example.com"),
 	}
 	SetPassword(user, "password")
 
@@ -212,8 +212,8 @@ func TestUpdateAccountHandler(t *testing.T) {
 	for _, tt := range tests {
 		repo := newRepository(t)
 		user := &data.User{
-			Name:  newString("test"),
-			Email: newString(origEmail),
+			Name:  data.NewString("test"),
+			Email: data.NewString(origEmail),
 		}
 		SetPassword(user, origPassword)
 
@@ -299,8 +299,8 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 	for _, tt := range tests {
 		repo := newRepository(t)
 		user := &data.User{
-			Name:  newString("test"),
-			Email: newString(tt.userEmail),
+			Name:  data.NewString("test"),
+			Email: data.NewString(tt.userEmail),
 		}
 		SetPassword(user, "password")
 
@@ -381,8 +381,8 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
 	repo := newRepository(t)
 	user := &data.User{
-		Name:  newString("test"),
-		Email: newString("test@example.com"),
+		Name:  data.NewString("test"),
+		Email: data.NewString("test@example.com"),
 	}
 	SetPassword(user, "password")
 
@@ -393,11 +393,11 @@ func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
 
 	_, requestIP, _ := net.ParseCIDR("127.0.0.1/32")
 	pwr := &data.PasswordReset{
-		Token:       data.String{Value: "0123456789abcdef", Status: data.Present},
-		Email:       data.String{Value: "test@example.com", Status: data.Present},
-		UserID:      data.Int32{Value: userID, Status: data.Present},
-		RequestTime: data.Time{Value: time.Now(), Status: data.Present},
-		RequestIP:   data.IPNet{Value: *requestIP, Status: data.Present},
+		Token:       data.NewString("0123456789abcdef"),
+		Email:       data.NewString("test@example.com"),
+		UserID:      data.NewInt32(userID),
+		RequestTime: data.NewTime(time.Now()),
+		RequestIP:   data.NewIPNet(*requestIP),
 	}
 
 	err = repo.CreatePasswordReset(pwr)
@@ -443,8 +443,8 @@ func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
 func TestResetPasswordHandlerTokenMatchestUsedPasswordReset(t *testing.T) {
 	repo := newRepository(t)
 	user := &data.User{
-		Name:  newString("test"),
-		Email: newString("test@example.com"),
+		Name:  data.NewString("test"),
+		Email: data.NewString("test@example.com"),
 	}
 	SetPassword(user, "password")
 
@@ -455,13 +455,13 @@ func TestResetPasswordHandlerTokenMatchestUsedPasswordReset(t *testing.T) {
 
 	_, localhost, _ := net.ParseCIDR("127.0.0.1/32")
 	pwr := &data.PasswordReset{
-		Token:          data.String{Value: "0123456789abcdef", Status: data.Present},
-		Email:          data.String{Value: "test@example.com", Status: data.Present},
-		UserID:         data.Int32{Value: userID, Status: data.Present},
-		RequestTime:    data.Time{Value: time.Now(), Status: data.Present},
-		RequestIP:      data.IPNet{Value: *localhost, Status: data.Present},
-		CompletionTime: data.Time{Value: time.Now(), Status: data.Present},
-		CompletionIP:   data.IPNet{Value: *localhost, Status: data.Present},
+		Token:          data.NewString("0123456789abcdef"),
+		Email:          data.NewString("test@example.com"),
+		UserID:         data.NewInt32(userID),
+		RequestTime:    data.NewTime(time.Now()),
+		RequestIP:      data.NewIPNet(*localhost),
+		CompletionTime: data.NewTime(time.Now()),
+		CompletionIP:   data.NewIPNet(*localhost),
 	}
 
 	err = repo.CreatePasswordReset(pwr)
@@ -499,10 +499,10 @@ func TestResetPasswordHandlerTokenMatchestInvalidPasswordReset(t *testing.T) {
 
 	_, localhost, _ := net.ParseCIDR("127.0.0.1/32")
 	pwr := &data.PasswordReset{
-		Token:       data.String{Value: "0123456789abcdef", Status: data.Present},
-		Email:       data.String{Value: "test@example.com", Status: data.Present},
-		RequestTime: data.Time{Value: time.Now(), Status: data.Present},
-		RequestIP:   data.IPNet{Value: *localhost, Status: data.Present},
+		Token:       data.NewString("0123456789abcdef"),
+		Email:       data.NewString("test@example.com"),
+		RequestTime: data.NewTime(time.Now()),
+		RequestIP:   data.NewIPNet(*localhost),
 	}
 
 	err := repo.CreatePasswordReset(pwr)

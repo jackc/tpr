@@ -13,9 +13,9 @@ import (
 
 func newUser() *data.User {
 	return &data.User{
-		Name:           newString("test"),
-		PasswordDigest: data.Bytes{Value: []byte("digest"), Status: data.Present},
-		PasswordSalt:   data.Bytes{Value: []byte("salt"), Status: data.Present},
+		Name:           data.NewString("test"),
+		PasswordDigest: data.NewBytes([]byte("digest")),
+		PasswordSalt:   data.NewBytes([]byte("salt")),
 	}
 }
 
@@ -23,10 +23,10 @@ func TestPgxRepositoryUsersLifeCycle(t *testing.T) {
 	repo := newRepository(t)
 
 	input := &data.User{
-		Name:           newString("test"),
-		Email:          newString("test@example.com"),
-		PasswordDigest: data.Bytes{Value: []byte("digest"), Status: data.Present},
-		PasswordSalt:   data.Bytes{Value: []byte("salt"), Status: data.Present},
+		Name:           data.NewString("test"),
+		Email:          data.NewString("test@example.com"),
+		PasswordDigest: data.NewBytes([]byte("digest")),
+		PasswordSalt:   data.NewBytes([]byte("salt")),
 	}
 	userID, err := repo.CreateUser(input)
 	if err != nil {
@@ -114,13 +114,13 @@ func TestPgxRepositoryCreateUserHandlesEmailUniqueness(t *testing.T) {
 	repo := newRepository(t)
 
 	u := newUser()
-	u.Email = newString("test@example.com")
+	u.Email = data.NewString("test@example.com")
 	_, err := repo.CreateUser(u)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	u.Name = newString("othername")
+	u.Name = data.NewString("othername")
 	_, err = repo.CreateUser(u)
 	if err != (DuplicationError{Field: "email"}) {
 		t.Fatalf("Expected %v, got %v", DuplicationError{Field: "email"}, err)
@@ -165,7 +165,7 @@ func BenchmarkPgxRepositoryGetUserByName(b *testing.B) {
 func TestPgxRepositoryUpdateUser(t *testing.T) {
 	repo := newRepository(t)
 
-	err := repo.UpdateUser(42, &data.User{Name: newString("john")})
+	err := repo.UpdateUser(42, &data.User{Name: data.NewString("john")})
 	if err != notFound {
 		t.Errorf("Expected %#v, got %#v", notFound, err)
 	}
@@ -174,33 +174,33 @@ func TestPgxRepositoryUpdateUser(t *testing.T) {
 		update *data.User
 	}{
 		{
-			update: &data.User{Name: newString("john")},
+			update: &data.User{Name: data.NewString("john")},
 		},
 		{
-			update: &data.User{Email: newString("john@example.com")},
+			update: &data.User{Email: data.NewString("john@example.com")},
 		},
 		{
 			update: &data.User{
-				PasswordDigest: data.Bytes{Value: []byte("newdigest"), Status: data.Present},
-				PasswordSalt:   data.Bytes{Value: []byte("newsalt"), Status: data.Present},
+				PasswordDigest: data.NewBytes([]byte("newdigest")),
+				PasswordSalt:   data.NewBytes([]byte("newsalt")),
 			},
 		},
 		{
 			update: &data.User{
-				Name:           newString("bill"),
-				Email:          newString("bill@example.com"),
-				PasswordDigest: data.Bytes{Value: []byte("newdigest"), Status: data.Present},
-				PasswordSalt:   data.Bytes{Value: []byte("newsalt"), Status: data.Present},
+				Name:           data.NewString("bill"),
+				Email:          data.NewString("bill@example.com"),
+				PasswordDigest: data.NewBytes([]byte("newdigest")),
+				PasswordSalt:   data.NewBytes([]byte("newsalt")),
 			},
 		},
 	}
 
 	for i, tt := range tests {
 		userID, err := repo.CreateUser(&data.User{
-			Name:           newString(fmt.Sprintf("test%d", i)),
-			Email:          newString(fmt.Sprintf("test%d@example.com", i)),
-			PasswordDigest: data.Bytes{Value: []byte("digest"), Status: data.Present},
-			PasswordSalt:   data.Bytes{Value: []byte("salt"), Status: data.Present},
+			Name:           data.NewString(fmt.Sprintf("test%d", i)),
+			Email:          data.NewString(fmt.Sprintf("test%d@example.com", i)),
+			PasswordDigest: data.NewBytes([]byte("digest")),
+			PasswordSalt:   data.NewBytes([]byte("salt")),
 		})
 		if err != nil {
 			t.Errorf("%d. %v", i, err)
@@ -657,10 +657,10 @@ func TestPgxRepositoryResetPasswordsLifeCycle(t *testing.T) {
 
 	_, localhost, _ := net.ParseCIDR("127.0.0.1/32")
 	input := &data.PasswordReset{
-		Token:       data.String{Value: "token", Status: data.Present},
-		Email:       data.String{Value: "test@example.com", Status: data.Present},
-		RequestIP:   data.IPNet{Value: *localhost, Status: data.Present},
-		RequestTime: data.Time{Value: time.Date(2014, time.May, 30, 16, 10, 0, 0, time.Local), Status: data.Present},
+		Token:       data.NewString("token"),
+		Email:       data.NewString("test@example.com"),
+		RequestIP:   data.NewIPNet(*localhost),
+		RequestTime: data.NewTime(time.Date(2014, time.May, 30, 16, 10, 0, 0, time.Local)),
 	}
 	err := repo.CreatePasswordReset(input)
 	if err != nil {
@@ -692,8 +692,8 @@ func TestPgxRepositoryResetPasswordsLifeCycle(t *testing.T) {
 
 	_, ipnet, _ := net.ParseCIDR("192.168.0.2/32")
 	update := &data.PasswordReset{
-		CompletionIP:   data.IPNet{Value: *ipnet, Status: data.Present},
-		CompletionTime: data.Time{Value: time.Date(2014, time.May, 30, 16, 15, 0, 0, time.Local), Status: data.Present},
+		CompletionIP:   data.NewIPNet(*ipnet),
+		CompletionTime: data.NewTime(time.Date(2014, time.May, 30, 16, 15, 0, 0, time.Local)),
 	}
 
 	err = repo.UpdatePasswordReset(input.Token.Value, update)

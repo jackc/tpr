@@ -64,8 +64,8 @@ func SetPassword(u *data.User, password string) error {
 		return err
 	}
 
-	u.PasswordDigest = data.Bytes{Value: digest, Status: data.Present}
-	u.PasswordSalt = data.Bytes{Value: salt, Status: data.Present}
+	u.PasswordDigest = data.NewBytes(digest)
+	u.PasswordSalt = data.NewBytes(salt)
 
 	return nil
 }
