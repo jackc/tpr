@@ -37,8 +37,8 @@ type repository interface {
 	GetPasswordReset(token string) (*PasswordReset, error)
 	UpdatePasswordReset(string, *PasswordReset) error
 
-	GetFeedsUncheckedSince(since time.Time) (feeds []Feed, err error)
-	UpdateFeedWithFetchSuccess(feedID int32, update *parsedFeed, etag box.String, fetchTime time.Time) error
+	GetFeedsUncheckedSince(since time.Time) (feeds []data.Feed, err error)
+	UpdateFeedWithFetchSuccess(feedID int32, update *parsedFeed, etag data.String, fetchTime time.Time) error
 	UpdateFeedWithFetchUnchanged(feedID int32, fetchTime time.Time) error
 	UpdateFeedWithFetchFailure(feedID int32, failure string, fetchTime time.Time) (err error)
 
@@ -77,18 +77,6 @@ func IsPassword(u *data.User, password string) bool {
 	}
 
 	return bytes.Equal(digest, u.PasswordDigest.Value)
-}
-
-type Feed struct {
-	ID              box.Int32
-	Name            box.String
-	URL             box.String
-	LastFetchTime   box.Time
-	ETag            box.String
-	LastFailure     box.String
-	LastFailureTime box.Time
-	FailureCount    box.Int32
-	CreationTime    box.Time
 }
 
 type Subscription struct {

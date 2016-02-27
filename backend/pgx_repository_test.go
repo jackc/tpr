@@ -290,14 +290,13 @@ func TestPgxRepositoryFeeds(t *testing.T) {
 		t.Fatalf("Found %d stale feed, expected 1", len(staleFeeds))
 	}
 
-	if staleFeeds[0].URL.GetCoerceZero() != url {
+	if staleFeeds[0].URL.Value != url {
 		t.Errorf("Expected %v, got %v", url, staleFeeds[0].URL)
 	}
 
-	feedID := staleFeeds[0].ID.MustGet()
+	feedID := staleFeeds[0].ID.Value
 
-	nullString := box.String{}
-	nullString.SetNull()
+	nullString := data.String{Status: data.Null}
 
 	// Update feed as of now
 	err = repo.UpdateFeedWithFetchSuccess(feedID, update, nullString, now)
@@ -328,7 +327,7 @@ func TestPgxRepositoryFeeds(t *testing.T) {
 	if len(staleFeeds) != 1 {
 		t.Fatalf("Found %d stale feed, expected 1", len(staleFeeds))
 	}
-	if staleFeeds[0].ID.GetCoerceZero() != feedID {
+	if staleFeeds[0].ID.Value != feedID {
 		t.Errorf("Expected %v, got %v", feedID, staleFeeds[0].ID)
 	}
 
@@ -377,8 +376,7 @@ func TestPgxRepositoryUpdateFeedWithFetchSuccess(t *testing.T) {
 		{url: "http://baz/bar", title: "Baz", publicationTime: box.NewTime(now)},
 	}}
 
-	nullString := box.String{}
-	nullString.SetNull()
+	nullString := data.String{Status: data.Null}
 
 	err = repo.UpdateFeedWithFetchSuccess(feedID, update, nullString, now)
 	if err != nil {
@@ -456,8 +454,7 @@ func TestPgxRepositoryUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testin
 		{url: "http://baz/bar", title: "Baz"},
 	}}
 
-	nullString := box.String{}
-	nullString.SetNull()
+	nullString := data.String{Status: data.Null}
 
 	err = repo.UpdateFeedWithFetchSuccess(feedID, update, nullString, now)
 	if err != nil {
@@ -556,8 +553,7 @@ func TestPgxRepositoryDeleteSubscription(t *testing.T) {
 		{url: "http://baz/bar", title: "Baz", publicationTime: box.NewTime(time.Now())},
 	}}
 
-	nullString := box.String{}
-	nullString.SetNull()
+	nullString := data.String{Status: data.Null}
 
 	err = repo.UpdateFeedWithFetchSuccess(feedID, update, nullString, time.Now().Add(-20*time.Minute))
 	if err != nil {

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/jackc/pgx"
-	"github.com/jackc/tpr/backend/box"
 	"github.com/jackc/tpr/backend/data"
 	"io"
 	"strconv"
@@ -75,12 +74,12 @@ func (repo *pgxRepository) UpdateUser(userID int32, attributes *data.User) error
 	return err
 }
 
-func (repo *pgxRepository) GetFeedsUncheckedSince(since time.Time) ([]Feed, error) {
-	feeds := make([]Feed, 0, 8)
+func (repo *pgxRepository) GetFeedsUncheckedSince(since time.Time) ([]data.Feed, error) {
+	feeds := make([]data.Feed, 0, 8)
 	rows, _ := repo.pool.Query("getFeedsUncheckedSince", since)
 
 	for rows.Next() {
-		var feed Feed
+		var feed data.Feed
 		rows.Scan(&feed.ID, &feed.URL, &feed.ETag)
 		feeds = append(feeds, feed)
 	}
@@ -88,7 +87,7 @@ func (repo *pgxRepository) GetFeedsUncheckedSince(since time.Time) ([]Feed, erro
 	return feeds, rows.Err()
 }
 
-func (repo *pgxRepository) UpdateFeedWithFetchSuccess(feedID int32, update *parsedFeed, etag box.String, fetchTime time.Time) error {
+func (repo *pgxRepository) UpdateFeedWithFetchSuccess(feedID int32, update *parsedFeed, etag data.String, fetchTime time.Time) error {
 	tx, err := repo.pool.Begin()
 	if err != nil {
 		return err
@@ -98,7 +97,7 @@ func (repo *pgxRepository) UpdateFeedWithFetchSuccess(feedID int32, update *pars
 	_, err = tx.Exec("updateFeedWithFetchSuccess",
 		update.name,
 		fetchTime,
-		etag,
+		&etag,
 		feedID)
 	if err != nil {
 		return err

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"github.com/jackc/tpr/backend/box"
+	"github.com/jackc/tpr/backend/data"
 	log "gopkg.in/inconshreveable/log15.v2"
 	"net/http"
 	"net/http/httptest"
@@ -339,7 +340,7 @@ func TestFetchFeed(t *testing.T) {
 	defer ts.Close()
 
 	u := NewFeedUpdater(nil, log.Root())
-	rawFeed, err := u.fetchFeed(ts.URL, box.String{})
+	rawFeed, err := u.fetchFeed(ts.URL, data.String{})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -349,7 +350,7 @@ func TestFetchFeed(t *testing.T) {
 	if bytes.Compare(rssBody, rawFeed.body) != 0 {
 		t.Errorf("rawFeed body should match returned body but instead it was: %v", rawFeed.body)
 	}
-	if rawFeed.etag.Status() != box.Null {
+	if rawFeed.etag.Status != data.Null {
 		t.Errorf("Expected no ETag to be null but instead it was: %v", rawFeed.etag)
 	}
 }
