@@ -108,43 +108,6 @@ func (repo *pgxRepository) MarkItemRead(userID, itemID int32) error {
 	return nil
 }
 
-func (repo *pgxRepository) CreateSubscription(userID int32, feedURL string) error {
-	_, err := repo.pool.Exec("createSubscription", userID, feedURL)
-	return err
-}
-
-func (repo *pgxRepository) GetSubscriptions(userID int32) ([]Subscription, error) {
-	subs := make([]Subscription, 0, 16)
-	rows, _ := repo.pool.Query("getSubscriptions", userID)
-	for rows.Next() {
-		var s Subscription
-		rows.Scan(&s.FeedID, &s.Name, &s.URL, &s.LastFetchTime, &s.LastFailure, &s.LastFailureTime, &s.FailureCount, &s.ItemCount, &s.LastPublicationTime)
-		subs = append(subs, s)
-	}
-
-	return subs, rows.Err()
-}
-
-func (repo *pgxRepository) DeleteSubscription(userID, feedID int32) error {
-	tx, err := repo.pool.BeginIso(pgx.Serializable)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	_, err = tx.Exec("deleteSubscription", userID, feedID)
-	if err != nil {
-		return err
-	}
-
-	_, err = tx.Exec("deleteFeedIfOrphaned", feedID)
-	if err != nil {
-		return err
-	}
-
-	return tx.Commit()
-}
-
 // Empty all data in the entire repository
 func (repo *pgxRepository) empty() error {
 	tables := []string{"feeds", "items", "password_resets", "sessions", "subscriptions", "unread_items", "users"}

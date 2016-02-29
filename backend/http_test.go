@@ -62,8 +62,9 @@ func newRepository(t testing.TB) repository {
 }
 
 func TestExportOPML(t *testing.T) {
-	repo := newRepository(t).(*pgxRepository)
-	userID, err := data.CreateUser(repo.pool, &data.User{
+	repo := newRepository(t)
+	pool := repo.(*pgxRepository).pool
+	userID, err := data.CreateUser(pool, &data.User{
 		Name:           data.NewString("test"),
 		Email:          data.NewString("test@example.com"),
 		PasswordDigest: data.NewBytes([]byte("digest")),
@@ -73,7 +74,7 @@ func TestExportOPML(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = repo.CreateSubscription(userID, "http://example.com/feed.rss")
+	err = data.InsertSubscription(pool, userID, "http://example.com/feed.rss")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +84,7 @@ func TestExportOPML(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	env := &environment{}
+	env := &environment{pool: pool}
 	env.user = &data.User{ID: data.NewInt32(userID), Name: data.NewString("test")}
 	env.repo = repo
 

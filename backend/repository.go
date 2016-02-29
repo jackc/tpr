@@ -22,10 +22,6 @@ type repository interface {
 	CopySubscriptionsForUserAsJSON(w io.Writer, userID int32) error
 
 	MarkItemRead(userID, itemID int32) error
-
-	CreateSubscription(userID int32, feedURL string) (err error)
-	GetSubscriptions(userID int32) ([]Subscription, error)
-	DeleteSubscription(userID, feedID int32) (err error)
 }
 
 func SetPassword(u *data.User, password string) error {
@@ -53,18 +49,6 @@ func IsPassword(u *data.User, password string) bool {
 	}
 
 	return bytes.Equal(digest, u.PasswordDigest.Value)
-}
-
-type Subscription struct {
-	FeedID              data.Int32
-	Name                data.String
-	URL                 data.String
-	LastFetchTime       data.Time
-	LastFailure         data.String
-	LastFailureTime     data.Time
-	FailureCount        data.Int32
-	ItemCount           data.Int64
-	LastPublicationTime data.Time
 }
 
 type staleFeed struct {

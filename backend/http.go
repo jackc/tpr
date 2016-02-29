@@ -196,7 +196,7 @@ func CreateSubscriptionHandler(w http.ResponseWriter, req *http.Request, env *en
 		return
 	}
 
-	if err := env.repo.CreateSubscription(env.user.ID.Value, subscription.URL); err != nil {
+	if err := data.InsertSubscription(env.pool, env.user.ID.Value, subscription.URL); err != nil {
 		w.WriteHeader(422)
 		fmt.Fprintln(w, `Bad user name or password`)
 		return
@@ -213,7 +213,7 @@ func DeleteSubscriptionHandler(w http.ResponseWriter, req *http.Request, env *en
 		return
 	}
 
-	if err := env.repo.DeleteSubscription(env.user.ID.Value, int32(feedID)); err != nil {
+	if err := data.DeleteSubscription(env.pool, env.user.ID.Value, int32(feedID)); err != nil {
 		w.WriteHeader(422)
 		fmt.Fprintf(w, "Error deleting subscription: %v", err)
 		return
@@ -383,7 +383,7 @@ func ImportFeedsHandler(w http.ResponseWriter, req *http.Request, env *environme
 	for _, outline := range doc.Body.Outlines {
 		go func(outline OpmlOutline) {
 			r := subscriptionResult{Title: outline.Title, URL: outline.URL}
-			err := env.repo.CreateSubscription(env.user.ID.Value, outline.URL)
+			err := data.InsertSubscription(env.pool, env.user.ID.Value, outline.URL)
 			r.Success = err == nil
 			resultsChan <- r
 		}(outline)
@@ -399,7 +399,7 @@ func ImportFeedsHandler(w http.ResponseWriter, req *http.Request, env *environme
 }
 
 func ExportFeedsHandler(w http.ResponseWriter, req *http.Request, env *environment) {
-	subs, err := env.repo.GetSubscriptions(env.user.ID.Value)
+	subs, err := data.SelectSubscriptions(env.pool, env.user.ID.Value)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return

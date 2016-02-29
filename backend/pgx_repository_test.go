@@ -182,7 +182,7 @@ func TestPgxRepositoryFeeds(t *testing.T) {
 
 	// Create a feed
 	url := "http://bar"
-	err = repo.CreateSubscription(userID, url)
+	err = data.InsertSubscription(pool, userID, url)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -265,12 +265,12 @@ func TestPgxRepositoryUpdateFeedWithFetchSuccess(t *testing.T) {
 	now := time.Now()
 
 	url := "http://bar"
-	err = repo.CreateSubscription(userID, url)
+	err = data.InsertSubscription(pool, userID, url)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	subscriptions, err := repo.GetSubscriptions(userID)
+	subscriptions, err := data.SelectSubscriptions(pool, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -344,12 +344,12 @@ func TestPgxRepositoryUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testin
 	now := time.Now()
 
 	url := "http://bar"
-	err = repo.CreateSubscription(userID, url)
+	err = data.InsertSubscription(pool, userID, url)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	subscriptions, err := repo.GetSubscriptions(userID)
+	subscriptions, err := data.SelectSubscriptions(pool, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -419,12 +419,12 @@ func TestPgxRepositorySubscriptions(t *testing.T) {
 	}
 
 	url := "http://foo"
-	err = repo.CreateSubscription(userID, url)
+	err = data.InsertSubscription(pool, userID, url)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	subscriptions, err := repo.GetSubscriptions(userID)
+	subscriptions, err := data.SelectSubscriptions(pool, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -445,12 +445,12 @@ func TestPgxRepositoryDeleteSubscription(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = repo.CreateSubscription(userID, "http://foo")
+	err = data.InsertSubscription(pool, userID, "http://foo")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	subscriptions, err := repo.GetSubscriptions(userID)
+	subscriptions, err := data.SelectSubscriptions(pool, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -470,12 +470,12 @@ func TestPgxRepositoryDeleteSubscription(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = repo.DeleteSubscription(userID, feedID)
+	err = data.DeleteSubscription(pool, userID, feedID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	subscriptions, err = repo.GetSubscriptions(userID)
+	subscriptions, err = data.SelectSubscriptions(pool, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -508,7 +508,7 @@ func TestPgxRepositoryCopySubscriptionsForUserAsJSON(t *testing.T) {
 		t.Fatalf("Failed when no subscriptions: %v", err)
 	}
 
-	err = repo.CreateSubscription(userID, "http://foo")
+	err = data.InsertSubscription(pool, userID, "http://foo")
 	if err != nil {
 		t.Fatal(err)
 	}
