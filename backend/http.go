@@ -5,13 +5,15 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	qv "github.com/jackc/quo_vadis"
-	"github.com/jackc/tpr/backend/data"
-	log "gopkg.in/inconshreveable/log15.v2"
 	"net"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/jackc/pgx"
+	qv "github.com/jackc/quo_vadis"
+	"github.com/jackc/tpr/backend/data"
+	log "gopkg.in/inconshreveable/log15.v2"
 )
 
 type EnvHandlerFunc func(w http.ResponseWriter, req *http.Request, env *environment)
@@ -19,7 +21,7 @@ type EnvHandlerFunc func(w http.ResponseWriter, req *http.Request, env *environm
 func EnvHandler(repo repository, mailer Mailer, logger log.Logger, f EnvHandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		user := getUserFromSession(req, repo)
-		env := &environment{user: user, repo: repo, mailer: mailer, logger: logger}
+		env := &environment{user: user, repo: repo, pool: repo.(*pgxRepository).pool, mailer: mailer, logger: logger}
 		f(w, req, env)
 	})
 }
@@ -38,6 +40,7 @@ func AuthenticatedHandler(f EnvHandlerFunc) EnvHandlerFunc {
 type environment struct {
 	user   *data.User
 	repo   repository
+	pool   *pgx.ConnPool
 	logger log.Logger
 	mailer Mailer
 }
@@ -592,7 +595,7 @@ func ResetPasswordHandler(w http.ResponseWriter, req *http.Request, env *environ
 		return
 	}
 
-	user, err := env.repo.GetUser(pwr.UserID.Value)
+	user, err := data.SelectUserByPK(env.pool, pwr.UserID.Value)
 	if err != nil {
 		w.WriteHeader(500)
 		return

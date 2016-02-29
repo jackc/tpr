@@ -23,7 +23,6 @@ func (e DuplicationError) Error() string {
 
 type repository interface {
 	CreateUser(user *data.User) (userID int32, err error)
-	GetUser(userID int32) (*data.User, error)
 	GetUserByName(name string) (*data.User, error)
 	GetUserByEmail(email string) (*data.User, error)
 	UpdateUser(userID int32, attributes *data.User) error

@@ -104,7 +104,7 @@ func TestExportOPML(t *testing.T) {
 }
 
 func TestGetAccountHandler(t *testing.T) {
-	repo := newRepository(t)
+	repo := newRepository(t).(*pgxRepository)
 	user := &data.User{
 		Name:  data.NewString("test"),
 		Email: data.NewString("test@example.com"),
@@ -116,7 +116,7 @@ func TestGetAccountHandler(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	user, err = repo.GetUser(userID)
+	user, err = data.SelectUserByPK(repo.pool, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +210,7 @@ func TestUpdateAccountHandler(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		repo := newRepository(t)
+		repo := newRepository(t).(*pgxRepository)
 		user := &data.User{
 			Name:  data.NewString("test"),
 			Email: data.NewString(origEmail),
@@ -223,7 +223,7 @@ func TestUpdateAccountHandler(t *testing.T) {
 			continue
 		}
 
-		user, err = repo.GetUser(userID)
+		user, err = data.SelectUserByPK(repo.pool, userID)
 		if err != nil {
 			t.Errorf("%s: repo.GetUser returned error: %v", tt.descr, err)
 			continue
@@ -250,7 +250,7 @@ func TestUpdateAccountHandler(t *testing.T) {
 			continue
 		}
 
-		user, err = repo.GetUser(userID)
+		user, err = data.SelectUserByPK(repo.pool, userID)
 		if err != nil {
 			t.Errorf("%s: repo.GetUser returned error: %v", tt.descr, err)
 			continue
@@ -379,7 +379,7 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 }
 
 func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
-	repo := newRepository(t)
+	repo := newRepository(t).(*pgxRepository)
 	user := &data.User{
 		Name:  data.NewString("test"),
 		Email: data.NewString("test@example.com"),
@@ -412,7 +412,7 @@ func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
 		t.Fatalf("http.NewRequest returned error: %v", err)
 	}
 
-	env := &environment{repo: repo}
+	env := &environment{repo: repo, pool: repo.pool}
 	w := httptest.NewRecorder()
 	ResetPasswordHandler(w, req, env)
 
@@ -420,7 +420,7 @@ func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
 		t.Errorf("Expected HTTP status %d, instead received %d", 200, w.Code)
 	}
 
-	user, err = repo.GetUser(userID)
+	user, err = data.SelectUserByPK(repo.pool, userID)
 	if err != nil {
 		t.Fatalf("repo.GetUser returned error: %v", err)
 	}
@@ -441,7 +441,7 @@ func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
 }
 
 func TestResetPasswordHandlerTokenMatchestUsedPasswordReset(t *testing.T) {
-	repo := newRepository(t)
+	repo := newRepository(t).(*pgxRepository)
 	user := &data.User{
 		Name:  data.NewString("test"),
 		Email: data.NewString("test@example.com"),
@@ -484,7 +484,7 @@ func TestResetPasswordHandlerTokenMatchestUsedPasswordReset(t *testing.T) {
 		t.Errorf("Expected HTTP status %d, instead received %d", 404, w.Code)
 	}
 
-	user, err = repo.GetUser(userID)
+	user, err = data.SelectUserByPK(repo.pool, userID)
 	if err != nil {
 		t.Fatalf("repo.GetUser returned error: %v", err)
 	}

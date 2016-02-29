@@ -54,10 +54,6 @@ func (repo *pgxRepository) getUser(sql string, arg interface{}) (*data.User, err
 	return &user, nil
 }
 
-func (repo *pgxRepository) GetUser(userID int32) (*data.User, error) {
-	return repo.getUser("getUser", userID)
-}
-
 func (repo *pgxRepository) GetUserByName(name string) (*data.User, error) {
 	return repo.getUser("getUserByName", name)
 }

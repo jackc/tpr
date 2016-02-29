@@ -19,7 +19,7 @@ func newUser() *data.User {
 }
 
 func TestPgxRepositoryUsersLifeCycle(t *testing.T) {
-	repo := newRepository(t)
+	repo := newRepository(t).(*pgxRepository)
 
 	input := &data.User{
 		Name:           data.NewString("test"),
@@ -72,7 +72,7 @@ func TestPgxRepositoryUsersLifeCycle(t *testing.T) {
 		t.Errorf("Expected user (%v), and input (%v) PasswordSalt to match, but they did not", user.PasswordSalt, input.PasswordSalt)
 	}
 
-	user, err = repo.GetUser(userID)
+	user, err = data.SelectUserByPK(repo.pool, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +127,7 @@ func TestPgxRepositoryCreateUserHandlesEmailUniqueness(t *testing.T) {
 }
 
 func BenchmarkPgxRepositoryGetUser(b *testing.B) {
-	repo := newRepository(b)
+	repo := newRepository(b).(*pgxRepository)
 
 	userID, err := repo.CreateUser(newUser())
 	if err != nil {
@@ -136,7 +136,7 @@ func BenchmarkPgxRepositoryGetUser(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := repo.GetUser(userID)
+		_, err := data.SelectUserByPK(repo.pool, userID)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -162,7 +162,7 @@ func BenchmarkPgxRepositoryGetUserByName(b *testing.B) {
 }
 
 func TestPgxRepositoryUpdateUser(t *testing.T) {
-	repo := newRepository(t)
+	repo := newRepository(t).(*pgxRepository)
 
 	err := repo.UpdateUser(42, &data.User{Name: data.NewString("john")})
 	if err != notFound {
@@ -205,7 +205,7 @@ func TestPgxRepositoryUpdateUser(t *testing.T) {
 			t.Errorf("%d. %v", i, err)
 		}
 
-		expected, err := repo.GetUser(userID)
+		expected, err := data.SelectUserByPK(repo.pool, userID)
 		if err != nil {
 			t.Errorf("%d. %v", i, err)
 			continue
@@ -233,7 +233,7 @@ func TestPgxRepositoryUpdateUser(t *testing.T) {
 			continue
 		}
 
-		user, err := repo.GetUser(userID)
+		user, err := data.SelectUserByPK(repo.pool, userID)
 		if err != nil {
 			t.Errorf("%d. %v", i, err)
 		}
