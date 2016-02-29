@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"crypto/rand"
 	"errors"
+	"time"
+
 	"github.com/jackc/tpr/backend/data"
 	"golang.org/x/crypto/scrypt"
-	"io"
-	"time"
 )
 
 var notFound = errors.New("not found")
@@ -17,9 +17,6 @@ type repository interface {
 	UpdateFeedWithFetchSuccess(feedID int32, update *parsedFeed, etag data.String, fetchTime time.Time) error
 	UpdateFeedWithFetchUnchanged(feedID int32, fetchTime time.Time) error
 	UpdateFeedWithFetchFailure(feedID int32, failure string, fetchTime time.Time) (err error)
-
-	CopyUnreadItemsAsJSONByUserID(w io.Writer, userID int32) error
-	CopySubscriptionsForUserAsJSON(w io.Writer, userID int32) error
 }
 
 func SetPassword(u *data.User, password string) error {

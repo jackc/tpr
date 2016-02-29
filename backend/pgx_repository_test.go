@@ -291,7 +291,7 @@ func TestPgxRepositoryUpdateFeedWithFetchSuccess(t *testing.T) {
 	}
 
 	buffer := &bytes.Buffer{}
-	err = repo.CopyUnreadItemsAsJSONByUserID(buffer, userID)
+	err = data.CopyUnreadItemsAsJSONByUserID(pool, buffer, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -316,7 +316,7 @@ func TestPgxRepositoryUpdateFeedWithFetchSuccess(t *testing.T) {
 	}
 
 	buffer.Reset()
-	err = repo.CopyUnreadItemsAsJSONByUserID(buffer, userID)
+	err = data.CopyUnreadItemsAsJSONByUserID(pool, buffer, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -370,7 +370,7 @@ func TestPgxRepositoryUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testin
 	}
 
 	buffer := &bytes.Buffer{}
-	err = repo.CopyUnreadItemsAsJSONByUserID(buffer, userID)
+	err = data.CopyUnreadItemsAsJSONByUserID(pool, buffer, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -395,7 +395,7 @@ func TestPgxRepositoryUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testin
 	}
 
 	buffer.Reset()
-	err = repo.CopyUnreadItemsAsJSONByUserID(buffer, userID)
+	err = data.CopyUnreadItemsAsJSONByUserID(pool, buffer, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -503,7 +503,7 @@ func TestPgxRepositoryCopySubscriptionsForUserAsJSON(t *testing.T) {
 	}
 
 	buffer := &bytes.Buffer{}
-	err = repo.CopySubscriptionsForUserAsJSON(buffer, userID)
+	err = data.CopySubscriptionsForUserAsJSON(pool, buffer, userID)
 	if err != nil {
 		t.Fatalf("Failed when no subscriptions: %v", err)
 	}
@@ -514,7 +514,7 @@ func TestPgxRepositoryCopySubscriptionsForUserAsJSON(t *testing.T) {
 	}
 
 	buffer.Reset()
-	err = repo.CopySubscriptionsForUserAsJSON(buffer, userID)
+	err = data.CopySubscriptionsForUserAsJSON(pool, buffer, userID)
 	if err != nil {
 		t.Fatal(err)
 	}

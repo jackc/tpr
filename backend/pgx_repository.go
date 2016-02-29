@@ -3,11 +3,11 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"github.com/jackc/pgx"
-	"github.com/jackc/tpr/backend/data"
-	"io"
 	"strconv"
 	"time"
+
+	"github.com/jackc/pgx"
+	"github.com/jackc/tpr/backend/data"
 )
 
 type pgxRepository struct {
@@ -71,28 +71,6 @@ func (repo *pgxRepository) UpdateFeedWithFetchUnchanged(feedID int32, fetchTime 
 
 func (repo *pgxRepository) UpdateFeedWithFetchFailure(feedID int32, failure string, fetchTime time.Time) (err error) {
 	_, err = repo.pool.Exec("updateFeedWithFetchFailure", failure, fetchTime, feedID)
-	return err
-}
-
-func (repo *pgxRepository) CopySubscriptionsForUserAsJSON(w io.Writer, userID int32) error {
-	var b []byte
-	err := repo.pool.QueryRow("getFeedsForUser", userID).Scan(&b)
-	if err != nil {
-		return err
-	}
-
-	_, err = w.Write(b)
-	return err
-}
-
-func (repo *pgxRepository) CopyUnreadItemsAsJSONByUserID(w io.Writer, userID int32) error {
-	var b []byte
-	err := repo.pool.QueryRow("getUnreadItems", userID).Scan(&b)
-	if err != nil {
-		return err
-	}
-
-	_, err = w.Write(b)
 	return err
 }
 

@@ -311,7 +311,7 @@ func DeleteSessionHandler(w http.ResponseWriter, req *http.Request, env *environ
 
 func GetUnreadItemsHandler(w http.ResponseWriter, req *http.Request, env *environment) {
 	w.Header().Set("Content-Type", "application/json")
-	if err := env.repo.CopyUnreadItemsAsJSONByUserID(w, env.user.ID.Value); err != nil {
+	if err := data.CopyUnreadItemsAsJSONByUserID(env.pool, w, env.user.ID.Value); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
@@ -425,7 +425,7 @@ func ExportFeedsHandler(w http.ResponseWriter, req *http.Request, env *environme
 
 func GetFeedsHandler(w http.ResponseWriter, req *http.Request, env *environment) {
 	w.Header().Set("Content-Type", "application/json")
-	if err := env.repo.CopySubscriptionsForUserAsJSON(w, env.user.ID.Value); err != nil {
+	if err := data.CopySubscriptionsForUserAsJSON(env.pool, w, env.user.ID.Value); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
