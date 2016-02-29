@@ -295,7 +295,7 @@ func ResetPassword(c *cli.Context) {
 		os.Exit(1)
 	}
 
-	user, err := repo.GetUserByName(name)
+	user, err := data.SelectUserByName(repo.(*pgxRepository).pool, name)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

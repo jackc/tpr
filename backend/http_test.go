@@ -297,14 +297,15 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		repo := newRepository(t).(*pgxRepository)
+		repo := newRepository(t)
+		pool := repo.(*pgxRepository).pool
 		user := &data.User{
 			Name:  data.NewString("test"),
 			Email: data.NewString(tt.userEmail),
 		}
 		SetPassword(user, "password")
 
-		userID, err := data.CreateUser(repo.pool, user)
+		userID, err := data.CreateUser(pool, user)
 		if err != nil {
 			t.Errorf("%s: repo.CreateUser returned error: %v", tt.descr, err)
 			continue
@@ -319,7 +320,7 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 		}
 		req.RemoteAddr = tt.remoteAddr
 
-		env := &environment{user: user, repo: repo, logger: getLogger(t), mailer: tt.mailer}
+		env := &environment{user: user, repo: repo, pool: pool, logger: getLogger(t), mailer: tt.mailer}
 		w := httptest.NewRecorder()
 		RequestPasswordResetHandler(w, req, env)
 
@@ -330,7 +331,6 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 
 		// Need to reach down pgx because repo interface doesn't need any get
 		// interface besides by token, but for this test we need to know the token
-		pool := repo.pool
 		var token string
 		err = pool.QueryRow("select token from password_resets").Scan(&token)
 		if err != nil {

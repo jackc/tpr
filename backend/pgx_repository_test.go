@@ -33,7 +33,7 @@ func TestPgxRepositoryUsersLifeCycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	user, err := repo.GetUserByName(input.Name.Value)
+	user, err := data.SelectUserByName(pool, input.Name.Value)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestPgxRepositoryUsersLifeCycle(t *testing.T) {
 		t.Errorf("Expected user (%v), and input (%v) PasswordSalt to match, but they did not", user.PasswordSalt, input.PasswordSalt)
 	}
 
-	user, err = repo.GetUserByEmail(input.Email.Value)
+	user, err = data.SelectUserByEmail(pool, input.Email.Value)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func BenchmarkPgxRepositoryGetUserByName(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := repo.GetUserByName(user.Name.Value)
+		_, err := data.SelectUserByName(pool, user.Name.Value)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -640,7 +640,7 @@ func TestPgxRepositorySessions(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	user, err := repo.GetUserBySessionID(sessionID)
+	user, err := data.SelectUserBySessionID(pool, sessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -653,9 +653,9 @@ func TestPgxRepositorySessions(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = repo.GetUserBySessionID(sessionID)
-	if err != notFound {
-		t.Fatalf("Expected %v, got %v", notFound, err)
+	_, err = data.SelectUserBySessionID(pool, sessionID)
+	if err != data.ErrNotFound {
+		t.Fatalf("Expected %v, got %v", data.ErrNotFound, err)
 	}
 
 	err = repo.DeleteSession(sessionID)

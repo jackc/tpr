@@ -25,28 +25,6 @@ func NewPgxRepository(connPoolConfig pgx.ConnPoolConfig) (*pgxRepository, error)
 	return repo, nil
 }
 
-func (repo *pgxRepository) getUser(sql string, arg interface{}) (*data.User, error) {
-	user := data.User{}
-
-	err := repo.pool.QueryRow(sql, arg).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordDigest, &user.PasswordSalt)
-	if err == pgx.ErrNoRows {
-		return nil, notFound
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	return &user, nil
-}
-
-func (repo *pgxRepository) GetUserByName(name string) (*data.User, error) {
-	return repo.getUser("getUserByName", name)
-}
-
-func (repo *pgxRepository) GetUserByEmail(email string) (*data.User, error) {
-	return repo.getUser("getUserByEmail", email)
-}
-
 func (repo *pgxRepository) UpdateUser(userID int32, attributes *data.User) error {
 	err := data.UpdateUser(repo.pool, userID, attributes)
 	if err == data.ErrNotFound {
@@ -179,10 +157,6 @@ func (repo *pgxRepository) DeleteSubscription(userID, feedID int32) error {
 func (repo *pgxRepository) CreateSession(id []byte, userID int32) (err error) {
 	_, err = repo.pool.Exec("insertSession", id, userID)
 	return err
-}
-
-func (repo *pgxRepository) GetUserBySessionID(id []byte) (*data.User, error) {
-	return repo.getUser("getUserBySessionID", id)
 }
 
 func (repo *pgxRepository) DeleteSession(id []byte) error {

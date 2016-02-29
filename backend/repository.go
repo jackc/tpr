@@ -13,13 +13,10 @@ import (
 var notFound = errors.New("not found")
 
 type repository interface {
-	GetUserByName(name string) (*data.User, error)
-	GetUserByEmail(email string) (*data.User, error)
 	UpdateUser(userID int32, attributes *data.User) error
 
 	CreateSession(id []byte, userID int32) (err error)
 	DeleteSession(id []byte) (err error)
-	GetUserBySessionID(id []byte) (*data.User, error)
 
 	CreatePasswordReset(*data.PasswordReset) error
 	GetPasswordReset(token string) (*data.PasswordReset, error)

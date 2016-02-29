@@ -80,7 +80,7 @@ func getUserFromSession(req *http.Request, repo repository) *data.User {
 	}
 
 	// TODO - this could be an error from no records found -- or the connection could be dead or we could have a syntax error...
-	user, err := repo.GetUserBySessionID(sessionID)
+	user, err := data.SelectUserBySessionID(repo.(*pgxRepository).pool, sessionID)
 	if err != nil {
 		return nil
 	}
@@ -242,7 +242,7 @@ func CreateSessionHandler(w http.ResponseWriter, req *http.Request, env *environ
 		return
 	}
 
-	user, err := env.repo.GetUserByName(credentials.Name)
+	user, err := data.SelectUserByName(env.pool, credentials.Name)
 	if err != nil {
 		w.WriteHeader(422)
 		fmt.Fprintln(w, "Bad user name or password")
@@ -513,11 +513,11 @@ func RequestPasswordResetHandler(w http.ResponseWriter, req *http.Request, env *
 
 	pwr.Email = data.NewString(reset.Email)
 
-	user, err := env.repo.GetUserByEmail(reset.Email)
+	user, err := data.SelectUserByEmail(env.pool, reset.Email)
 	switch err {
 	case nil:
 		pwr.UserID = user.ID
-	case notFound:
+	case data.ErrNotFound:
 	default:
 		w.WriteHeader(500)
 		fmt.Fprintln(w, `Internal server error`)
