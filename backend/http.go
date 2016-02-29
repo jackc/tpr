@@ -524,7 +524,7 @@ func RequestPasswordResetHandler(w http.ResponseWriter, req *http.Request, env *
 		return
 	}
 
-	err = env.repo.CreatePasswordReset(pwr)
+	err = data.InsertPasswordReset(env.pool, pwr)
 	if err != nil {
 		w.WriteHeader(500)
 		fmt.Fprintln(w, `Internal server error`)
@@ -566,8 +566,8 @@ func ResetPasswordHandler(w http.ResponseWriter, req *http.Request, env *environ
 		return
 	}
 
-	pwr, err := env.repo.GetPasswordReset(resetPassword.Token)
-	if err == notFound {
+	pwr, err := data.SelectPasswordResetByPK(env.pool, resetPassword.Token)
+	if err == data.ErrNotFound {
 		w.WriteHeader(404)
 		return
 	} else if err != nil {

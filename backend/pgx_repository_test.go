@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"net"
 	"testing"
 	"time"
 
@@ -561,78 +560,5 @@ func TestPgxRepositorySessions(t *testing.T) {
 	err = repo.DeleteSession(sessionID)
 	if err != notFound {
 		t.Fatalf("Expected %v, got %v", notFound, err)
-	}
-}
-
-func TestPgxRepositoryResetPasswordsLifeCycle(t *testing.T) {
-	repo := newRepository(t)
-
-	_, localhost, _ := net.ParseCIDR("127.0.0.1/32")
-	input := &data.PasswordReset{
-		Token:       data.NewString("token"),
-		Email:       data.NewString("test@example.com"),
-		RequestIP:   data.NewIPNet(*localhost),
-		RequestTime: data.NewTime(time.Date(2014, time.May, 30, 16, 10, 0, 0, time.Local)),
-	}
-	err := repo.CreatePasswordReset(input)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	reset, err := repo.GetPasswordReset(input.Token.Value)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if reset.Token != input.Token {
-		t.Errorf("Expected %v, got %v", input.Token, reset.Token)
-	}
-	if reset.Email != input.Email {
-		t.Errorf("Expected %v, got %v", input.Email, reset.Email)
-	}
-	if reset.RequestIP.Value.String() != input.RequestIP.Value.String() {
-		t.Errorf("Expected %v, got %v", input.RequestIP, reset.RequestIP)
-	}
-	if reset.RequestTime != input.RequestTime {
-		t.Errorf("Expected %v, got %v", input.RequestTime, reset.RequestTime)
-	}
-	if reset.CompletionTime.Status != data.Null {
-		t.Errorf("CompletionTime should have been empty, but contained %v", reset.CompletionTime)
-	}
-	if reset.CompletionIP.Status != data.Null {
-		t.Errorf("CompletionIP should have been empty, but contained %v", reset.CompletionIP)
-	}
-
-	_, ipnet, _ := net.ParseCIDR("192.168.0.2/32")
-	update := &data.PasswordReset{
-		CompletionIP:   data.NewIPNet(*ipnet),
-		CompletionTime: data.NewTime(time.Date(2014, time.May, 30, 16, 15, 0, 0, time.Local)),
-	}
-
-	err = repo.UpdatePasswordReset(input.Token.Value, update)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	reset, err = repo.GetPasswordReset(input.Token.Value)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if reset.Token != input.Token {
-		t.Errorf("Expected %v, got %v", input.Token, reset.Token)
-	}
-	if reset.Email != input.Email {
-		t.Errorf("Expected %v, got %v", input.Email, reset.Email)
-	}
-	if reset.RequestIP.Value.String() != input.RequestIP.Value.String() {
-		t.Errorf("Expected %v, got %v", input.RequestIP, reset.RequestIP)
-	}
-	if reset.RequestTime != input.RequestTime {
-		t.Errorf("Expected %v, got %v", input.RequestTime, reset.RequestTime)
-	}
-	if reset.CompletionIP.Value.String() != update.CompletionIP.Value.String() {
-		t.Errorf("Expected %v, got %v", update.CompletionIP, reset.CompletionIP)
-	}
-	if reset.CompletionTime != update.CompletionTime {
-		t.Errorf("Expected %v, got %v", update.CompletionTime, reset.CompletionTime)
 	}
 }

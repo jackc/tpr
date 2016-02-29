@@ -7,7 +7,6 @@ import (
 	"github.com/jackc/tpr/backend/data"
 	"io"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -161,34 +160,6 @@ func (repo *pgxRepository) DeleteSession(id []byte) error {
 	}
 
 	return nil
-}
-
-func (repo *pgxRepository) CreatePasswordReset(attrs *data.PasswordReset) error {
-	err := data.InsertPasswordReset(repo.pool, attrs)
-	if err != nil {
-		if strings.Contains(err.Error(), "password_resets_pkey") {
-			return data.DuplicationError{Field: "token"}
-		}
-		return err
-	}
-
-	return nil
-}
-
-func (repo *pgxRepository) GetPasswordReset(token string) (*data.PasswordReset, error) {
-	pwr, err := data.SelectPasswordResetByPK(repo.pool, token)
-	if err == data.ErrNotFound {
-		return nil, notFound
-	}
-	return pwr, err
-}
-
-func (repo *pgxRepository) UpdatePasswordReset(token string, attrs *data.PasswordReset) error {
-	err := data.UpdatePasswordReset(repo.pool, token, attrs)
-	if err == data.ErrNotFound {
-		return notFound
-	}
-	return err
 }
 
 // Empty all data in the entire repository

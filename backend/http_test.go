@@ -338,7 +338,7 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 			t.Errorf("%s: pool.QueryRow Scan returned error: %v", tt.descr, err)
 			continue
 		}
-		pwr, err := repo.GetPasswordReset(token)
+		pwr, err := data.SelectPasswordResetByPK(env.pool, token)
 		if err != nil {
 			t.Errorf("%s: repo.GetPasswordReset returned error: %v", tt.descr, err)
 			continue
@@ -402,7 +402,7 @@ func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
 		RequestIP:   data.NewIPNet(*requestIP),
 	}
 
-	err = repo.CreatePasswordReset(pwr)
+	err = data.InsertPasswordReset(pool, pwr)
 	if err != nil {
 		t.Fatalf("repo.CreatePasswordReset returned error: %v", err)
 	}
@@ -467,7 +467,7 @@ func TestResetPasswordHandlerTokenMatchestUsedPasswordReset(t *testing.T) {
 		CompletionIP:   data.NewIPNet(*localhost),
 	}
 
-	err = repo.CreatePasswordReset(pwr)
+	err = data.InsertPasswordReset(pool, pwr)
 	if err != nil {
 		t.Fatalf("repo.CreatePasswordReset returned error: %v", err)
 	}
@@ -479,7 +479,7 @@ func TestResetPasswordHandlerTokenMatchestUsedPasswordReset(t *testing.T) {
 		t.Fatalf("http.NewRequest returned error: %v", err)
 	}
 
-	env := &environment{repo: repo}
+	env := &environment{repo: repo, pool: pool}
 	w := httptest.NewRecorder()
 	ResetPasswordHandler(w, req, env)
 
@@ -499,6 +499,7 @@ func TestResetPasswordHandlerTokenMatchestUsedPasswordReset(t *testing.T) {
 
 func TestResetPasswordHandlerTokenMatchestInvalidPasswordReset(t *testing.T) {
 	repo := newRepository(t)
+	pool := repo.(*pgxRepository).pool
 
 	_, localhost, _ := net.ParseCIDR("127.0.0.1/32")
 	pwr := &data.PasswordReset{
@@ -508,7 +509,7 @@ func TestResetPasswordHandlerTokenMatchestInvalidPasswordReset(t *testing.T) {
 		RequestIP:   data.NewIPNet(*localhost),
 	}
 
-	err := repo.CreatePasswordReset(pwr)
+	err := data.InsertPasswordReset(pool, pwr)
 	if err != nil {
 		t.Fatalf("repo.CreatePasswordReset returned error: %v", err)
 	}
@@ -520,7 +521,7 @@ func TestResetPasswordHandlerTokenMatchestInvalidPasswordReset(t *testing.T) {
 		t.Fatalf("http.NewRequest returned error: %v", err)
 	}
 
-	env := &environment{repo: repo}
+	env := &environment{repo: repo, pool: pool}
 	w := httptest.NewRecorder()
 	ResetPasswordHandler(w, req, env)
 
@@ -531,6 +532,7 @@ func TestResetPasswordHandlerTokenMatchestInvalidPasswordReset(t *testing.T) {
 
 func TestResetPasswordHandlerTokenDoesNotMatchPasswordReset(t *testing.T) {
 	repo := newRepository(t)
+	pool := repo.(*pgxRepository).pool
 
 	buf := bytes.NewBufferString(`{"token": "0123456789abcdef", "password": "bigsecret"}`)
 
@@ -539,7 +541,7 @@ func TestResetPasswordHandlerTokenDoesNotMatchPasswordReset(t *testing.T) {
 		t.Fatalf("http.NewRequest returned error: %v", err)
 	}
 
-	env := &environment{repo: repo}
+	env := &environment{repo: repo, pool: pool}
 	w := httptest.NewRecorder()
 	ResetPasswordHandler(w, req, env)
 
