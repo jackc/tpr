@@ -136,7 +136,7 @@ func RegisterHandler(w http.ResponseWriter, req *http.Request, env *environment)
 
 	userID, err := data.CreateUser(env.pool, user)
 	if err != nil {
-		if err, ok := err.(DuplicationError); ok {
+		if err, ok := err.(data.DuplicationError); ok {
 			w.WriteHeader(422)
 			fmt.Fprintf(w, `"%s" is already taken`, err.Field)
 			return

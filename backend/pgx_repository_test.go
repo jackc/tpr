@@ -107,7 +107,7 @@ func TestPgxRepositoryCreateUserHandlesNameUniqueness(t *testing.T) {
 	u = newUser()
 	_, err = data.CreateUser(pool, u)
 	if err != (data.DuplicationError{Field: "name"}) {
-		t.Fatalf("Expected %v, got %v", DuplicationError{Field: "name"}, err)
+		t.Fatalf("Expected %v, got %v", data.DuplicationError{Field: "name"}, err)
 	}
 }
 

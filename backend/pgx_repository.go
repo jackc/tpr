@@ -201,7 +201,7 @@ func (repo *pgxRepository) CreatePasswordReset(attrs *data.PasswordReset) error 
 	err := data.InsertPasswordReset(repo.pool, attrs)
 	if err != nil {
 		if strings.Contains(err.Error(), "password_resets_pkey") {
-			return DuplicationError{Field: "token"}
+			return data.DuplicationError{Field: "token"}
 		}
 		return err
 	}

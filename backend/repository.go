@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/rand"
 	"errors"
-	"fmt"
 	"github.com/jackc/tpr/backend/data"
 	"golang.org/x/crypto/scrypt"
 	"io"
@@ -12,14 +11,6 @@ import (
 )
 
 var notFound = errors.New("not found")
-
-type DuplicationError struct {
-	Field string // Field or fields that caused the rejection
-}
-
-func (e DuplicationError) Error() string {
-	return fmt.Sprintf("%s is already taken", e.Field)
-}
 
 type repository interface {
 	GetUserByName(name string) (*data.User, error)
