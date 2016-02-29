@@ -25,21 +25,6 @@ func NewPgxRepository(connPoolConfig pgx.ConnPoolConfig) (*pgxRepository, error)
 	return repo, nil
 }
 
-func (repo *pgxRepository) CreateUser(user *data.User) (int32, error) {
-	err := data.InsertUser(repo.pool, user)
-	if err != nil {
-		if strings.Contains(err.Error(), "users_name_unq") {
-			return 0, DuplicationError{Field: "name"}
-		}
-		if strings.Contains(err.Error(), "users_email_key") {
-			return 0, DuplicationError{Field: "email"}
-		}
-		return 0, err
-	}
-
-	return user.ID.Value, nil
-}
-
 func (repo *pgxRepository) getUser(sql string, arg interface{}) (*data.User, error) {
 	user := data.User{}
 

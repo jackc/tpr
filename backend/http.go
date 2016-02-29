@@ -134,7 +134,7 @@ func RegisterHandler(w http.ResponseWriter, req *http.Request, env *environment)
 	user.Email = newStringFallback(registration.Email, data.Undefined)
 	SetPassword(user, registration.Password)
 
-	userID, err := env.repo.CreateUser(user)
+	userID, err := data.CreateUser(env.pool, user)
 	if err != nil {
 		if err, ok := err.(DuplicationError); ok {
 			w.WriteHeader(422)

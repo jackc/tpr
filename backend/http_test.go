@@ -62,8 +62,8 @@ func newRepository(t testing.TB) repository {
 }
 
 func TestExportOPML(t *testing.T) {
-	repo := newRepository(t)
-	userID, err := repo.CreateUser(&data.User{
+	repo := newRepository(t).(*pgxRepository)
+	userID, err := data.CreateUser(repo.pool, &data.User{
 		Name:           data.NewString("test"),
 		Email:          data.NewString("test@example.com"),
 		PasswordDigest: data.NewBytes([]byte("digest")),
@@ -111,7 +111,7 @@ func TestGetAccountHandler(t *testing.T) {
 	}
 	SetPassword(user, "password")
 
-	userID, err := repo.CreateUser(user)
+	userID, err := data.CreateUser(repo.pool, user)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +217,7 @@ func TestUpdateAccountHandler(t *testing.T) {
 		}
 		SetPassword(user, origPassword)
 
-		userID, err := repo.CreateUser(user)
+		userID, err := data.CreateUser(repo.pool, user)
 		if err != nil {
 			t.Errorf("%s: repo.CreateUser returned error: %v", tt.descr, err)
 			continue
@@ -297,14 +297,14 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		repo := newRepository(t)
+		repo := newRepository(t).(*pgxRepository)
 		user := &data.User{
 			Name:  data.NewString("test"),
 			Email: data.NewString(tt.userEmail),
 		}
 		SetPassword(user, "password")
 
-		userID, err := repo.CreateUser(user)
+		userID, err := data.CreateUser(repo.pool, user)
 		if err != nil {
 			t.Errorf("%s: repo.CreateUser returned error: %v", tt.descr, err)
 			continue
@@ -330,7 +330,7 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 
 		// Need to reach down pgx because repo interface doesn't need any get
 		// interface besides by token, but for this test we need to know the token
-		pool := repo.(*pgxRepository).pool
+		pool := repo.pool
 		var token string
 		err = pool.QueryRow("select token from password_resets").Scan(&token)
 		if err != nil {
@@ -379,14 +379,15 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 }
 
 func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
-	repo := newRepository(t).(*pgxRepository)
+	repo := newRepository(t)
+	pool := repo.(*pgxRepository).pool
 	user := &data.User{
 		Name:  data.NewString("test"),
 		Email: data.NewString("test@example.com"),
 	}
 	SetPassword(user, "password")
 
-	userID, err := repo.CreateUser(user)
+	userID, err := data.CreateUser(pool, user)
 	if err != nil {
 		t.Fatalf("repo.CreateUser returned error: %v", err)
 	}
@@ -412,7 +413,7 @@ func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
 		t.Fatalf("http.NewRequest returned error: %v", err)
 	}
 
-	env := &environment{repo: repo, pool: repo.pool}
+	env := &environment{repo: repo, pool: pool}
 	w := httptest.NewRecorder()
 	ResetPasswordHandler(w, req, env)
 
@@ -420,7 +421,7 @@ func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
 		t.Errorf("Expected HTTP status %d, instead received %d", 200, w.Code)
 	}
 
-	user, err = data.SelectUserByPK(repo.pool, userID)
+	user, err = data.SelectUserByPK(pool, userID)
 	if err != nil {
 		t.Fatalf("repo.GetUser returned error: %v", err)
 	}
@@ -441,14 +442,15 @@ func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
 }
 
 func TestResetPasswordHandlerTokenMatchestUsedPasswordReset(t *testing.T) {
-	repo := newRepository(t).(*pgxRepository)
+	repo := newRepository(t)
+	pool := repo.(*pgxRepository).pool
 	user := &data.User{
 		Name:  data.NewString("test"),
 		Email: data.NewString("test@example.com"),
 	}
 	SetPassword(user, "password")
 
-	userID, err := repo.CreateUser(user)
+	userID, err := data.CreateUser(pool, user)
 	if err != nil {
 		t.Fatalf("repo.CreateUser returned error: %v", err)
 	}
@@ -484,7 +486,7 @@ func TestResetPasswordHandlerTokenMatchestUsedPasswordReset(t *testing.T) {
 		t.Errorf("Expected HTTP status %d, instead received %d", 404, w.Code)
 	}
 
-	user, err = data.SelectUserByPK(repo.pool, userID)
+	user, err = data.SelectUserByPK(pool, userID)
 	if err != nil {
 		t.Fatalf("repo.GetUser returned error: %v", err)
 	}

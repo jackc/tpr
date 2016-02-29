@@ -19,7 +19,8 @@ func newUser() *data.User {
 }
 
 func TestPgxRepositoryUsersLifeCycle(t *testing.T) {
-	repo := newRepository(t).(*pgxRepository)
+	repo := newRepository(t)
+	pool := repo.(*pgxRepository).pool
 
 	input := &data.User{
 		Name:           data.NewString("test"),
@@ -27,7 +28,7 @@ func TestPgxRepositoryUsersLifeCycle(t *testing.T) {
 		PasswordDigest: data.NewBytes([]byte("digest")),
 		PasswordSalt:   data.NewBytes([]byte("salt")),
 	}
-	userID, err := repo.CreateUser(input)
+	userID, err := data.CreateUser(pool, input)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +73,7 @@ func TestPgxRepositoryUsersLifeCycle(t *testing.T) {
 		t.Errorf("Expected user (%v), and input (%v) PasswordSalt to match, but they did not", user.PasswordSalt, input.PasswordSalt)
 	}
 
-	user, err = data.SelectUserByPK(repo.pool, userID)
+	user, err = data.SelectUserByPK(pool, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,48 +96,51 @@ func TestPgxRepositoryUsersLifeCycle(t *testing.T) {
 
 func TestPgxRepositoryCreateUserHandlesNameUniqueness(t *testing.T) {
 	repo := newRepository(t)
+	pool := repo.(*pgxRepository).pool
 
 	u := newUser()
-	_, err := repo.CreateUser(u)
+	_, err := data.CreateUser(pool, u)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	u = newUser()
-	_, err = repo.CreateUser(u)
-	if err != (DuplicationError{Field: "name"}) {
+	_, err = data.CreateUser(pool, u)
+	if err != (data.DuplicationError{Field: "name"}) {
 		t.Fatalf("Expected %v, got %v", DuplicationError{Field: "name"}, err)
 	}
 }
 
 func TestPgxRepositoryCreateUserHandlesEmailUniqueness(t *testing.T) {
 	repo := newRepository(t)
+	pool := repo.(*pgxRepository).pool
 
 	u := newUser()
 	u.Email = data.NewString("test@example.com")
-	_, err := repo.CreateUser(u)
+	_, err := data.CreateUser(pool, u)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	u.Name = data.NewString("othername")
-	_, err = repo.CreateUser(u)
-	if err != (DuplicationError{Field: "email"}) {
-		t.Fatalf("Expected %v, got %v", DuplicationError{Field: "email"}, err)
+	_, err = data.CreateUser(pool, u)
+	if err != (data.DuplicationError{Field: "email"}) {
+		t.Fatalf("Expected %v, got %v", data.DuplicationError{Field: "email"}, err)
 	}
 }
 
 func BenchmarkPgxRepositoryGetUser(b *testing.B) {
-	repo := newRepository(b).(*pgxRepository)
+	repo := newRepository(b)
+	pool := repo.(*pgxRepository).pool
 
-	userID, err := repo.CreateUser(newUser())
+	userID, err := data.CreateUser(pool, newUser())
 	if err != nil {
 		b.Fatal(err)
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := data.SelectUserByPK(repo.pool, userID)
+		_, err := data.SelectUserByPK(pool, userID)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -145,9 +149,10 @@ func BenchmarkPgxRepositoryGetUser(b *testing.B) {
 
 func BenchmarkPgxRepositoryGetUserByName(b *testing.B) {
 	repo := newRepository(b)
+	pool := repo.(*pgxRepository).pool
 
 	user := newUser()
-	_, err := repo.CreateUser(user)
+	_, err := data.CreateUser(pool, user)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -162,7 +167,8 @@ func BenchmarkPgxRepositoryGetUserByName(b *testing.B) {
 }
 
 func TestPgxRepositoryUpdateUser(t *testing.T) {
-	repo := newRepository(t).(*pgxRepository)
+	repo := newRepository(t)
+	pool := repo.(*pgxRepository).pool
 
 	err := repo.UpdateUser(42, &data.User{Name: data.NewString("john")})
 	if err != notFound {
@@ -195,7 +201,7 @@ func TestPgxRepositoryUpdateUser(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		userID, err := repo.CreateUser(&data.User{
+		userID, err := data.CreateUser(pool, &data.User{
 			Name:           data.NewString(fmt.Sprintf("test%d", i)),
 			Email:          data.NewString(fmt.Sprintf("test%d@example.com", i)),
 			PasswordDigest: data.NewBytes([]byte("digest")),
@@ -205,7 +211,7 @@ func TestPgxRepositoryUpdateUser(t *testing.T) {
 			t.Errorf("%d. %v", i, err)
 		}
 
-		expected, err := data.SelectUserByPK(repo.pool, userID)
+		expected, err := data.SelectUserByPK(pool, userID)
 		if err != nil {
 			t.Errorf("%d. %v", i, err)
 			continue
@@ -233,7 +239,7 @@ func TestPgxRepositoryUpdateUser(t *testing.T) {
 			continue
 		}
 
-		user, err := data.SelectUserByPK(repo.pool, userID)
+		user, err := data.SelectUserByPK(pool, userID)
 		if err != nil {
 			t.Errorf("%d. %v", i, err)
 		}
@@ -262,8 +268,9 @@ func TestPgxRepositoryUpdateUser(t *testing.T) {
 
 func TestPgxRepositoryFeeds(t *testing.T) {
 	repo := newRepository(t)
+	pool := repo.(*pgxRepository).pool
 
-	userID, err := repo.CreateUser(newUser())
+	userID, err := data.CreateUser(pool, newUser())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -349,8 +356,9 @@ func TestPgxRepositoryFeeds(t *testing.T) {
 
 func TestPgxRepositoryUpdateFeedWithFetchSuccess(t *testing.T) {
 	repo := newRepository(t)
+	pool := repo.(*pgxRepository).pool
 
-	userID, err := repo.CreateUser(newUser())
+	userID, err := data.CreateUser(pool, newUser())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -427,8 +435,9 @@ func TestPgxRepositoryUpdateFeedWithFetchSuccess(t *testing.T) {
 // Fix me when refactoring tests
 func TestPgxRepositoryUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testing.T) {
 	repo := newRepository(t)
+	pool := repo.(*pgxRepository).pool
 
-	userID, err := repo.CreateUser(newUser())
+	userID, err := data.CreateUser(pool, newUser())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -503,8 +512,9 @@ func TestPgxRepositoryUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testin
 
 func TestPgxRepositorySubscriptions(t *testing.T) {
 	repo := newRepository(t)
+	pool := repo.(*pgxRepository).pool
 
-	userID, err := repo.CreateUser(newUser())
+	userID, err := data.CreateUser(pool, newUser())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -529,8 +539,9 @@ func TestPgxRepositorySubscriptions(t *testing.T) {
 
 func TestPgxRepositoryDeleteSubscription(t *testing.T) {
 	repo := newRepository(t)
+	pool := repo.(*pgxRepository).pool
 
-	userID, err := repo.CreateUser(newUser())
+	userID, err := data.CreateUser(pool, newUser())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -585,8 +596,9 @@ func TestPgxRepositoryDeleteSubscription(t *testing.T) {
 
 func TestPgxRepositoryCopySubscriptionsForUserAsJSON(t *testing.T) {
 	repo := newRepository(t)
+	pool := repo.(*pgxRepository).pool
 
-	userID, err := repo.CreateUser(newUser())
+	userID, err := data.CreateUser(pool, newUser())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -614,8 +626,9 @@ func TestPgxRepositoryCopySubscriptionsForUserAsJSON(t *testing.T) {
 
 func TestPgxRepositorySessions(t *testing.T) {
 	repo := newRepository(t)
+	pool := repo.(*pgxRepository).pool
 
-	userID, err := repo.CreateUser(newUser())
+	userID, err := data.CreateUser(pool, newUser())
 	if err != nil {
 		t.Fatal(err)
 	}
