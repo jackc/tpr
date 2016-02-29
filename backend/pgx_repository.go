@@ -96,18 +96,6 @@ func (repo *pgxRepository) CopyUnreadItemsAsJSONByUserID(w io.Writer, userID int
 	return err
 }
 
-func (repo *pgxRepository) MarkItemRead(userID, itemID int32) error {
-	commandTag, err := repo.pool.Exec("markItemRead", userID, itemID)
-	if err != nil {
-		return err
-	}
-	if commandTag != "DELETE 1" {
-		return notFound
-	}
-
-	return nil
-}
-
 // Empty all data in the entire repository
 func (repo *pgxRepository) empty() error {
 	tables := []string{"feeds", "items", "password_resets", "sessions", "subscriptions", "unread_items", "users"}

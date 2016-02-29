@@ -20,8 +20,6 @@ type repository interface {
 
 	CopyUnreadItemsAsJSONByUserID(w io.Writer, userID int32) error
 	CopySubscriptionsForUserAsJSON(w io.Writer, userID int32) error
-
-	MarkItemRead(userID, itemID int32) error
 }
 
 func SetPassword(u *data.User, password string) error {

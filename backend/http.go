@@ -324,8 +324,8 @@ func MarkItemReadHandler(w http.ResponseWriter, req *http.Request, env *environm
 		return
 	}
 
-	err = env.repo.MarkItemRead(env.user.ID.Value, int32(itemID))
-	if err == notFound {
+	err = data.MarkItemRead(env.pool, env.user.ID.Value, int32(itemID))
+	if err == data.ErrNotFound {
 		http.NotFound(w, req)
 		return
 	}
@@ -347,8 +347,8 @@ func MarkMultipleItemsReadHandler(w http.ResponseWriter, req *http.Request, env 
 	}
 
 	for _, itemID := range request.ItemIDs {
-		err := env.repo.MarkItemRead(env.user.ID.Value, itemID)
-		if err != nil && err != notFound {
+		err := data.MarkItemRead(env.pool, env.user.ID.Value, itemID)
+		if err != nil && err != data.ErrNotFound {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 		}
 	}
