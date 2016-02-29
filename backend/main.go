@@ -310,7 +310,7 @@ func ResetPassword(c *cli.Context) {
 	update := &data.User{}
 	SetPassword(update, password)
 
-	err = repo.UpdateUser(user.ID.Value, update)
+	err = data.UpdateUser(repo.(*pgxRepository).pool, user.ID.Value, update)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

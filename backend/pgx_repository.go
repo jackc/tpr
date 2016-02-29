@@ -25,14 +25,6 @@ func NewPgxRepository(connPoolConfig pgx.ConnPoolConfig) (*pgxRepository, error)
 	return repo, nil
 }
 
-func (repo *pgxRepository) UpdateUser(userID int32, attributes *data.User) error {
-	err := data.UpdateUser(repo.pool, userID, attributes)
-	if err == data.ErrNotFound {
-		return notFound
-	}
-	return err
-}
-
 func (repo *pgxRepository) GetFeedsUncheckedSince(since time.Time) ([]data.Feed, error) {
 	feeds := make([]data.Feed, 0, 8)
 	rows, _ := repo.pool.Query("getFeedsUncheckedSince", since)

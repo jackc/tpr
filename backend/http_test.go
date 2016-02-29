@@ -210,20 +210,21 @@ func TestUpdateAccountHandler(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		repo := newRepository(t).(*pgxRepository)
+		repo := newRepository(t)
+		pool := repo.(*pgxRepository).pool
 		user := &data.User{
 			Name:  data.NewString("test"),
 			Email: data.NewString(origEmail),
 		}
 		SetPassword(user, origPassword)
 
-		userID, err := data.CreateUser(repo.pool, user)
+		userID, err := data.CreateUser(pool, user)
 		if err != nil {
 			t.Errorf("%s: repo.CreateUser returned error: %v", tt.descr, err)
 			continue
 		}
 
-		user, err = data.SelectUserByPK(repo.pool, userID)
+		user, err = data.SelectUserByPK(pool, userID)
 		if err != nil {
 			t.Errorf("%s: repo.GetUser returned error: %v", tt.descr, err)
 			continue
@@ -241,7 +242,7 @@ func TestUpdateAccountHandler(t *testing.T) {
 			continue
 		}
 
-		env := &environment{user: user, repo: repo}
+		env := &environment{user: user, repo: repo, pool: pool}
 		w := httptest.NewRecorder()
 		UpdateAccountHandler(w, req, env)
 
@@ -250,7 +251,7 @@ func TestUpdateAccountHandler(t *testing.T) {
 			continue
 		}
 
-		user, err = data.SelectUserByPK(repo.pool, userID)
+		user, err = data.SelectUserByPK(pool, userID)
 		if err != nil {
 			t.Errorf("%s: repo.GetUser returned error: %v", tt.descr, err)
 			continue

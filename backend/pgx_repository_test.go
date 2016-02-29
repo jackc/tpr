@@ -3,11 +3,11 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
-	"github.com/jackc/tpr/backend/data"
 	"net"
 	"testing"
 	"time"
+
+	"github.com/jackc/tpr/backend/data"
 )
 
 func newUser() *data.User {
@@ -162,106 +162,6 @@ func BenchmarkPgxRepositoryGetUserByName(b *testing.B) {
 		_, err := data.SelectUserByName(pool, user.Name.Value)
 		if err != nil {
 			b.Fatal(err)
-		}
-	}
-}
-
-func TestPgxRepositoryUpdateUser(t *testing.T) {
-	repo := newRepository(t)
-	pool := repo.(*pgxRepository).pool
-
-	err := repo.UpdateUser(42, &data.User{Name: data.NewString("john")})
-	if err != notFound {
-		t.Errorf("Expected %#v, got %#v", notFound, err)
-	}
-
-	tests := []struct {
-		update *data.User
-	}{
-		{
-			update: &data.User{Name: data.NewString("john")},
-		},
-		{
-			update: &data.User{Email: data.NewString("john@example.com")},
-		},
-		{
-			update: &data.User{
-				PasswordDigest: data.NewBytes([]byte("newdigest")),
-				PasswordSalt:   data.NewBytes([]byte("newsalt")),
-			},
-		},
-		{
-			update: &data.User{
-				Name:           data.NewString("bill"),
-				Email:          data.NewString("bill@example.com"),
-				PasswordDigest: data.NewBytes([]byte("newdigest")),
-				PasswordSalt:   data.NewBytes([]byte("newsalt")),
-			},
-		},
-	}
-
-	for i, tt := range tests {
-		userID, err := data.CreateUser(pool, &data.User{
-			Name:           data.NewString(fmt.Sprintf("test%d", i)),
-			Email:          data.NewString(fmt.Sprintf("test%d@example.com", i)),
-			PasswordDigest: data.NewBytes([]byte("digest")),
-			PasswordSalt:   data.NewBytes([]byte("salt")),
-		})
-		if err != nil {
-			t.Errorf("%d. %v", i, err)
-		}
-
-		expected, err := data.SelectUserByPK(pool, userID)
-		if err != nil {
-			t.Errorf("%d. %v", i, err)
-			continue
-		}
-
-		if tt.update.ID.Status != data.Undefined {
-			expected.ID = tt.update.ID
-		}
-		if tt.update.Name.Status != data.Undefined {
-			expected.Name = tt.update.Name
-		}
-		if tt.update.Email.Status != data.Undefined {
-			expected.Email = tt.update.Email
-		}
-		if tt.update.PasswordDigest.Status != data.Undefined {
-			expected.PasswordDigest = tt.update.PasswordDigest
-		}
-		if tt.update.PasswordSalt.Status != data.Undefined {
-			expected.PasswordSalt = tt.update.PasswordSalt
-		}
-
-		err = repo.UpdateUser(userID, tt.update)
-		if err != nil {
-			t.Errorf("%d. %v", i, err)
-			continue
-		}
-
-		user, err := data.SelectUserByPK(pool, userID)
-		if err != nil {
-			t.Errorf("%d. %v", i, err)
-		}
-
-		if user.ID != expected.ID {
-			t.Errorf("%d. ID was %v, expected %v", i, user.ID, expected.ID)
-		}
-
-		if user.Name != expected.Name {
-			t.Errorf("%d. Name was %v, expected %v", i, user.Name, expected.Name)
-		}
-
-		if user.Email != expected.Email {
-			t.Errorf("%d. Email was %v, expected %v", i, user.Email, expected.Email)
-		}
-
-		if bytes.Compare(expected.PasswordDigest.Value, user.PasswordDigest.Value) != 0 {
-			t.Errorf("%d. PasswordDigest was %v, expected %v", i, user.PasswordDigest, expected.PasswordDigest)
-		}
-
-		if bytes.Compare(expected.PasswordSalt.Value, user.PasswordSalt.Value) != 0 {
-			t.Errorf("%d. PasswordSalt was %v, expected %v", i, user.PasswordSalt, expected.PasswordSalt)
 		}
 	}
 }

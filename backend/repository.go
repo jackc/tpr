@@ -13,8 +13,6 @@ import (
 var notFound = errors.New("not found")
 
 type repository interface {
-	UpdateUser(userID int32, attributes *data.User) error
-
 	CreateSession(id []byte, userID int32) (err error)
 	DeleteSession(id []byte) (err error)
 

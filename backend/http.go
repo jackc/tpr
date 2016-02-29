@@ -467,7 +467,7 @@ func UpdateAccountHandler(w http.ResponseWriter, req *http.Request, env *environ
 		}
 	}
 
-	err := env.repo.UpdateUser(env.user.ID.Value, user)
+	err := data.UpdateUser(env.pool, env.user.ID.Value, user)
 	if err != nil {
 		w.WriteHeader(500)
 		fmt.Fprintln(w, `Internal server error`)
@@ -589,7 +589,7 @@ func ResetPasswordHandler(w http.ResponseWriter, req *http.Request, env *environ
 	attrs := &data.User{}
 	SetPassword(attrs, resetPassword.Password)
 
-	err = env.repo.UpdateUser(pwr.UserID.Value, attrs)
+	err = data.UpdateUser(env.pool, pwr.UserID.Value, attrs)
 	if err != nil {
 		w.WriteHeader(500)
 		return
