@@ -152,7 +152,12 @@ func RegisterHandler(w http.ResponseWriter, req *http.Request, env *environment)
 		return
 	}
 
-	err = env.repo.CreateSession(sessionID, userID)
+	err = data.InsertSession(env.pool,
+		&data.Session{
+			ID:     data.NewBytes(sessionID),
+			UserID: data.NewInt32(userID),
+		},
+	)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -261,7 +266,12 @@ func CreateSessionHandler(w http.ResponseWriter, req *http.Request, env *environ
 		return
 	}
 
-	err = env.repo.CreateSession(sessionID, user.ID.Value)
+	err = data.InsertSession(env.pool,
+		&data.Session{
+			ID:     data.NewBytes(sessionID),
+			UserID: user.ID,
+		},
+	)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -289,7 +299,7 @@ func DeleteSessionHandler(w http.ResponseWriter, req *http.Request, env *environ
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	err = env.repo.DeleteSession(sessionID)
+	err = data.DeleteSession(env.pool, sessionID)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -607,7 +617,12 @@ func ResetPasswordHandler(w http.ResponseWriter, req *http.Request, env *environ
 		return
 	}
 
-	err = env.repo.CreateSession(sessionID, user.ID.Value)
+	err = data.InsertSession(env.pool,
+		&data.Session{
+			ID:     data.NewBytes(sessionID),
+			UserID: user.ID,
+		},
+	)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return

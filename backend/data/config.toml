@@ -25,3 +25,7 @@ struct_name = "Feed"
 table_name = "password_resets"
 struct_name = "PasswordReset"
 primary_key = ["token"]
+
+[[tables]]
+table_name = "sessions"
+struct_name = "Session"

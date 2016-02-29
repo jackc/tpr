@@ -145,23 +145,6 @@ func (repo *pgxRepository) DeleteSubscription(userID, feedID int32) error {
 	return tx.Commit()
 }
 
-func (repo *pgxRepository) CreateSession(id []byte, userID int32) (err error) {
-	_, err = repo.pool.Exec("insertSession", id, userID)
-	return err
-}
-
-func (repo *pgxRepository) DeleteSession(id []byte) error {
-	commandTag, err := repo.pool.Exec("deleteSession", id)
-	if err != nil {
-		return err
-	}
-	if commandTag != "DELETE 1" {
-		return notFound
-	}
-
-	return nil
-}
-
 // Empty all data in the entire repository
 func (repo *pgxRepository) empty() error {
 	tables := []string{"feeds", "items", "password_resets", "sessions", "subscriptions", "unread_items", "users"}

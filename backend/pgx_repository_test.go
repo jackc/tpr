@@ -534,7 +534,12 @@ func TestPgxRepositorySessions(t *testing.T) {
 
 	sessionID := []byte("deadbeef")
 
-	err = repo.CreateSession(sessionID, userID)
+	err = data.InsertSession(pool,
+		&data.Session{
+			ID:     data.NewBytes(sessionID),
+			UserID: data.NewInt32(userID),
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -547,7 +552,7 @@ func TestPgxRepositorySessions(t *testing.T) {
 		t.Errorf("Expected %v, got %v", userID, user.ID)
 	}
 
-	err = repo.DeleteSession(sessionID)
+	err = data.DeleteSession(pool, sessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -557,8 +562,8 @@ func TestPgxRepositorySessions(t *testing.T) {
 		t.Fatalf("Expected %v, got %v", data.ErrNotFound, err)
 	}
 
-	err = repo.DeleteSession(sessionID)
-	if err != notFound {
+	err = data.DeleteSession(pool, sessionID)
+	if err != data.ErrNotFound {
 		t.Fatalf("Expected %v, got %v", notFound, err)
 	}
 }

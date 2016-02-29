@@ -13,9 +13,6 @@ import (
 var notFound = errors.New("not found")
 
 type repository interface {
-	CreateSession(id []byte, userID int32) (err error)
-	DeleteSession(id []byte) (err error)
-
 	GetFeedsUncheckedSince(since time.Time) (feeds []data.Feed, err error)
 	UpdateFeedWithFetchSuccess(feedID int32, update *parsedFeed, etag data.String, fetchTime time.Time) error
 	UpdateFeedWithFetchUnchanged(feedID int32, fetchTime time.Time) error

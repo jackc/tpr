@@ -161,7 +161,7 @@ func DeletePasswordReset(db Queryer,
 		return err
 	}
 	if commandTag.RowsAffected() != 1 {
-		return pgx.ErrNoRows
+		return ErrNotFound
 	}
 	return nil
 }
