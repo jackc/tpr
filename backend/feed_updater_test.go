@@ -2,18 +2,19 @@ package main
 
 import (
 	"bytes"
-	"github.com/jackc/tpr/backend/data"
-	log "gopkg.in/inconshreveable/log15.v2"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/jackc/tpr/backend/data"
+	log "gopkg.in/inconshreveable/log15.v2"
 )
 
 var feedParsingTests = []struct {
 	name       string
 	body       []byte
-	parsedFeed *parsedFeed
+	parsedFeed *data.ParsedFeed
 	errMsg     string
 }{
 	{"RSS - Minimal",
@@ -34,18 +35,18 @@ var feedParsingTests = []struct {
   </channel>
 </rss>
 </xml>`),
-		&parsedFeed{
-			name: "News",
-			items: []parsedItem{
+		&data.ParsedFeed{
+			Name: "News",
+			Items: []data.ParsedItem{
 				{
-					title:           "Snow Storm",
-					url:             "http://example.org/snow-storm",
-					publicationTime: data.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
+					Title:           "Snow Storm",
+					URL:             "http://example.org/snow-storm",
+					PublicationTime: data.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
 				},
 				{
-					title:           "Blizzard",
-					url:             "http://example.org/blizzard",
-					publicationTime: data.NewTime(time.Date(2014, 1, 4, 8, 15, 0, 0, time.UTC)),
+					Title:           "Blizzard",
+					URL:             "http://example.org/blizzard",
+					PublicationTime: data.NewTime(time.Date(2014, 1, 4, 8, 15, 0, 0, time.UTC)),
 				},
 			}},
 		"",
@@ -68,18 +69,18 @@ var feedParsingTests = []struct {
   </item>
 </rdf>
 </xml>`),
-		&parsedFeed{
-			name: "News",
-			items: []parsedItem{
+		&data.ParsedFeed{
+			Name: "News",
+			Items: []data.ParsedItem{
 				{
-					title:           "Snow Storm",
-					url:             "http://example.org/snow-storm",
-					publicationTime: data.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
+					Title:           "Snow Storm",
+					URL:             "http://example.org/snow-storm",
+					PublicationTime: data.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
 				},
 				{
-					title:           "Blizzard",
-					url:             "http://example.org/blizzard",
-					publicationTime: data.NewTime(time.Date(2014, 1, 4, 8, 15, 0, 0, time.UTC)),
+					Title:           "Blizzard",
+					URL:             "http://example.org/blizzard",
+					PublicationTime: data.NewTime(time.Date(2014, 1, 4, 8, 15, 0, 0, time.UTC)),
 				},
 			}},
 		"",
@@ -97,13 +98,13 @@ var feedParsingTests = []struct {
   </channel>
 </rss>
 </xml>`),
-		&parsedFeed{
-			name: "Joe\u00a0Blogger's Site",
-			items: []parsedItem{
+		&data.ParsedFeed{
+			Name: "Joe\u00a0Blogger's Site",
+			Items: []data.ParsedItem{
 				{
-					title:           "Snow Storm",
-					url:             "http://example.org/snow-storm",
-					publicationTime: data.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
+					Title:           "Snow Storm",
+					URL:             "http://example.org/snow-storm",
+					PublicationTime: data.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
 				},
 			}},
 		"",
@@ -121,13 +122,13 @@ var feedParsingTests = []struct {
   </channel>
 </rss>
 </xml>`),
-		&parsedFeed{
-			name: "Joe\u00a0Blogger",
-			items: []parsedItem{
+		&data.ParsedFeed{
+			Name: "Joe\u00a0Blogger",
+			Items: []data.ParsedItem{
 				{
-					title:           "Snow Storm",
-					url:             "http://example.org/snow-storm",
-					publicationTime: data.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
+					Title:           "Snow Storm",
+					URL:             "http://example.org/snow-storm",
+					PublicationTime: data.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
 				},
 			}},
 		"",
@@ -144,12 +145,12 @@ var feedParsingTests = []struct {
   </channel>
 </rss>
 </xml>`),
-		&parsedFeed{
-			name: "News",
-			items: []parsedItem{
+		&data.ParsedFeed{
+			Name: "News",
+			Items: []data.ParsedItem{
 				{
-					title: "Snow Storm",
-					url:   "http://example.org/snow-storm",
+					Title: "Snow Storm",
+					URL:   "http://example.org/snow-storm",
 				},
 			}},
 		"",
@@ -167,12 +168,12 @@ var feedParsingTests = []struct {
   </channel>
 </rss>
 `),
-		&parsedFeed{
-			name: "Description instead of title",
-			items: []parsedItem{
+		&data.ParsedFeed{
+			Name: "Description instead of title",
+			Items: []data.ParsedItem{
 				{
-					title: "Snow Storm",
-					url:   "http://example.org/snow-storm",
+					Title: "Snow Storm",
+					URL:   "http://example.org/snow-storm",
 				},
 			}},
 		"",
@@ -194,18 +195,18 @@ var feedParsingTests = []struct {
   </entry>
 </feed>
 </xml>`),
-		&parsedFeed{
-			name: "News",
-			items: []parsedItem{
+		&data.ParsedFeed{
+			Name: "News",
+			Items: []data.ParsedItem{
 				{
-					title:           "Snow Storm",
-					url:             "http://example.org/snow-storm",
-					publicationTime: data.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
+					Title:           "Snow Storm",
+					URL:             "http://example.org/snow-storm",
+					PublicationTime: data.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
 				},
 				{
-					title:           "Blizzard",
-					url:             "http://example.org/blizzard",
-					publicationTime: data.NewTime(time.Date(2014, 1, 4, 8, 15, 0, 0, time.UTC)),
+					Title:           "Blizzard",
+					URL:             "http://example.org/blizzard",
+					PublicationTime: data.NewTime(time.Date(2014, 1, 4, 8, 15, 0, 0, time.UTC)),
 				},
 			}},
 		"",
@@ -226,18 +227,18 @@ var feedParsingTests = []struct {
   </entry>
 </feed>
 </xml>`),
-		&parsedFeed{
-			name: "News",
-			items: []parsedItem{
+		&data.ParsedFeed{
+			Name: "News",
+			Items: []data.ParsedItem{
 				{
-					title:           "Snow Storm",
-					url:             "http://example.org/snow-storm",
-					publicationTime: data.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
+					Title:           "Snow Storm",
+					URL:             "http://example.org/snow-storm",
+					PublicationTime: data.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
 				},
 				{
-					title:           "Blizzard",
-					url:             "http://example.org/blizzard",
-					publicationTime: data.NewTime(time.Date(2014, 1, 4, 8, 15, 0, 0, time.UTC)),
+					Title:           "Blizzard",
+					URL:             "http://example.org/blizzard",
+					PublicationTime: data.NewTime(time.Date(2014, 1, 4, 8, 15, 0, 0, time.UTC)),
 				},
 			}},
 		"",
@@ -260,27 +261,27 @@ func TestParseFeed(t *testing.T) {
 			t.Errorf("%d. %s: Actual parsed feed should have been nil, but it was not", i, tt.name)
 			continue
 		}
-		if actual.name != tt.parsedFeed.name {
-			t.Errorf("%d. %s: Expected name to be %#v, but it was %#v", i, tt.name, tt.parsedFeed.name, actual.name)
+		if actual.Name != tt.parsedFeed.Name {
+			t.Errorf("%d. %s: Expected name to be %#v, but it was %#v", i, tt.name, tt.parsedFeed.Name, actual.Name)
 		}
-		if len(actual.items) != len(tt.parsedFeed.items) {
-			t.Errorf("%d. %s: Expected %d items, but instead found %d items", i, tt.name, len(tt.parsedFeed.items), len(actual.items))
+		if len(actual.Items) != len(tt.parsedFeed.Items) {
+			t.Errorf("%d. %s: Expected %d items, but instead found %d items", i, tt.name, len(tt.parsedFeed.Items), len(actual.Items))
 			continue
 		}
-		for j, actualItem := range actual.items {
-			expectedItem := tt.parsedFeed.items[j]
-			if actualItem.title != expectedItem.title {
-				t.Errorf("%d. %s Item %d: Expected title %#v, but is was %#v", i, tt.name, j, expectedItem.title, actualItem.title)
+		for j, actualItem := range actual.Items {
+			expectedItem := tt.parsedFeed.Items[j]
+			if actualItem.Title != expectedItem.Title {
+				t.Errorf("%d. %s Item %d: Expected title %#v, but is was %#v", i, tt.name, j, expectedItem.Title, actualItem.Title)
 			}
-			if actualItem.url != expectedItem.url {
-				t.Errorf("%d. %s Item %d: Expected url %#v, but is was %#v", i, tt.name, j, expectedItem.url, actualItem.url)
+			if actualItem.URL != expectedItem.URL {
+				t.Errorf("%d. %s Item %d: Expected url %#v, but is was %#v", i, tt.name, j, expectedItem.URL, actualItem.URL)
 			}
-			if actualItem.publicationTime.Status == expectedItem.publicationTime.Status {
-				if actualItem.publicationTime.Status == data.Present && !actualItem.publicationTime.Value.Equal(expectedItem.publicationTime.Value) {
-					t.Errorf("%d. %s Item %d: Expected publicationTime %v, but is was %v", i, tt.name, j, expectedItem.publicationTime, actualItem.publicationTime)
+			if actualItem.PublicationTime.Status == expectedItem.PublicationTime.Status {
+				if actualItem.PublicationTime.Status == data.Present && !actualItem.PublicationTime.Value.Equal(expectedItem.PublicationTime.Value) {
+					t.Errorf("%d. %s Item %d: Expected publicationTime %v, but is was %v", i, tt.name, j, expectedItem.PublicationTime, actualItem.PublicationTime)
 				}
 			} else {
-				t.Errorf("%d. %s Item %d: Expected publicationTime status %v, but is was %v", i, tt.name, j, expectedItem.publicationTime.Status, actualItem.publicationTime.Status)
+				t.Errorf("%d. %s Item %d: Expected publicationTime status %v, but is was %v", i, tt.name, j, expectedItem.PublicationTime.Status, actualItem.PublicationTime.Status)
 			}
 		}
 	}
@@ -315,6 +316,8 @@ func TestParseTime(t *testing.T) {
 }
 
 func TestFetchFeed(t *testing.T) {
+	repo := newRepository(t)
+
 	rssBody := []byte(`<?xml version='1.0' encoding='UTF-8'?>
 <rss>
   <channel>
@@ -338,7 +341,7 @@ func TestFetchFeed(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	u := NewFeedUpdater(nil, log.Root())
+	u := NewFeedUpdater(repo, log.Root())
 	rawFeed, err := u.fetchFeed(ts.URL, data.String{})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)

@@ -5,24 +5,28 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"github.com/jackc/tpr/backend/data"
-	"golang.org/x/net/html/charset"
-	log "gopkg.in/inconshreveable/log15.v2"
 	"io/ioutil"
 	"net/http"
 	"time"
+
+	"github.com/jackc/pgx"
+	"github.com/jackc/tpr/backend/data"
+	"golang.org/x/net/html/charset"
+	log "gopkg.in/inconshreveable/log15.v2"
 )
 
 type FeedUpdater struct {
 	client                   *http.Client
 	maxConcurrentFeedFetches int
 	repo                     repository
+	pool                     *pgx.ConnPool
 	logger                   log.Logger
 }
 
 func NewFeedUpdater(repo repository, logger log.Logger) *FeedUpdater {
 	feedUpdater := &FeedUpdater{}
 	feedUpdater.repo = repo
+	feedUpdater.pool = repo.(*pgxRepository).pool
 	feedUpdater.logger = logger
 	feedUpdater.client = &http.Client{Timeout: 60 * time.Second}
 	feedUpdater.maxConcurrentFeedFetches = 25
@@ -114,57 +118,28 @@ func (u *FeedUpdater) RefreshFeed(staleFeed data.Feed) {
 	rawFeed, err := u.fetchFeed(staleFeed.URL.Value, staleFeed.ETag)
 	if err != nil {
 		u.logger.Error("fetchFeed failed", "url", staleFeed.URL.Value, "error", err)
-		u.repo.UpdateFeedWithFetchFailure(staleFeed.ID.Value, err.Error(), time.Now())
+		data.UpdateFeedWithFetchFailure(u.pool, staleFeed.ID.Value, err.Error(), time.Now())
 		return
 	}
 	// 304 unchanged
 	if rawFeed == nil {
 		u.logger.Info("fetchFeed 304 unchanged", "url", staleFeed.URL.Value)
-		u.repo.UpdateFeedWithFetchUnchanged(staleFeed.ID.Value, time.Now())
+		data.UpdateFeedWithFetchUnchanged(u.pool, staleFeed.ID.Value, time.Now())
 		return
 	}
 
 	feed, err := parseFeed(rawFeed.body)
 	if err != nil {
 		u.logger.Error("parseFeed failed", "url", staleFeed.URL.Value, "error", err)
-		u.repo.UpdateFeedWithFetchFailure(staleFeed.ID.Value, fmt.Sprintf("Unable to parse feed: %v", err), time.Now())
+		data.UpdateFeedWithFetchFailure(u.pool, staleFeed.ID.Value, fmt.Sprintf("Unable to parse feed: %v", err), time.Now())
 		return
 	}
 
 	u.logger.Info("refreshFeed succeeded", "url", staleFeed.URL.Value, "id", staleFeed.ID.Value)
-	u.repo.UpdateFeedWithFetchSuccess(staleFeed.ID.Value, feed, rawFeed.etag, time.Now())
+	data.UpdateFeedWithFetchSuccess(u.pool, staleFeed.ID.Value, feed, rawFeed.etag, time.Now())
 }
 
-type parsedItem struct {
-	url             string
-	title           string
-	publicationTime data.Time
-}
-
-func (i *parsedItem) isValid() bool {
-	return i.url != "" && i.title != ""
-}
-
-type parsedFeed struct {
-	name  string
-	items []parsedItem
-}
-
-func (f *parsedFeed) isValid() bool {
-	if f.name == "" {
-		return false
-	}
-
-	for _, item := range f.items {
-		if !item.isValid() {
-			return false
-		}
-	}
-
-	return true
-}
-
-func parseFeed(body []byte) (f *parsedFeed, err error) {
+func parseFeed(body []byte) (f *data.ParsedFeed, err error) {
 	f, err = parseRSS(body)
 	if err == nil {
 		return f, nil
@@ -173,7 +148,7 @@ func parseFeed(body []byte) (f *parsedFeed, err error) {
 	return parseAtom(body)
 }
 
-func parseRSS(body []byte) (*parsedFeed, error) {
+func parseRSS(body []byte) (*data.ParsedFeed, error) {
 	type Item struct {
 		Link    string `xml:"link"`
 		Title   string `xml:"title"`
@@ -197,11 +172,11 @@ func parseRSS(body []byte) (*parsedFeed, error) {
 		return nil, err
 	}
 
-	var feed parsedFeed
+	var feed data.ParsedFeed
 	if rss.Channel.Title != "" {
-		feed.name = rss.Channel.Title
+		feed.Name = rss.Channel.Title
 	} else {
-		feed.name = rss.Channel.Description
+		feed.Name = rss.Channel.Description
 	}
 
 	var items []Item
@@ -211,26 +186,26 @@ func parseRSS(body []byte) (*parsedFeed, error) {
 		items = rss.Channel.Item
 	}
 
-	feed.items = make([]parsedItem, len(items))
+	feed.Items = make([]data.ParsedItem, len(items))
 	for i, item := range items {
-		feed.items[i].url = item.Link
-		feed.items[i].title = item.Title
+		feed.Items[i].URL = item.Link
+		feed.Items[i].Title = item.Title
 		if item.Date != "" {
-			feed.items[i].publicationTime, _ = parseTime(item.Date)
+			feed.Items[i].PublicationTime, _ = parseTime(item.Date)
 		}
 		if item.PubDate != "" {
-			feed.items[i].publicationTime, _ = parseTime(item.PubDate)
+			feed.Items[i].PublicationTime, _ = parseTime(item.PubDate)
 		}
 	}
 
-	if !feed.isValid() {
+	if !feed.IsValid() {
 		return nil, errors.New("Invalid RSS")
 	}
 
 	return &feed, nil
 }
 
-func parseAtom(body []byte) (*parsedFeed, error) {
+func parseAtom(body []byte) (*data.ParsedFeed, error) {
 	type Link struct {
 		Href string `xml:"href,attr"`
 	}
@@ -252,21 +227,21 @@ func parseAtom(body []byte) (*parsedFeed, error) {
 		return nil, err
 	}
 
-	var feed parsedFeed
-	feed.name = atom.Title
-	feed.items = make([]parsedItem, len(atom.Entry))
+	var feed data.ParsedFeed
+	feed.Name = atom.Title
+	feed.Items = make([]data.ParsedItem, len(atom.Entry))
 	for i, entry := range atom.Entry {
-		feed.items[i].url = entry.Link.Href
-		feed.items[i].title = entry.Title
+		feed.Items[i].URL = entry.Link.Href
+		feed.Items[i].Title = entry.Title
 		if entry.Published != "" {
-			feed.items[i].publicationTime, _ = parseTime(entry.Published)
+			feed.Items[i].PublicationTime, _ = parseTime(entry.Published)
 		}
 		if entry.Updated != "" {
-			feed.items[i].publicationTime, _ = parseTime(entry.Updated)
+			feed.Items[i].PublicationTime, _ = parseTime(entry.Updated)
 		}
 	}
 
-	if !feed.isValid() {
+	if !feed.IsValid() {
 		return nil, errors.New("Invalid Atom")
 	}
 

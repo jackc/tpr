@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/jackc/pgx"
@@ -37,43 +35,6 @@ func (repo *pgxRepository) GetFeedsUncheckedSince(since time.Time) ([]data.Feed,
 	return feeds, rows.Err()
 }
 
-func (repo *pgxRepository) UpdateFeedWithFetchSuccess(feedID int32, update *parsedFeed, etag data.String, fetchTime time.Time) error {
-	tx, err := repo.pool.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	_, err = tx.Exec("updateFeedWithFetchSuccess",
-		update.name,
-		fetchTime,
-		&etag,
-		feedID)
-	if err != nil {
-		return err
-	}
-
-	if len(update.items) > 0 {
-		insertSQL, insertArgs := repo.buildNewItemsSQL(feedID, update.items)
-		_, err = tx.Exec(insertSQL, insertArgs...)
-		if err != nil {
-			return err
-		}
-	}
-
-	return tx.Commit()
-}
-
-func (repo *pgxRepository) UpdateFeedWithFetchUnchanged(feedID int32, fetchTime time.Time) (err error) {
-	_, err = repo.pool.Exec("updateFeedWithFetchUnchanged", fetchTime, feedID)
-	return
-}
-
-func (repo *pgxRepository) UpdateFeedWithFetchFailure(feedID int32, failure string, fetchTime time.Time) (err error) {
-	_, err = repo.pool.Exec("updateFeedWithFetchFailure", failure, fetchTime, feedID)
-	return err
-}
-
 // Empty all data in the entire repository
 func (repo *pgxRepository) empty() error {
 	tables := []string{"feeds", "items", "password_resets", "sessions", "subscriptions", "unread_items", "users"}
@@ -84,60 +45,6 @@ func (repo *pgxRepository) empty() error {
 		}
 	}
 	return nil
-}
-
-func (repo *pgxRepository) buildNewItemsSQL(feedID int32, items []parsedItem) (sql string, args []interface{}) {
-	var buf bytes.Buffer
-	args = append(args, feedID)
-
-	buf.WriteString(`
-      with new_items as (
-        insert into items(feed_id, url, title, publication_time)
-        select $1, url, title, publication_time
-        from (values
-    `)
-
-	for i, item := range items {
-		if i > 0 {
-			buf.WriteString(",")
-		}
-
-		buf.WriteString("($")
-		args = append(args, item.url)
-		buf.WriteString(strconv.FormatInt(int64(len(args)), 10))
-
-		buf.WriteString(",$")
-		args = append(args, item.title)
-		buf.WriteString(strconv.FormatInt(int64(len(args)), 10))
-
-		buf.WriteString(",$")
-		if item.publicationTime.Status == data.Present {
-			args = append(args, item.publicationTime.Value)
-		} else {
-			args = append(args, nil)
-		}
-		buf.WriteString(strconv.FormatInt(int64(len(args)), 10))
-		buf.WriteString("::timestamptz)")
-	}
-
-	buf.WriteString(`
-      ) t(url, title, publication_time)
-      where not exists(
-        select 1
-        from items
-        where feed_id=$1
-          and url=t.url
-      )
-      returning id
-    )
-    insert into unread_items(user_id, feed_id, item_id)
-    select user_id, $1, new_items.id
-    from subscriptions
-      cross join new_items
-    where subscriptions.feed_id=$1
-  `)
-
-	return buf.String(), args
 }
 
 // afterConnect creates the prepared statements that this application uses

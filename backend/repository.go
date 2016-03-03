@@ -14,9 +14,6 @@ var notFound = errors.New("not found")
 
 type repository interface {
 	GetFeedsUncheckedSince(since time.Time) (feeds []data.Feed, err error)
-	UpdateFeedWithFetchSuccess(feedID int32, update *parsedFeed, etag data.String, fetchTime time.Time) error
-	UpdateFeedWithFetchUnchanged(feedID int32, fetchTime time.Time) error
-	UpdateFeedWithFetchFailure(feedID int32, failure string, fetchTime time.Time) (err error)
 }
 
 func SetPassword(u *data.User, password string) error {

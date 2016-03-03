@@ -178,7 +178,7 @@ func TestPgxRepositoryFeeds(t *testing.T) {
 	fiveMinutesAgo := now.Add(-5 * time.Minute)
 	tenMinutesAgo := now.Add(-10 * time.Minute)
 	fifteenMinutesAgo := now.Add(-15 * time.Minute)
-	update := &parsedFeed{name: "baz", items: make([]parsedItem, 0)}
+	update := &data.ParsedFeed{Name: "baz", Items: make([]data.ParsedItem, 0)}
 
 	// Create a feed
 	url := "http://bar"
@@ -205,7 +205,7 @@ func TestPgxRepositoryFeeds(t *testing.T) {
 	nullString := data.String{Status: data.Null}
 
 	// Update feed as of now
-	err = repo.UpdateFeedWithFetchSuccess(feedID, update, nullString, now)
+	err = data.UpdateFeedWithFetchSuccess(pool, feedID, update, nullString, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,7 +220,7 @@ func TestPgxRepositoryFeeds(t *testing.T) {
 	}
 
 	// Update feed to be old enough to need refresh
-	err = repo.UpdateFeedWithFetchSuccess(feedID, update, nullString, fifteenMinutesAgo)
+	err = data.UpdateFeedWithFetchSuccess(pool, feedID, update, nullString, fifteenMinutesAgo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +238,7 @@ func TestPgxRepositoryFeeds(t *testing.T) {
 	}
 
 	// But update feed with a recent failed fetch
-	err = repo.UpdateFeedWithFetchFailure(feedID, "something went wrong", fiveMinutesAgo)
+	err = data.UpdateFeedWithFetchFailure(pool, feedID, "something went wrong", fiveMinutesAgo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,13 +279,13 @@ func TestPgxRepositoryUpdateFeedWithFetchSuccess(t *testing.T) {
 	}
 	feedID := subscriptions[0].FeedID.Value
 
-	update := &parsedFeed{name: "baz", items: []parsedItem{
-		{url: "http://baz/bar", title: "Baz", publicationTime: data.NewTime(now)},
+	update := &data.ParsedFeed{Name: "baz", Items: []data.ParsedItem{
+		{URL: "http://baz/bar", Title: "Baz", PublicationTime: data.NewTime(now)},
 	}}
 
 	nullString := data.String{Status: data.Null}
 
-	err = repo.UpdateFeedWithFetchSuccess(feedID, update, nullString, now)
+	err = data.UpdateFeedWithFetchSuccess(pool, feedID, update, nullString, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +310,7 @@ func TestPgxRepositoryUpdateFeedWithFetchSuccess(t *testing.T) {
 	}
 
 	// Update again and ensure item does not get created again
-	err = repo.UpdateFeedWithFetchSuccess(feedID, update, nullString, now)
+	err = data.UpdateFeedWithFetchSuccess(pool, feedID, update, nullString, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -358,13 +358,13 @@ func TestPgxRepositoryUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testin
 	}
 	feedID := subscriptions[0].FeedID.Value
 
-	update := &parsedFeed{name: "baz", items: []parsedItem{
-		{url: "http://baz/bar", title: "Baz"},
+	update := &data.ParsedFeed{Name: "baz", Items: []data.ParsedItem{
+		{URL: "http://baz/bar", Title: "Baz"},
 	}}
 
 	nullString := data.String{Status: data.Null}
 
-	err = repo.UpdateFeedWithFetchSuccess(feedID, update, nullString, now)
+	err = data.UpdateFeedWithFetchSuccess(pool, feedID, update, nullString, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -389,7 +389,7 @@ func TestPgxRepositoryUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testin
 	}
 
 	// Update again and ensure item does not get created again
-	err = repo.UpdateFeedWithFetchSuccess(feedID, update, nullString, now)
+	err = data.UpdateFeedWithFetchSuccess(pool, feedID, update, nullString, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -459,13 +459,13 @@ func TestPgxRepositoryDeleteSubscription(t *testing.T) {
 	}
 	feedID := subscriptions[0].FeedID.Value
 
-	update := &parsedFeed{name: "baz", items: []parsedItem{
-		{url: "http://baz/bar", title: "Baz", publicationTime: data.NewTime(time.Now())},
+	update := &data.ParsedFeed{Name: "baz", Items: []data.ParsedItem{
+		{URL: "http://baz/bar", Title: "Baz", PublicationTime: data.NewTime(time.Now())},
 	}}
 
 	nullString := data.String{Status: data.Null}
 
-	err = repo.UpdateFeedWithFetchSuccess(feedID, update, nullString, time.Now().Add(-20*time.Minute))
+	err = data.UpdateFeedWithFetchSuccess(pool, feedID, update, nullString, time.Now().Add(-20*time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}
