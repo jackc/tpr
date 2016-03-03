@@ -38,7 +38,7 @@ func (u *FeedUpdater) KeepFeedsFresh() {
 	for {
 		startTime := time.Now()
 
-		if staleFeeds, err := u.repo.GetFeedsUncheckedSince(startTime.Add(-10 * time.Minute)); err == nil {
+		if staleFeeds, err := data.GetFeedsUncheckedSince(u.pool, startTime.Add(-10*time.Minute)); err == nil {
 			u.logger.Info("GetFeedsUncheckedSince succeeded", "n", len(staleFeeds))
 
 			staleFeedChan := make(chan data.Feed)

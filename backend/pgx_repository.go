@@ -2,10 +2,8 @@ package main
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/jackc/pgx"
-	"github.com/jackc/tpr/backend/data"
 )
 
 type pgxRepository struct {
@@ -20,19 +18,6 @@ func NewPgxRepository(connPoolConfig pgx.ConnPoolConfig) (*pgxRepository, error)
 
 	repo := &pgxRepository{pool: pool}
 	return repo, nil
-}
-
-func (repo *pgxRepository) GetFeedsUncheckedSince(since time.Time) ([]data.Feed, error) {
-	feeds := make([]data.Feed, 0, 8)
-	rows, _ := repo.pool.Query("getFeedsUncheckedSince", since)
-
-	for rows.Next() {
-		var feed data.Feed
-		rows.Scan(&feed.ID, &feed.URL, &feed.ETag)
-		feeds = append(feeds, feed)
-	}
-
-	return feeds, rows.Err()
 }
 
 // Empty all data in the entire repository

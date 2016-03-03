@@ -188,7 +188,7 @@ func TestPgxRepositoryFeeds(t *testing.T) {
 	}
 
 	// A new feed has never been fetched -- it should need fetching
-	staleFeeds, err := repo.GetFeedsUncheckedSince(tenMinutesAgo)
+	staleFeeds, err := data.GetFeedsUncheckedSince(pool, tenMinutesAgo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,7 +211,7 @@ func TestPgxRepositoryFeeds(t *testing.T) {
 	}
 
 	// feed should no longer be stale
-	staleFeeds, err = repo.GetFeedsUncheckedSince(tenMinutesAgo)
+	staleFeeds, err = data.GetFeedsUncheckedSince(pool, tenMinutesAgo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,7 +226,7 @@ func TestPgxRepositoryFeeds(t *testing.T) {
 	}
 
 	// It should now need fetching
-	staleFeeds, err = repo.GetFeedsUncheckedSince(tenMinutesAgo)
+	staleFeeds, err = data.GetFeedsUncheckedSince(pool, tenMinutesAgo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -244,7 +244,7 @@ func TestPgxRepositoryFeeds(t *testing.T) {
 	}
 
 	// feed should no longer be stale
-	staleFeeds, err = repo.GetFeedsUncheckedSince(tenMinutesAgo)
+	staleFeeds, err = data.GetFeedsUncheckedSince(pool, tenMinutesAgo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -484,7 +484,7 @@ func TestPgxRepositoryDeleteSubscription(t *testing.T) {
 	}
 
 	// feed should have been deleted as it was the last user
-	staleFeeds, err := repo.GetFeedsUncheckedSince(time.Now())
+	staleFeeds, err := data.GetFeedsUncheckedSince(pool, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}

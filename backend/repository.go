@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/rand"
 	"errors"
-	"time"
 
 	"github.com/jackc/tpr/backend/data"
 	"golang.org/x/crypto/scrypt"
@@ -13,7 +12,6 @@ import (
 var notFound = errors.New("not found")
 
 type repository interface {
-	GetFeedsUncheckedSince(since time.Time) (feeds []data.Feed, err error)
 }
 
 func SetPassword(u *data.User, password string) error {

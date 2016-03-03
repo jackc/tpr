@@ -162,3 +162,16 @@ func buildNewItemsSQL(feedID int32, items []ParsedItem) (sql string, args []inte
 
 	return buf.String(), args
 }
+
+func GetFeedsUncheckedSince(db Queryer, since time.Time) ([]Feed, error) {
+	feeds := make([]Feed, 0, 8)
+	rows, _ := db.Query("getFeedsUncheckedSince", since)
+
+	for rows.Next() {
+		var feed Feed
+		rows.Scan(&feed.ID, &feed.URL, &feed.ETag)
+		feeds = append(feeds, feed)
+	}
+
+	return feeds, rows.Err()
+}
