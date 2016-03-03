@@ -18,15 +18,13 @@ import (
 type FeedUpdater struct {
 	client                   *http.Client
 	maxConcurrentFeedFetches int
-	repo                     repository
 	pool                     *pgx.ConnPool
 	logger                   log.Logger
 }
 
-func NewFeedUpdater(repo repository, logger log.Logger) *FeedUpdater {
+func NewFeedUpdater(pool *pgx.ConnPool, logger log.Logger) *FeedUpdater {
 	feedUpdater := &FeedUpdater{}
-	feedUpdater.repo = repo
-	feedUpdater.pool = repo.(*pgxRepository).pool
+	feedUpdater.pool = pool
 	feedUpdater.logger = logger
 	feedUpdater.client = &http.Client{Timeout: 60 * time.Second}
 	feedUpdater.maxConcurrentFeedFetches = 25

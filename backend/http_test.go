@@ -3,14 +3,17 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/jackc/tpr/backend/data"
-	"github.com/vaughan0/go-ini"
-	log "gopkg.in/inconshreveable/log15.v2"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx"
+	"github.com/jackc/tpr/backend/data"
+	"github.com/vaughan0/go-ini"
+	log "gopkg.in/inconshreveable/log15.v2"
 )
 
 func getLogger(t *testing.T) log.Logger {
@@ -28,12 +31,12 @@ func getLogger(t *testing.T) log.Logger {
 	return logger
 }
 
-var sharedPgxRepository *pgxRepository
+var sharedPool *pgx.ConnPool
 
-func newRepository(t testing.TB) repository {
+func newConnPool(t testing.TB) *pgx.ConnPool {
 	var err error
 
-	if sharedPgxRepository == nil {
+	if sharedPool == nil {
 		configPath := "../tpr.test.conf"
 		conf, err := ini.LoadFile(configPath)
 		if err != nil {
@@ -45,25 +48,37 @@ func newRepository(t testing.TB) repository {
 			t.Fatal(err)
 		}
 
-		repo, err := newRepo(conf, logger)
+		pool, err := newPool(conf, logger)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		sharedPgxRepository = repo.(*pgxRepository)
+		sharedPool = pool
 	}
 
-	err = sharedPgxRepository.empty()
+	err = empty(sharedPool)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	return sharedPgxRepository
+	return sharedPool
+}
+
+// Empty all data in the entire database
+func empty(pool *pgx.ConnPool) error {
+	tables := []string{"feeds", "items", "password_resets", "sessions", "subscriptions", "unread_items", "users"}
+	for _, table := range tables {
+		_, err := pool.Exec(fmt.Sprintf("delete from %s", table))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func TestExportOPML(t *testing.T) {
-	repo := newRepository(t)
-	pool := repo.(*pgxRepository).pool
+	pool := newConnPool(t)
+
 	userID, err := data.CreateUser(pool, &data.User{
 		Name:           data.NewString("test"),
 		Email:          data.NewString("test@example.com"),
@@ -86,7 +101,6 @@ func TestExportOPML(t *testing.T) {
 
 	env := &environment{pool: pool}
 	env.user = &data.User{ID: data.NewInt32(userID), Name: data.NewString("test")}
-	env.repo = repo
 
 	w := httptest.NewRecorder()
 
@@ -105,19 +119,19 @@ func TestExportOPML(t *testing.T) {
 }
 
 func TestGetAccountHandler(t *testing.T) {
-	repo := newRepository(t).(*pgxRepository)
+	pool := newConnPool(t)
 	user := &data.User{
 		Name:  data.NewString("test"),
 		Email: data.NewString("test@example.com"),
 	}
 	SetPassword(user, "password")
 
-	userID, err := data.CreateUser(repo.pool, user)
+	userID, err := data.CreateUser(pool, user)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	user, err = data.SelectUserByPK(repo.pool, userID)
+	user, err = data.SelectUserByPK(pool, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +141,7 @@ func TestGetAccountHandler(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	env := &environment{user: user, repo: repo}
+	env := &environment{user: user, pool: pool}
 	w := httptest.NewRecorder()
 	GetAccountHandler(w, req, env)
 
@@ -211,8 +225,7 @@ func TestUpdateAccountHandler(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		repo := newRepository(t)
-		pool := repo.(*pgxRepository).pool
+		pool := newConnPool(t)
 		user := &data.User{
 			Name:  data.NewString("test"),
 			Email: data.NewString(origEmail),
@@ -243,7 +256,7 @@ func TestUpdateAccountHandler(t *testing.T) {
 			continue
 		}
 
-		env := &environment{user: user, repo: repo, pool: pool}
+		env := &environment{user: user, pool: pool}
 		w := httptest.NewRecorder()
 		UpdateAccountHandler(w, req, env)
 
@@ -299,8 +312,7 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		repo := newRepository(t)
-		pool := repo.(*pgxRepository).pool
+		pool := newConnPool(t)
 		user := &data.User{
 			Name:  data.NewString("test"),
 			Email: data.NewString(tt.userEmail),
@@ -322,7 +334,7 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 		}
 		req.RemoteAddr = tt.remoteAddr
 
-		env := &environment{user: user, repo: repo, pool: pool, logger: getLogger(t), mailer: tt.mailer}
+		env := &environment{user: user, pool: pool, logger: getLogger(t), mailer: tt.mailer}
 		w := httptest.NewRecorder()
 		RequestPasswordResetHandler(w, req, env)
 
@@ -381,8 +393,7 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 }
 
 func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
-	repo := newRepository(t)
-	pool := repo.(*pgxRepository).pool
+	pool := newConnPool(t)
 	user := &data.User{
 		Name:  data.NewString("test"),
 		Email: data.NewString("test@example.com"),
@@ -415,7 +426,7 @@ func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
 		t.Fatalf("http.NewRequest returned error: %v", err)
 	}
 
-	env := &environment{repo: repo, pool: pool}
+	env := &environment{pool: pool}
 	w := httptest.NewRecorder()
 	ResetPasswordHandler(w, req, env)
 
@@ -444,8 +455,7 @@ func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
 }
 
 func TestResetPasswordHandlerTokenMatchestUsedPasswordReset(t *testing.T) {
-	repo := newRepository(t)
-	pool := repo.(*pgxRepository).pool
+	pool := newConnPool(t)
 	user := &data.User{
 		Name:  data.NewString("test"),
 		Email: data.NewString("test@example.com"),
@@ -480,7 +490,7 @@ func TestResetPasswordHandlerTokenMatchestUsedPasswordReset(t *testing.T) {
 		t.Fatalf("http.NewRequest returned error: %v", err)
 	}
 
-	env := &environment{repo: repo, pool: pool}
+	env := &environment{pool: pool}
 	w := httptest.NewRecorder()
 	ResetPasswordHandler(w, req, env)
 
@@ -499,8 +509,7 @@ func TestResetPasswordHandlerTokenMatchestUsedPasswordReset(t *testing.T) {
 }
 
 func TestResetPasswordHandlerTokenMatchestInvalidPasswordReset(t *testing.T) {
-	repo := newRepository(t)
-	pool := repo.(*pgxRepository).pool
+	pool := newConnPool(t)
 
 	_, localhost, _ := net.ParseCIDR("127.0.0.1/32")
 	pwr := &data.PasswordReset{
@@ -522,7 +531,7 @@ func TestResetPasswordHandlerTokenMatchestInvalidPasswordReset(t *testing.T) {
 		t.Fatalf("http.NewRequest returned error: %v", err)
 	}
 
-	env := &environment{repo: repo, pool: pool}
+	env := &environment{pool: pool}
 	w := httptest.NewRecorder()
 	ResetPasswordHandler(w, req, env)
 
@@ -532,8 +541,7 @@ func TestResetPasswordHandlerTokenMatchestInvalidPasswordReset(t *testing.T) {
 }
 
 func TestResetPasswordHandlerTokenDoesNotMatchPasswordReset(t *testing.T) {
-	repo := newRepository(t)
-	pool := repo.(*pgxRepository).pool
+	pool := newConnPool(t)
 
 	buf := bytes.NewBufferString(`{"token": "0123456789abcdef", "password": "bigsecret"}`)
 
@@ -542,7 +550,7 @@ func TestResetPasswordHandlerTokenDoesNotMatchPasswordReset(t *testing.T) {
 		t.Fatalf("http.NewRequest returned error: %v", err)
 	}
 
-	env := &environment{repo: repo, pool: pool}
+	env := &environment{pool: pool}
 	w := httptest.NewRecorder()
 	ResetPasswordHandler(w, req, env)
 

@@ -18,10 +18,10 @@ import (
 
 type EnvHandlerFunc func(w http.ResponseWriter, req *http.Request, env *environment)
 
-func EnvHandler(repo repository, mailer Mailer, logger log.Logger, f EnvHandlerFunc) http.Handler {
+func EnvHandler(pool *pgx.ConnPool, mailer Mailer, logger log.Logger, f EnvHandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		user := getUserFromSession(req, repo)
-		env := &environment{user: user, repo: repo, pool: repo.(*pgxRepository).pool, mailer: mailer, logger: logger}
+		user := getUserFromSession(req, pool)
+		env := &environment{user: user, pool: pool, mailer: mailer, logger: logger}
 		f(w, req, env)
 	})
 }
@@ -39,35 +39,34 @@ func AuthenticatedHandler(f EnvHandlerFunc) EnvHandlerFunc {
 
 type environment struct {
 	user   *data.User
-	repo   repository
 	pool   *pgx.ConnPool
 	logger log.Logger
 	mailer Mailer
 }
 
-func NewAPIHandler(repo repository, mailer Mailer, logger log.Logger) http.Handler {
+func NewAPIHandler(pool *pgx.ConnPool, mailer Mailer, logger log.Logger) http.Handler {
 	router := qv.NewRouter()
 
-	router.Post("/register", EnvHandler(repo, mailer, logger, RegisterHandler))
-	router.Post("/sessions", EnvHandler(repo, mailer, logger, CreateSessionHandler))
-	router.Delete("/sessions/:id", EnvHandler(repo, mailer, logger, AuthenticatedHandler(DeleteSessionHandler)))
-	router.Post("/subscriptions", EnvHandler(repo, mailer, logger, AuthenticatedHandler(CreateSubscriptionHandler)))
-	router.Delete("/subscriptions/:id", EnvHandler(repo, mailer, logger, AuthenticatedHandler(DeleteSubscriptionHandler)))
-	router.Post("/request_password_reset", EnvHandler(repo, mailer, logger, RequestPasswordResetHandler))
-	router.Post("/reset_password", EnvHandler(repo, mailer, logger, ResetPasswordHandler))
-	router.Get("/feeds", EnvHandler(repo, mailer, logger, AuthenticatedHandler(GetFeedsHandler)))
-	router.Post("/feeds/import", EnvHandler(repo, mailer, logger, AuthenticatedHandler(ImportFeedsHandler)))
-	router.Get("/feeds.xml", EnvHandler(repo, mailer, logger, AuthenticatedHandler(ExportFeedsHandler)))
-	router.Get("/items/unread", EnvHandler(repo, mailer, logger, AuthenticatedHandler(GetUnreadItemsHandler)))
-	router.Post("/items/unread/mark_multiple_read", EnvHandler(repo, mailer, logger, AuthenticatedHandler(MarkMultipleItemsReadHandler)))
-	router.Delete("/items/unread/:id", EnvHandler(repo, mailer, logger, AuthenticatedHandler(MarkItemReadHandler)))
-	router.Get("/account", EnvHandler(repo, mailer, logger, AuthenticatedHandler(GetAccountHandler)))
-	router.Patch("/account", EnvHandler(repo, mailer, logger, AuthenticatedHandler(UpdateAccountHandler)))
+	router.Post("/register", EnvHandler(pool, mailer, logger, RegisterHandler))
+	router.Post("/sessions", EnvHandler(pool, mailer, logger, CreateSessionHandler))
+	router.Delete("/sessions/:id", EnvHandler(pool, mailer, logger, AuthenticatedHandler(DeleteSessionHandler)))
+	router.Post("/subscriptions", EnvHandler(pool, mailer, logger, AuthenticatedHandler(CreateSubscriptionHandler)))
+	router.Delete("/subscriptions/:id", EnvHandler(pool, mailer, logger, AuthenticatedHandler(DeleteSubscriptionHandler)))
+	router.Post("/request_password_reset", EnvHandler(pool, mailer, logger, RequestPasswordResetHandler))
+	router.Post("/reset_password", EnvHandler(pool, mailer, logger, ResetPasswordHandler))
+	router.Get("/feeds", EnvHandler(pool, mailer, logger, AuthenticatedHandler(GetFeedsHandler)))
+	router.Post("/feeds/import", EnvHandler(pool, mailer, logger, AuthenticatedHandler(ImportFeedsHandler)))
+	router.Get("/feeds.xml", EnvHandler(pool, mailer, logger, AuthenticatedHandler(ExportFeedsHandler)))
+	router.Get("/items/unread", EnvHandler(pool, mailer, logger, AuthenticatedHandler(GetUnreadItemsHandler)))
+	router.Post("/items/unread/mark_multiple_read", EnvHandler(pool, mailer, logger, AuthenticatedHandler(MarkMultipleItemsReadHandler)))
+	router.Delete("/items/unread/:id", EnvHandler(pool, mailer, logger, AuthenticatedHandler(MarkItemReadHandler)))
+	router.Get("/account", EnvHandler(pool, mailer, logger, AuthenticatedHandler(GetAccountHandler)))
+	router.Patch("/account", EnvHandler(pool, mailer, logger, AuthenticatedHandler(UpdateAccountHandler)))
 
 	return router
 }
 
-func getUserFromSession(req *http.Request, repo repository) *data.User {
+func getUserFromSession(req *http.Request, pool *pgx.ConnPool) *data.User {
 	token := req.Header.Get("X-Authentication")
 	if token == "" {
 		token = req.FormValue("session")
@@ -80,7 +79,7 @@ func getUserFromSession(req *http.Request, repo repository) *data.User {
 	}
 
 	// TODO - this could be an error from no records found -- or the connection could be dead or we could have a syntax error...
-	user, err := data.SelectUserBySessionID(repo.(*pgxRepository).pool, sessionID)
+	user, err := data.SelectUserBySessionID(pool, sessionID)
 	if err != nil {
 		return nil
 	}

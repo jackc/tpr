@@ -1,5 +1,7 @@
 package main
 
+// These tests originally belonged to PgxRepository.
+
 import (
 	"bytes"
 	"encoding/json"
@@ -17,9 +19,8 @@ func newUser() *data.User {
 	}
 }
 
-func TestPgxRepositoryUsersLifeCycle(t *testing.T) {
-	repo := newRepository(t)
-	pool := repo.(*pgxRepository).pool
+func TestDataUsersLifeCycle(t *testing.T) {
+	pool := newConnPool(t)
 
 	input := &data.User{
 		Name:           data.NewString("test"),
@@ -93,9 +94,8 @@ func TestPgxRepositoryUsersLifeCycle(t *testing.T) {
 	}
 }
 
-func TestPgxRepositoryCreateUserHandlesNameUniqueness(t *testing.T) {
-	repo := newRepository(t)
-	pool := repo.(*pgxRepository).pool
+func TestDataCreateUserHandlesNameUniqueness(t *testing.T) {
+	pool := newConnPool(t)
 
 	u := newUser()
 	_, err := data.CreateUser(pool, u)
@@ -110,9 +110,8 @@ func TestPgxRepositoryCreateUserHandlesNameUniqueness(t *testing.T) {
 	}
 }
 
-func TestPgxRepositoryCreateUserHandlesEmailUniqueness(t *testing.T) {
-	repo := newRepository(t)
-	pool := repo.(*pgxRepository).pool
+func TestDataCreateUserHandlesEmailUniqueness(t *testing.T) {
+	pool := newConnPool(t)
 
 	u := newUser()
 	u.Email = data.NewString("test@example.com")
@@ -128,9 +127,8 @@ func TestPgxRepositoryCreateUserHandlesEmailUniqueness(t *testing.T) {
 	}
 }
 
-func BenchmarkPgxRepositoryGetUser(b *testing.B) {
-	repo := newRepository(b)
-	pool := repo.(*pgxRepository).pool
+func BenchmarkDataGetUser(b *testing.B) {
+	pool := newConnPool(b)
 
 	userID, err := data.CreateUser(pool, newUser())
 	if err != nil {
@@ -146,9 +144,8 @@ func BenchmarkPgxRepositoryGetUser(b *testing.B) {
 	}
 }
 
-func BenchmarkPgxRepositoryGetUserByName(b *testing.B) {
-	repo := newRepository(b)
-	pool := repo.(*pgxRepository).pool
+func BenchmarkDataGetUserByName(b *testing.B) {
+	pool := newConnPool(b)
 
 	user := newUser()
 	_, err := data.CreateUser(pool, user)
@@ -165,9 +162,8 @@ func BenchmarkPgxRepositoryGetUserByName(b *testing.B) {
 	}
 }
 
-func TestPgxRepositoryFeeds(t *testing.T) {
-	repo := newRepository(t)
-	pool := repo.(*pgxRepository).pool
+func TestDataFeeds(t *testing.T) {
+	pool := newConnPool(t)
 
 	userID, err := data.CreateUser(pool, newUser())
 	if err != nil {
@@ -253,9 +249,8 @@ func TestPgxRepositoryFeeds(t *testing.T) {
 	}
 }
 
-func TestPgxRepositoryUpdateFeedWithFetchSuccess(t *testing.T) {
-	repo := newRepository(t)
-	pool := repo.(*pgxRepository).pool
+func TestDataUpdateFeedWithFetchSuccess(t *testing.T) {
+	pool := newConnPool(t)
 
 	userID, err := data.CreateUser(pool, newUser())
 	if err != nil {
@@ -332,9 +327,8 @@ func TestPgxRepositoryUpdateFeedWithFetchSuccess(t *testing.T) {
 
 // This function is a nasty copy and paste of testRepositoryUpdateFeedWithFetchSuccess
 // Fix me when refactoring tests
-func TestPgxRepositoryUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testing.T) {
-	repo := newRepository(t)
-	pool := repo.(*pgxRepository).pool
+func TestDataUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testing.T) {
+	pool := newConnPool(t)
 
 	userID, err := data.CreateUser(pool, newUser())
 	if err != nil {
@@ -409,9 +403,8 @@ func TestPgxRepositoryUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testin
 	}
 }
 
-func TestPgxRepositorySubscriptions(t *testing.T) {
-	repo := newRepository(t)
-	pool := repo.(*pgxRepository).pool
+func TestDataSubscriptions(t *testing.T) {
+	pool := newConnPool(t)
 
 	userID, err := data.CreateUser(pool, newUser())
 	if err != nil {
@@ -436,9 +429,8 @@ func TestPgxRepositorySubscriptions(t *testing.T) {
 	}
 }
 
-func TestPgxRepositoryDeleteSubscription(t *testing.T) {
-	repo := newRepository(t)
-	pool := repo.(*pgxRepository).pool
+func TestDataDeleteSubscription(t *testing.T) {
+	pool := newConnPool(t)
 
 	userID, err := data.CreateUser(pool, newUser())
 	if err != nil {
@@ -493,9 +485,8 @@ func TestPgxRepositoryDeleteSubscription(t *testing.T) {
 	}
 }
 
-func TestPgxRepositoryCopySubscriptionsForUserAsJSON(t *testing.T) {
-	repo := newRepository(t)
-	pool := repo.(*pgxRepository).pool
+func TestDataCopySubscriptionsForUserAsJSON(t *testing.T) {
+	pool := newConnPool(t)
 
 	userID, err := data.CreateUser(pool, newUser())
 	if err != nil {
@@ -523,9 +514,8 @@ func TestPgxRepositoryCopySubscriptionsForUserAsJSON(t *testing.T) {
 	}
 }
 
-func TestPgxRepositorySessions(t *testing.T) {
-	repo := newRepository(t)
-	pool := repo.(*pgxRepository).pool
+func TestDataSessions(t *testing.T) {
+	pool := newConnPool(t)
 
 	userID, err := data.CreateUser(pool, newUser())
 	if err != nil {

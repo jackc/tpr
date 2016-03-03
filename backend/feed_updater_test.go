@@ -316,7 +316,7 @@ func TestParseTime(t *testing.T) {
 }
 
 func TestFetchFeed(t *testing.T) {
-	repo := newRepository(t)
+	pool := newConnPool(t)
 
 	rssBody := []byte(`<?xml version='1.0' encoding='UTF-8'?>
 <rss>
@@ -341,7 +341,7 @@ func TestFetchFeed(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	u := NewFeedUpdater(repo, log.Root())
+	u := NewFeedUpdater(pool, log.Root())
 	rawFeed, err := u.fetchFeed(ts.URL, data.String{})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)

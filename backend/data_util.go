@@ -11,9 +11,6 @@ import (
 
 var notFound = errors.New("not found")
 
-type repository interface {
-}
-
 func SetPassword(u *data.User, password string) error {
 	salt := make([]byte, 8)
 	_, err := rand.Read(salt)

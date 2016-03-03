@@ -106,7 +106,7 @@ func setFilterHandler(level string, logger log.Logger, handler log.Handler) erro
 	return nil
 }
 
-func newRepo(conf ini.File, logger log.Logger) (repository, error) {
+func newPool(conf ini.File, logger log.Logger) (*pgx.ConnPool, error) {
 	logger = logger.New("module", "pgx")
 	if level, ok := conf.Get("log", "pgx_level"); ok {
 		setFilterHandler(level, logger, log.StdoutHandler)
@@ -141,12 +141,7 @@ func newRepo(conf ini.File, logger log.Logger) (repository, error) {
 		AfterConnect:   afterConnect,
 	}
 
-	repo, err := NewPgxRepository(poolConfig)
-	if err != nil {
-		return nil, fmt.Errorf("Unable to create pgx repository: %v", err)
-	}
-
-	return repo, nil
+	return pgx.NewConnPool(poolConfig)
 }
 
 func loadHTTPConfig(c *cli.Context, conf ini.File) (httpConfig, error) {
@@ -233,7 +228,7 @@ func Serve(c *cli.Context) {
 		os.Exit(1)
 	}
 
-	repo, err := newRepo(conf, logger)
+	pool, err := newPool(conf, logger)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -245,7 +240,7 @@ func Serve(c *cli.Context) {
 		os.Exit(1)
 	}
 
-	apiHandler := NewAPIHandler(repo, mailer, logger.New("module", "http"))
+	apiHandler := NewAPIHandler(pool, mailer, logger.New("module", "http"))
 	http.Handle("/api/", http.StripPrefix("/api", apiHandler))
 
 	if httpConfig.staticURL != "" {
@@ -260,7 +255,7 @@ func Serve(c *cli.Context) {
 	listenAt := fmt.Sprintf("%s:%s", httpConfig.listenAddress, httpConfig.listenPort)
 	fmt.Printf("Starting to listen on: %s\n", listenAt)
 
-	feedUpdater := NewFeedUpdater(repo, logger.New("module", "feedUpdater"))
+	feedUpdater := NewFeedUpdater(pool, logger.New("module", "feedUpdater"))
 	go feedUpdater.KeepFeedsFresh()
 
 	if err := http.ListenAndServe(listenAt, nil); err != nil {
@@ -289,13 +284,13 @@ func ResetPassword(c *cli.Context) {
 		os.Exit(1)
 	}
 
-	repo, err := newRepo(conf, logger)
+	pool, err := newPool(conf, logger)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	user, err := data.SelectUserByName(repo.(*pgxRepository).pool, name)
+	user, err := data.SelectUserByName(pool, name)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -310,7 +305,7 @@ func ResetPassword(c *cli.Context) {
 	update := &data.User{}
 	SetPassword(update, password)
 
-	err = data.UpdateUser(repo.(*pgxRepository).pool, user.ID.Value, update)
+	err = data.UpdateUser(pool, user.ID.Value, update)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

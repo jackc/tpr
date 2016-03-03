@@ -1,36 +1,8 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/jackc/pgx"
 )
-
-type pgxRepository struct {
-	pool *pgx.ConnPool
-}
-
-func NewPgxRepository(connPoolConfig pgx.ConnPoolConfig) (*pgxRepository, error) {
-	pool, err := pgx.NewConnPool(connPoolConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	repo := &pgxRepository{pool: pool}
-	return repo, nil
-}
-
-// Empty all data in the entire repository
-func (repo *pgxRepository) empty() error {
-	tables := []string{"feeds", "items", "password_resets", "sessions", "subscriptions", "unread_items", "users"}
-	for _, table := range tables {
-		_, err := repo.pool.Exec(fmt.Sprintf("delete from %s", table))
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
 
 // afterConnect creates the prepared statements that this application uses
 func afterConnect(conn *pgx.Conn) (err error) {
