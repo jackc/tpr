@@ -9,8 +9,8 @@
 		},
 		{
 			"ImportPath": "github.com/jackc/pgx",
-			"Comment": "v2.7.1-34-gc6b6d7b",
-			"Rev": "c6b6d7bad715f16cbb46e73356541fa4dd1f9333"
+			"Comment": "v2.7.1-36-g1ad4c00",
+			"Rev": "1ad4c0090a49ddf641ceb97434043a5a1b051299"
 		},
 		{
 			"ImportPath": "github.com/jackc/quo_vadis",

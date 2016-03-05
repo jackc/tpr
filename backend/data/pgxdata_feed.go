@@ -20,15 +20,15 @@ type Feed struct {
 	CreationTime    Time
 }
 
+const countFeedSQL = `select count(*) from "feeds"`
+
 func CountFeed(db Queryer) (int64, error) {
 	var n int64
-	sql := `select count(*) from "feeds"`
-	err := db.QueryRow(sql).Scan(&n)
+	err := prepareQueryRow(db, "pgxdataCountFeed", countFeedSQL).Scan(&n)
 	return n, err
 }
 
-func SelectAllFeed(db Queryer) ([]Feed, error) {
-	sql := `select
+const SelectAllFeedSQL = `select
   "id",
   "name",
   "url",
@@ -40,9 +40,10 @@ func SelectAllFeed(db Queryer) ([]Feed, error) {
   "creation_time"
 from "feeds"`
 
+func SelectAllFeed(db Queryer) ([]Feed, error) {
 	var rows []Feed
 
-	dbRows, err := db.Query(sql)
+	dbRows, err := prepareQuery(db, "pgxdataSelectAllFeed", SelectAllFeedSQL)
 	if err != nil {
 		return nil, err
 	}
@@ -70,11 +71,7 @@ from "feeds"`
 	return rows, nil
 }
 
-func SelectFeedByPK(
-	db Queryer,
-	id int32,
-) (*Feed, error) {
-	sql := `select
+const selectFeedByPKSQL = `select
   "id",
   "name",
   "url",
@@ -87,8 +84,12 @@ func SelectFeedByPK(
 from "feeds"
 where "id"=$1`
 
+func SelectFeedByPK(
+	db Queryer,
+	id int32,
+) (*Feed, error) {
 	var row Feed
-	err := db.QueryRow(sql, id).Scan(
+	err := prepareQueryRow(db, "pgxdataSelectFeedByPK", selectFeedByPKSQL, id).Scan(
 		&row.ID,
 		&row.Name,
 		&row.URL,
@@ -128,7 +129,9 @@ values(` + strings.Join(values, ",") + `)
 returning "id"
   `
 
-	return db.QueryRow(sql, args...).Scan(&row.ID)
+	psName := preparedName("pgxdataInsertFeed", sql)
+
+	return prepareQueryRow(db, psName, sql, args...).Scan(&row.ID)
 }
 
 func UpdateFeed(db Queryer,
@@ -154,7 +157,9 @@ func UpdateFeed(db Queryer,
 
 	sql := `update "feeds" set ` + strings.Join(sets, ", ") + ` where ` + `"id"=` + args.Append(id)
 
-	commandTag, err := db.Exec(sql, args...)
+	psName := preparedName("pgxdataUpdateFeed", sql)
+
+	commandTag, err := prepareExec(db, psName, sql, args...)
 	if err != nil {
 		return err
 	}
@@ -171,7 +176,7 @@ func DeleteFeed(db Queryer,
 
 	sql := `delete from "feeds" where ` + `"id"=` + args.Append(id)
 
-	commandTag, err := db.Exec(sql, args...)
+	commandTag, err := prepareExec(db, "pgxdataDeleteFeed", sql, args...)
 	if err != nil {
 		return err
 	}

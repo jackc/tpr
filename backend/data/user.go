@@ -15,10 +15,10 @@ func (e DuplicationError) Error() string {
 	return fmt.Sprintf("%s is already taken", e.Field)
 }
 
-func selectUser(db Queryer, sql string, arg interface{}) (*User, error) {
+func selectUser(db Queryer, name, sql string, arg interface{}) (*User, error) {
 	user := User{}
 
-	err := db.QueryRow(sql, arg).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordDigest, &user.PasswordSalt)
+	err := prepareQueryRow(db, name, sql, arg).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordDigest, &user.PasswordSalt)
 	if err == pgx.ErrNoRows {
 		return nil, ErrNotFound
 	}
@@ -29,16 +29,25 @@ func selectUser(db Queryer, sql string, arg interface{}) (*User, error) {
 	return &user, nil
 }
 
+const getUserByNameSQL = `select id, name, email, password_digest, password_salt from users where name=$1`
+
 func SelectUserByName(db Queryer, name string) (*User, error) {
-	return selectUser(db, "getUserByName", name)
+	return selectUser(db, "getUserByName", getUserByNameSQL, name)
 }
+
+const getUserByEmailSQL = `select id, name, email, password_digest, password_salt from users where email=$1`
 
 func SelectUserByEmail(db Queryer, email string) (*User, error) {
-	return selectUser(db, "getUserByEmail", email)
+	return selectUser(db, "getUserByEmail", getUserByEmailSQL, email)
 }
 
+const getUserBySessionIDSQL = `select users.id, name, email, password_digest, password_salt
+from sessions
+  join users on sessions.user_id=users.id
+where sessions.id=$1`
+
 func SelectUserBySessionID(db Queryer, id []byte) (*User, error) {
-	return selectUser(db, "getUserBySessionID", id)
+	return selectUser(db, "getUserBySessionID", getUserBySessionIDSQL, id)
 }
 
 func CreateUser(db Queryer, user *User) (int32, error) {

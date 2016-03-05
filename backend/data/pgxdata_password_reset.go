@@ -18,15 +18,15 @@ type PasswordReset struct {
 	CompletionTime Time
 }
 
+const countPasswordResetSQL = `select count(*) from "password_resets"`
+
 func CountPasswordReset(db Queryer) (int64, error) {
 	var n int64
-	sql := `select count(*) from "password_resets"`
-	err := db.QueryRow(sql).Scan(&n)
+	err := prepareQueryRow(db, "pgxdataCountPasswordReset", countPasswordResetSQL).Scan(&n)
 	return n, err
 }
 
-func SelectAllPasswordReset(db Queryer) ([]PasswordReset, error) {
-	sql := `select
+const SelectAllPasswordResetSQL = `select
   "token",
   "email",
   "request_ip",
@@ -36,9 +36,10 @@ func SelectAllPasswordReset(db Queryer) ([]PasswordReset, error) {
   "completion_time"
 from "password_resets"`
 
+func SelectAllPasswordReset(db Queryer) ([]PasswordReset, error) {
 	var rows []PasswordReset
 
-	dbRows, err := db.Query(sql)
+	dbRows, err := prepareQuery(db, "pgxdataSelectAllPasswordReset", SelectAllPasswordResetSQL)
 	if err != nil {
 		return nil, err
 	}
@@ -64,11 +65,7 @@ from "password_resets"`
 	return rows, nil
 }
 
-func SelectPasswordResetByPK(
-	db Queryer,
-	token string,
-) (*PasswordReset, error) {
-	sql := `select
+const selectPasswordResetByPKSQL = `select
   "token",
   "email",
   "request_ip",
@@ -79,8 +76,12 @@ func SelectPasswordResetByPK(
 from "password_resets"
 where "token"=$1`
 
+func SelectPasswordResetByPK(
+	db Queryer,
+	token string,
+) (*PasswordReset, error) {
 	var row PasswordReset
-	err := db.QueryRow(sql, token).Scan(
+	err := prepareQueryRow(db, "pgxdataSelectPasswordResetByPK", selectPasswordResetByPKSQL, token).Scan(
 		&row.Token,
 		&row.Email,
 		&row.RequestIP,
@@ -116,7 +117,9 @@ values(` + strings.Join(values, ",") + `)
 returning "token"
   `
 
-	return db.QueryRow(sql, args...).Scan(&row.Token)
+	psName := preparedName("pgxdataInsertPasswordReset", sql)
+
+	return prepareQueryRow(db, psName, sql, args...).Scan(&row.Token)
 }
 
 func UpdatePasswordReset(db Queryer,
@@ -140,7 +143,9 @@ func UpdatePasswordReset(db Queryer,
 
 	sql := `update "password_resets" set ` + strings.Join(sets, ", ") + ` where ` + `"token"=` + args.Append(token)
 
-	commandTag, err := db.Exec(sql, args...)
+	psName := preparedName("pgxdataUpdatePasswordReset", sql)
+
+	commandTag, err := prepareExec(db, psName, sql, args...)
 	if err != nil {
 		return err
 	}
@@ -157,7 +162,7 @@ func DeletePasswordReset(db Queryer,
 
 	sql := `delete from "password_resets" where ` + `"token"=` + args.Append(token)
 
-	commandTag, err := db.Exec(sql, args...)
+	commandTag, err := prepareExec(db, "pgxdataDeletePasswordReset", sql, args...)
 	if err != nil {
 		return err
 	}

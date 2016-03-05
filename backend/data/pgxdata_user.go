@@ -16,15 +16,15 @@ type User struct {
 	Email          String
 }
 
+const countUserSQL = `select count(*) from "users"`
+
 func CountUser(db Queryer) (int64, error) {
 	var n int64
-	sql := `select count(*) from "users"`
-	err := db.QueryRow(sql).Scan(&n)
+	err := prepareQueryRow(db, "pgxdataCountUser", countUserSQL).Scan(&n)
 	return n, err
 }
 
-func SelectAllUser(db Queryer) ([]User, error) {
-	sql := `select
+const SelectAllUserSQL = `select
   "id",
   "name",
   "password_digest",
@@ -32,9 +32,10 @@ func SelectAllUser(db Queryer) ([]User, error) {
   "email"
 from "users"`
 
+func SelectAllUser(db Queryer) ([]User, error) {
 	var rows []User
 
-	dbRows, err := db.Query(sql)
+	dbRows, err := prepareQuery(db, "pgxdataSelectAllUser", SelectAllUserSQL)
 	if err != nil {
 		return nil, err
 	}
@@ -58,11 +59,7 @@ from "users"`
 	return rows, nil
 }
 
-func SelectUserByPK(
-	db Queryer,
-	id int32,
-) (*User, error) {
-	sql := `select
+const selectUserByPKSQL = `select
   "id",
   "name",
   "password_digest",
@@ -71,8 +68,12 @@ func SelectUserByPK(
 from "users"
 where "id"=$1`
 
+func SelectUserByPK(
+	db Queryer,
+	id int32,
+) (*User, error) {
 	var row User
-	err := db.QueryRow(sql, id).Scan(
+	err := prepareQueryRow(db, "pgxdataSelectUserByPK", selectUserByPKSQL, id).Scan(
 		&row.ID,
 		&row.Name,
 		&row.PasswordDigest,
@@ -104,7 +105,9 @@ values(` + strings.Join(values, ",") + `)
 returning "id"
   `
 
-	return db.QueryRow(sql, args...).Scan(&row.ID)
+	psName := preparedName("pgxdataInsertUser", sql)
+
+	return prepareQueryRow(db, psName, sql, args...).Scan(&row.ID)
 }
 
 func UpdateUser(db Queryer,
@@ -126,7 +129,9 @@ func UpdateUser(db Queryer,
 
 	sql := `update "users" set ` + strings.Join(sets, ", ") + ` where ` + `"id"=` + args.Append(id)
 
-	commandTag, err := db.Exec(sql, args...)
+	psName := preparedName("pgxdataUpdateUser", sql)
+
+	commandTag, err := prepareExec(db, psName, sql, args...)
 	if err != nil {
 		return err
 	}
@@ -143,7 +148,7 @@ func DeleteUser(db Queryer,
 
 	sql := `delete from "users" where ` + `"id"=` + args.Append(id)
 
-	commandTag, err := db.Exec(sql, args...)
+	commandTag, err := prepareExec(db, "pgxdataDeleteUser", sql, args...)
 	if err != nil {
 		return err
 	}

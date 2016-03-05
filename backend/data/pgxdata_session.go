@@ -14,23 +14,24 @@ type Session struct {
 	StartTime Time
 }
 
+const countSessionSQL = `select count(*) from "sessions"`
+
 func CountSession(db Queryer) (int64, error) {
 	var n int64
-	sql := `select count(*) from "sessions"`
-	err := db.QueryRow(sql).Scan(&n)
+	err := prepareQueryRow(db, "pgxdataCountSession", countSessionSQL).Scan(&n)
 	return n, err
 }
 
-func SelectAllSession(db Queryer) ([]Session, error) {
-	sql := `select
+const SelectAllSessionSQL = `select
   "id",
   "user_id",
   "start_time"
 from "sessions"`
 
+func SelectAllSession(db Queryer) ([]Session, error) {
 	var rows []Session
 
-	dbRows, err := db.Query(sql)
+	dbRows, err := prepareQuery(db, "pgxdataSelectAllSession", SelectAllSessionSQL)
 	if err != nil {
 		return nil, err
 	}
@@ -52,19 +53,19 @@ from "sessions"`
 	return rows, nil
 }
 
-func SelectSessionByPK(
-	db Queryer,
-	id []byte,
-) (*Session, error) {
-	sql := `select
+const selectSessionByPKSQL = `select
   "id",
   "user_id",
   "start_time"
 from "sessions"
 where "id"=$1`
 
+func SelectSessionByPK(
+	db Queryer,
+	id []byte,
+) (*Session, error) {
 	var row Session
-	err := db.QueryRow(sql, id).Scan(
+	err := prepareQueryRow(db, "pgxdataSelectSessionByPK", selectSessionByPKSQL, id).Scan(
 		&row.ID,
 		&row.UserID,
 		&row.StartTime,
@@ -92,7 +93,9 @@ values(` + strings.Join(values, ",") + `)
 returning "id"
   `
 
-	return db.QueryRow(sql, args...).Scan(&row.ID)
+	psName := preparedName("pgxdataInsertSession", sql)
+
+	return prepareQueryRow(db, psName, sql, args...).Scan(&row.ID)
 }
 
 func UpdateSession(db Queryer,
@@ -112,7 +115,9 @@ func UpdateSession(db Queryer,
 
 	sql := `update "sessions" set ` + strings.Join(sets, ", ") + ` where ` + `"id"=` + args.Append(id)
 
-	commandTag, err := db.Exec(sql, args...)
+	psName := preparedName("pgxdataUpdateSession", sql)
+
+	commandTag, err := prepareExec(db, psName, sql, args...)
 	if err != nil {
 		return err
 	}
@@ -129,7 +134,7 @@ func DeleteSession(db Queryer,
 
 	sql := `delete from "sessions" where ` + `"id"=` + args.Append(id)
 
-	commandTag, err := db.Exec(sql, args...)
+	commandTag, err := prepareExec(db, "pgxdataDeleteSession", sql, args...)
 	if err != nil {
 		return err
 	}

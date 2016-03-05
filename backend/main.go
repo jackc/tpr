@@ -138,7 +138,6 @@ func newPool(conf ini.File, logger log.Logger) (*pgx.ConnPool, error) {
 	poolConfig := pgx.ConnPoolConfig{
 		ConnConfig:     connConfig,
 		MaxConnections: 10,
-		AfterConnect:   afterConnect,
 	}
 
 	return pgx.NewConnPool(poolConfig)
