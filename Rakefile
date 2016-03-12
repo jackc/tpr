@@ -51,7 +51,7 @@ task build: ["build:assets", "build:binary", "build:man"]
 desc "Run tpr"
 task run: "build:binary" do
   puts "Remember to start middleman"
-  exec "build/tpr server --config tpr.conf --static-url http://localhost:4567"
+  exec "build/tpr server --config tpr.conf --static-url http://localhost:8080"
 end
 
 desc "Watch for source changes and rebuild and rerun"
@@ -63,7 +63,7 @@ task spec_server: "build:binary" do
   FileUtils.mkdir_p "tmp/spec/server"
   FileUtils.touch "tmp/spec/server/stdout.log"
   FileUtils.touch "tmp/spec/server/stderr.log"
-  pid = Process.spawn "build/tpr server --config tpr.test.conf --static-url http://localhost:4567",
+  pid = Process.spawn "build/tpr server --config tpr.test.conf --static-url http://localhost:8080",
     out: "tmp/spec/server/stdout.log",
     err: "tmp/spec/server/stderr.log"
   at_exit { Process.kill "TERM", pid }
