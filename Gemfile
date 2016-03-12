@@ -1,15 +1,9 @@
 source 'https://rubygems.org'
 
 gem 'capybara'
-gem 'ejs'
 gem 'ffaker'
 gem 'inifile'
 gem 'launchy'
-gem 'md2man'
-gem 'middleman', '~> 3.4.1'
-gem 'middleman-core'
-gem 'middleman-react'
-gem 'oj' # faster JS compiles
 gem 'pg'
 gem 'pry'
 gem 'rake'
@@ -17,4 +11,3 @@ gem 'rspec'
 gem 'scrypt'
 gem 'selenium-webdriver'
 gem 'sequel'
-gem 'therubyracer' # faster JS compiles
