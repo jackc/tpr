@@ -2,6 +2,7 @@
 /config.yml
 /config.test.yml
 /build
+/config/secrets.rb
 /frontend/.cache
 /public
 /tern.conf
