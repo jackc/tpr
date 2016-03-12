@@ -11,6 +11,9 @@ import ResetPasswordPage from './components/ResetPasswordPage.jsx'
 import RegisterPage from './components/RegisterPage.jsx'
 import Session from './session.js'
 
+require('./main.scss');
+
+
 function requireAuth(nextState, replace) {
   if (!Session.isAuthenticated()) {
     replace({

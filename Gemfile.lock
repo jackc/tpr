@@ -1,12 +1,6 @@
 GEM
   remote: https://rubygems.org/
   specs:
-    activesupport (4.2.5)
-      i18n (~> 0.7)
-      json (~> 1.7, >= 1.7.7)
-      minitest (~> 5.1)
-      thread_safe (~> 0.3, >= 0.3.4)
-      tzinfo (~> 1.1)
     addressable (2.4.0)
     binman (4.0.0)
       opener (>= 0.1.0, < 1)
@@ -18,100 +12,28 @@ GEM
       xpath (~> 2.0)
     childprocess (0.5.8)
       ffi (~> 1.0, >= 1.0.11)
-    chunky_png (1.3.5)
     coderay (1.1.0)
-    coffee-script (2.4.1)
-      coffee-script-source
-      execjs
-    coffee-script-source (1.10.0)
-    compass (1.0.3)
-      chunky_png (~> 1.2)
-      compass-core (~> 1.0.2)
-      compass-import-once (~> 1.0.5)
-      rb-fsevent (>= 0.9.3)
-      rb-inotify (>= 0.9)
-      sass (>= 3.3.13, < 3.5)
-    compass-core (1.0.3)
-      multi_json (~> 1.0)
-      sass (>= 3.3.0, < 3.5)
-    compass-import-once (1.0.5)
-      sass (>= 3.2, < 3.5)
     diff-lcs (1.2.5)
-    ejs (1.1.1)
-    erubis (2.7.0)
-    execjs (2.6.0)
     ffaker (2.1.0)
     ffi (1.9.10)
     ffi-compiler (0.1.3)
       ffi (>= 1.0.0)
       rake
-    haml (4.0.7)
-      tilt
-    hike (1.2.3)
-    hooks (0.4.1)
-      uber (~> 0.0.14)
-    i18n (0.7.0)
     inifile (3.0.0)
-    json (1.8.3)
-    kramdown (1.9.0)
     launchy (2.4.3)
       addressable (~> 2.3)
-    libv8 (3.16.14.13)
-    listen (3.0.5)
-      rb-fsevent (>= 0.9.3)
-      rb-inotify (>= 0.9)
     md2man (4.0.0)
       binman (~> 4.0)
       redcarpet (~> 3.0)
     method_source (0.8.2)
-    middleman (3.4.1)
-      coffee-script (~> 2.2)
-      compass (>= 1.0.0, < 2.0.0)
-      compass-import-once (= 1.0.5)
-      execjs (~> 2.0)
-      haml (>= 4.0.5)
-      kramdown (~> 1.2)
-      middleman-core (= 3.4.1)
-      middleman-sprockets (>= 3.1.2)
-      sass (>= 3.4.0, < 4.0)
-      uglifier (~> 2.5)
-    middleman-core (3.4.1)
-      activesupport (~> 4.1)
-      bundler (~> 1.1)
-      capybara (~> 2.4.4)
-      erubis
-      hooks (~> 0.3)
-      i18n (~> 0.7.0)
-      listen (~> 3.0.3)
-      padrino-helpers (~> 0.12.3)
-      rack (>= 1.4.5, < 2.0)
-      thor (>= 0.15.2, < 2.0)
-      tilt (~> 1.4.1, < 2.0)
-    middleman-react (0.13.3)
-      execjs
-      middleman-core (>= 3.0)
-      react-source (~> 0.13.3)
-    middleman-sprockets (3.4.2)
-      middleman-core (>= 3.3)
-      sprockets (~> 2.12.1)
-      sprockets-helpers (~> 1.1.0)
-      sprockets-sass (~> 1.3.0)
     mime-types (3.0)
       mime-types-data (~> 3.2015)
     mime-types-data (3.2015.1120)
     mini_portile2 (2.0.0)
-    minitest (5.8.3)
     multi_json (1.11.2)
     nokogiri (1.6.7.1)
       mini_portile2 (~> 2.0.0.rc2)
-    oj (2.14.2)
     opener (0.1.0)
-    padrino-helpers (0.12.5)
-      i18n (~> 0.6, >= 0.6.7)
-      padrino-support (= 0.12.5)
-      tilt (~> 1.4.1)
-    padrino-support (0.12.5)
-      activesupport (>= 3.1)
     pg (0.18.4)
     pry (0.10.3)
       coderay (~> 1.1.0)
@@ -121,12 +43,7 @@ GEM
     rack-test (0.6.3)
       rack (>= 1.0)
     rake (10.4.2)
-    rb-fsevent (0.9.6)
-    rb-inotify (0.9.5)
-      ffi (>= 0.5.0)
-    react-source (0.13.3)
     redcarpet (3.3.4)
-    ref (2.0.0)
     rspec (3.4.0)
       rspec-core (~> 3.4.0)
       rspec-expectations (~> 3.4.0)
@@ -141,7 +58,6 @@ GEM
       rspec-support (~> 3.4.0)
     rspec-support (3.4.1)
     rubyzip (1.1.7)
-    sass (3.4.20)
     scrypt (2.0.2)
       ffi-compiler (>= 0.0.2)
       rake
@@ -152,28 +68,6 @@ GEM
       websocket (~> 1.0)
     sequel (4.29.0)
     slop (3.6.0)
-    sprockets (2.12.4)
-      hike (~> 1.2)
-      multi_json (~> 1.0)
-      rack (~> 1.0)
-      tilt (~> 1.1, != 1.3.0)
-    sprockets-helpers (1.1.0)
-      sprockets (~> 2.0)
-    sprockets-sass (1.3.1)
-      sprockets (~> 2.0)
-      tilt (~> 1.1)
-    therubyracer (0.12.2)
-      libv8 (~> 3.16.14.0)
-      ref
-    thor (0.19.1)
-    thread_safe (0.3.5)
-    tilt (1.4.1)
-    tzinfo (1.2.2)
-      thread_safe (~> 0.1)
-    uber (0.0.15)
-    uglifier (2.7.2)
-      execjs (>= 0.3.0)
-      json (>= 1.8.0)
     websocket (1.2.2)
     xpath (2.0.0)
       nokogiri (~> 1.3)
@@ -183,15 +77,10 @@ PLATFORMS
 
 DEPENDENCIES
   capybara
-  ejs
   ffaker
   inifile
   launchy
   md2man
-  middleman (~> 3.4.1)
-  middleman-core
-  middleman-react
-  oj
   pg
   pry
   rake
@@ -199,7 +88,6 @@ DEPENDENCIES
   scrypt
   selenium-webdriver
   sequel
-  therubyracer
 
 BUNDLED WITH
    1.11.2

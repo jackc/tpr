@@ -34,6 +34,11 @@ const common = {
         include: PATHS.app
       },
       {
+        test: /\.scss$/,
+        loaders: ["style", "css", "sass"],
+        include: PATHS.app
+      },
+      {
         test: /\.jsx?$/,
         // Enable caching for improved performance during development
         // It uses default OS directory by default. If you need something
@@ -55,9 +60,6 @@ if(TARGET === 'start' || !TARGET) {
       contentBase: PATHS.build,
 
       proxy: {
-        '/css/base.css': {
-          target: 'http://localhost:4567'
-        },
         '/api*': {
           target: 'http://localhost:4000'
         },
