@@ -11,7 +11,7 @@ The Pithy Reader is a simple RSS/Atom aggregator.
 
 ## Development
 
-The Pithy Reader backend is written in [Go](http://golang.org/). The frontend is built with [Middleman](http://middlemanapp.com/) which is a [Ruby](https://www.ruby-lang.org/) project. First ensure [Go](http://golang.org/) and [Ruby](https://www.ruby-lang.org/) are installed.
+The Pithy Reader backend is written in [Go](http://golang.org/). The frontend is built with [webpack](https://webpack.github.io/). First ensure [Go](http://golang.org/), [Ruby](https://www.ruby-lang.org/), and [NodeJS](https://nodejs.org/en/) are installed.
 
 Get The Pithy Reader.
 
@@ -24,6 +24,11 @@ Go to repository you just checked out.
 Install the Ruby dependencies:
 
     bundle install
+
+Install the Node packages:
+
+    cd frontend
+    npm install
 
 All source code and required libraries for The Pithy Reader should now be installed.
 
@@ -74,7 +79,7 @@ There is a rake task that will automatically recompile and restart the backend s
 
     bundle exec rake rerun
 
-In another terminal start the Middleman frontend server.
+In another terminal start the webpack development server.
 
     cd frontend
-    bundle exec middleman
+    npm run start
