@@ -67,6 +67,12 @@ export default class HomePage extends React.Component {
             }.bind(this))
           }
         </ul>
+
+        {
+          this.state.items.length > 15 ?
+          (<Actions items={this.state.items} markAllReadFn={this.markAllRead} refreshFn={this.refresh} />) :
+          null
+        }
       </div>
     );
   }

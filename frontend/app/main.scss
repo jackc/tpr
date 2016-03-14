@@ -90,6 +90,10 @@ form {
   padding: 1em;
 }
 
+#view ul.unreadItems + .pageActions {
+  margin: 0;
+}
+
 .keyboardShortcuts {
   margin-left: 16px;
   font-size: 0.75em;
