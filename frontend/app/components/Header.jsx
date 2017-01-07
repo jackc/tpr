@@ -14,16 +14,22 @@ export default class Header extends React.Component {
     return (
       <header>
         <h1>The Pithy Reader</h1>
-        <nav>
-          <Link to="/home">Home</Link>
-          {' '}
-          <Link to="/feeds">Feeds</Link>
-          {' '}
-          <Link to="/account">Account</Link>
-          {' '}
-          <a href="#" onClick={this.logout}>Logout</a>
-        </nav>
+        {Session.isAuthenticated() ? this.renderLoggedInNav() : null}
       </header>
+    )
+  }
+
+  renderLoggedInNav() {
+    return (
+      <nav>
+        <Link to="/home">Home</Link>
+        {' '}
+        <Link to="/feeds">Feeds</Link>
+        {' '}
+        <Link to="/account">Account</Link>
+        {' '}
+        <a href="#" onClick={this.logout}>Logout</a>
+      </nav>
     )
   }
 
