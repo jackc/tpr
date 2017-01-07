@@ -4,8 +4,8 @@ gem 'capybara'
 gem 'ffaker'
 gem 'inifile'
 gem 'launchy'
-gem "mina"
-gem "mina-scp", require: false
+gem "mina", '0.3.8'
+gem "mina-scp", '0.1.2', require: false
 gem 'pg'
 gem 'pry'
 gem 'rake'
