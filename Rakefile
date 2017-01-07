@@ -19,7 +19,7 @@ namespace :build do
 
   desc "Build assets"
   task assets: :directory do
-    sh "cd frontend; NODE_ENV=production npm run build"
+    sh "cd frontend; NODE_ENV=production yarn run build"
     js_file_name = Dir.glob("build/assets/js/bundle.*.js").first.sub(/^build\/assets/, "")
     index_html = File.read "frontend/html/index.html"
     index_html.gsub!("./bundle.js", js_file_name)
