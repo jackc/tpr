@@ -24,6 +24,8 @@ export default class Header extends React.Component {
       <nav>
         <Link to="/home">Home</Link>
         {' '}
+        <Link to="/archive">Archive</Link>
+        {' '}
         <Link to="/feeds">Feeds</Link>
         {' '}
         <Link to="/account">Account</Link>

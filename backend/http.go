@@ -60,6 +60,7 @@ func NewAPIHandler(pool *pgx.ConnPool, mailer Mailer, logger log.Logger) http.Ha
 	router.Get("/items/unread", EnvHandler(pool, mailer, logger, AuthenticatedHandler(GetUnreadItemsHandler)))
 	router.Post("/items/unread/mark_multiple_read", EnvHandler(pool, mailer, logger, AuthenticatedHandler(MarkMultipleItemsReadHandler)))
 	router.Delete("/items/unread/:id", EnvHandler(pool, mailer, logger, AuthenticatedHandler(MarkItemReadHandler)))
+	router.Get("/items/archived", EnvHandler(pool, mailer, logger, AuthenticatedHandler(GetArchivedItemsHandler)))
 	router.Get("/account", EnvHandler(pool, mailer, logger, AuthenticatedHandler(GetAccountHandler)))
 	router.Patch("/account", EnvHandler(pool, mailer, logger, AuthenticatedHandler(UpdateAccountHandler)))
 
@@ -350,6 +351,13 @@ func MarkMultipleItemsReadHandler(w http.ResponseWriter, req *http.Request, env 
 		if err != nil && err != data.ErrNotFound {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 		}
+	}
+}
+
+func GetArchivedItemsHandler(w http.ResponseWriter, req *http.Request, env *environment) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := data.CopyArchivedItemsAsJSONByUserID(env.pool, w, env.user.ID.Value); err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
 

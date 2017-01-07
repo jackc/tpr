@@ -82,6 +82,34 @@ func CopyUnreadItemsAsJSONByUserID(db Queryer, w io.Writer, userID int32) error 
 	return err
 }
 
+const getArchivedItemsSQL = `select coalesce(json_agg(row_to_json(t)), '[]'::json)
+from (
+  select
+    items.id,
+    feeds.id as feed_id,
+    feeds.name as feed_name,
+    items.title,
+    items.url,
+    extract(epoch from coalesce(publication_time, items.creation_time)::timestamptz(0)) as publication_time
+  from feeds
+    join subscriptions on feeds.id=subscriptions.feed_id
+    join items on feeds.id=items.feed_id
+  where user_id=$1
+  order by publication_time desc
+  limit $2
+) t`
+
+func CopyArchivedItemsAsJSONByUserID(db Queryer, w io.Writer, userID int32) error {
+	var b []byte
+	err := prepareQueryRow(db, "getArchivedItems", getArchivedItemsSQL, userID, 250).Scan(&b)
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write(b)
+	return err
+}
+
 type ParsedItem struct {
 	URL             string
 	Title           string

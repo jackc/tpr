@@ -243,6 +243,23 @@ class Connection {
 
     this.post("/api/items/unread/mark_multiple_read", options)
   }
+
+  getArchivedItems(callbacks) {
+    var options = this.mergeCallbacks({}, callbacks)
+
+    if (options.succeeded) {
+      var succeeded = options.succeeded;
+      options.succeeded = function(data, req) {
+        data.forEach(function(item) {
+          item.publication_time = new Date(item.publication_time*1000)
+        })
+
+        succeeded(data, req)
+      }
+    }
+
+    this.get("/api/items/archived", options)
+  }
 }
 
 const conn = new Connection
