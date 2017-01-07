@@ -85,3 +85,7 @@ export default class RegisterPage extends React.Component {
     alert(response)
   }
 }
+
+RegisterPage.contextTypes = {
+  router: React.PropTypes.object
+}

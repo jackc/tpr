@@ -13,7 +13,7 @@ feature 'Registration' do
 
     click_on 'Register'
 
-    expect(page).to have_content 'Logout'
+    expect(page).to have_content 'No unread items'
     expect(DB[:users].count).to eq 1
     user = DB[:users].first
     expect(user[:name]).to eq 'joe'
@@ -31,7 +31,7 @@ feature 'Registration' do
 
     click_on 'Register'
 
-    expect(page).to have_content 'Logout'
+    expect(page).to have_content 'No unread items'
     expect(DB[:users].count).to eq 1
     user = DB[:users].first
     expect(user[:name]).to eq 'joe'

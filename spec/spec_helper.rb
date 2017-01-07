@@ -17,12 +17,17 @@ DB = Sequel.postgres host: host,
   user: config['database']['user'],
   database: config['database']['database']
 
+Capybara.register_driver :selenium do |app|
+  Capybara::Selenium::Driver.new(app, :browser => :chrome)
+end
+
 Capybara.default_driver = :selenium
 Capybara.app_host = "http://#{config['server']['address']}:#{config['server']['port']}"
 
 RSpec.configure do |config|
   config.include FactoryHelper
   config.include LoginHelper
+  config.include AlertHelper
 
   config.before(:each) do
     clean_database

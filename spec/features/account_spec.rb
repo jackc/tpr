@@ -12,7 +12,7 @@ feature 'Account' do
     fill_in 'Password Confirmation', with: 'bigsecret'
     click_on 'Update'
 
-    page.driver.browser.switch_to.alert.accept
+    accept_alert
 
     click_on 'Logout'
 
@@ -30,7 +30,7 @@ feature 'Account' do
     fill_in 'Password Confirmation', with: 'bigsecret'
     click_on 'Update'
 
-    page.driver.browser.switch_to.alert.accept
+    accept_alert
 
     click_on 'Logout'
 
@@ -47,7 +47,7 @@ feature 'Account' do
     fill_in 'Email', with: 'john@example.com'
     click_on 'Update'
 
-    page.driver.browser.switch_to.alert.accept
+    accept_alert
 
     click_on 'Feeds'
 

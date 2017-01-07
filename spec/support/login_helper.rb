@@ -7,6 +7,6 @@ module LoginHelper
 
     click_on 'Login'
 
-    expect(page).to have_content 'Logout'
+    expect(page).to have_no_content 'User name'
   end
 end
