@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx"
+	"github.com/jackc/pgx/pgtype"
 )
 
 const markItemReadSQL = `delete from unread_items
@@ -113,7 +114,7 @@ func CopyArchivedItemsAsJSONByUserID(db Queryer, w io.Writer, userID int32) erro
 type ParsedItem struct {
 	URL             string
 	Title           string
-	PublicationTime Time
+	PublicationTime pgtype.Timestamptz
 }
 
 func (i *ParsedItem) IsValid() bool {
@@ -149,7 +150,7 @@ const updateFeedWithFetchSuccessSQL = `
         failure_count=0
       where id=$4`
 
-func UpdateFeedWithFetchSuccess(db *pgx.ConnPool, feedID int32, update *ParsedFeed, etag String, fetchTime time.Time) error {
+func UpdateFeedWithFetchSuccess(db *pgx.ConnPool, feedID int32, update *ParsedFeed, etag pgtype.Varchar, fetchTime time.Time) error {
 	_, err := db.Prepare("updateFeedWithFetchSuccess", updateFeedWithFetchSuccessSQL)
 	if err != nil {
 		return err
@@ -229,8 +230,8 @@ func buildNewItemsSQL(feedID int32, items []ParsedItem) (sql string, args []inte
 		buf.WriteString(strconv.FormatInt(int64(len(args)), 10))
 
 		buf.WriteString(",$")
-		if item.PublicationTime.Status == Present {
-			args = append(args, item.PublicationTime.Value)
+		if item.PublicationTime.Status == pgtype.Present {
+			args = append(args, item.PublicationTime.Time)
 		} else {
 			args = append(args, nil)
 		}

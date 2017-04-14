@@ -1,10 +1,14 @@
 package pgx
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/jackc/pgx/internal/sanitize"
+	"github.com/jackc/pgx/pgtype"
 )
 
 // Row is a convenience wrapper over Rows that is returned by QueryRow.
@@ -23,9 +27,8 @@ func (r *Row) Scan(dest ...interface{}) (err error) {
 	if !rows.Next() {
 		if rows.Err() == nil {
 			return ErrNoRows
-		} else {
-			return rows.Err()
 		}
+		return rows.Err()
 	}
 
 	rows.Scan(dest...)
@@ -40,15 +43,12 @@ type Rows struct {
 	conn       *Conn
 	mr         *msgReader
 	fields     []FieldDescription
-	vr         ValueReader
 	rowCount   int
 	columnIdx  int
 	err        error
 	startTime  time.Time
 	sql        string
 	args       []interface{}
-	log        func(lvl int, msg string, ctx ...interface{})
-	shouldLog  func(lvl int) bool
 	afterClose func(*Rows)
 	unlockConn bool
 	closed     bool
@@ -58,7 +58,9 @@ func (rows *Rows) FieldDescriptions() []FieldDescription {
 	return rows.fields
 }
 
-func (rows *Rows) close() {
+// Close closes the rows, making the connection ready for use again. It is safe
+// to call Close after rows is already closed.
+func (rows *Rows) Close() {
 	if rows.closed {
 		return
 	}
@@ -70,13 +72,15 @@ func (rows *Rows) close() {
 
 	rows.closed = true
 
+	rows.err = rows.conn.termContext(rows.err)
+
 	if rows.err == nil {
-		if rows.shouldLog(LogLevelInfo) {
+		if rows.conn.shouldLog(LogLevelInfo) {
 			endTime := time.Now()
-			rows.log(LogLevelInfo, "Query", "sql", rows.sql, "args", logQueryArgs(rows.args), "time", endTime.Sub(rows.startTime), "rowCount", rows.rowCount)
+			rows.conn.log(LogLevelInfo, "Query", "sql", rows.sql, "args", logQueryArgs(rows.args), "time", endTime.Sub(rows.startTime), "rowCount", rows.rowCount)
 		}
-	} else if rows.shouldLog(LogLevelError) {
-		rows.log(LogLevelError, "Query", "sql", rows.sql, "args", logQueryArgs(rows.args))
+	} else if rows.conn.shouldLog(LogLevelError) {
+		rows.conn.log(LogLevelError, "Query", "sql", rows.sql, "args", logQueryArgs(rows.args))
 	}
 
 	if rows.afterClose != nil {
@@ -84,56 +88,8 @@ func (rows *Rows) close() {
 	}
 }
 
-func (rows *Rows) readUntilReadyForQuery() {
-	for {
-		t, r, err := rows.conn.rxMsg()
-		if err != nil {
-			rows.close()
-			return
-		}
-
-		switch t {
-		case readyForQuery:
-			rows.conn.rxReadyForQuery(r)
-			rows.close()
-			return
-		case rowDescription:
-		case dataRow:
-		case commandComplete:
-		case bindComplete:
-		default:
-			err = rows.conn.processContextFreeMsg(t, r)
-			if err != nil {
-				rows.close()
-				return
-			}
-		}
-	}
-}
-
-// Close closes the rows, making the connection ready for use again. It is safe
-// to call Close after rows is already closed.
-func (rows *Rows) Close() {
-	if rows.closed {
-		return
-	}
-	rows.readUntilReadyForQuery()
-	rows.close()
-}
-
 func (rows *Rows) Err() error {
 	return rows.err
-}
-
-// abort signals that the query was not successfully sent to the server.
-// This differs from Fatal in that it is not necessary to readUntilReadyForQuery
-func (rows *Rows) abort(err error) {
-	if rows.err != nil {
-		return
-	}
-
-	rows.err = err
-	rows.close()
 }
 
 // Fatal signals an error occurred after the query was sent to the server. It
@@ -157,7 +113,6 @@ func (rows *Rows) Next() bool {
 
 	rows.rowCount++
 	rows.columnIdx = 0
-	rows.vr = ValueReader{}
 
 	for {
 		t, r, err := rows.conn.rxMsg()
@@ -167,10 +122,17 @@ func (rows *Rows) Next() bool {
 		}
 
 		switch t {
-		case readyForQuery:
-			rows.conn.rxReadyForQuery(r)
-			rows.close()
-			return false
+		case rowDescription:
+			rows.fields = rows.conn.rxRowDescription(r)
+			for i := range rows.fields {
+				if dt, ok := rows.conn.ConnInfo.DataTypeForOid(rows.fields[i].DataType); ok {
+					rows.fields[i].DataTypeName = dt.Name
+					rows.fields[i].FormatCode = TextFormatCode
+				} else {
+					rows.Fatal(fmt.Errorf("unknown oid: %d", rows.fields[i].DataType))
+					return false
+				}
+			}
 		case dataRow:
 			fieldCount := r.readInt16()
 			if int(fieldCount) != len(rows.fields) {
@@ -181,7 +143,9 @@ func (rows *Rows) Next() bool {
 			rows.mr = r
 			return true
 		case commandComplete:
-		case bindComplete:
+			rows.Close()
+			return false
+
 		default:
 			err = rows.conn.processContextFreeMsg(t, r)
 			if err != nil {
@@ -197,24 +161,23 @@ func (rows *Rows) Conn() *Conn {
 	return rows.conn
 }
 
-func (rows *Rows) nextColumn() (*ValueReader, bool) {
+func (rows *Rows) nextColumn() ([]byte, *FieldDescription, bool) {
 	if rows.closed {
-		return nil, false
+		return nil, nil, false
 	}
 	if len(rows.fields) <= rows.columnIdx {
 		rows.Fatal(ProtocolError("No next column available"))
-		return nil, false
-	}
-
-	if rows.vr.Len() > 0 {
-		rows.mr.readBytes(rows.vr.Len())
+		return nil, nil, false
 	}
 
 	fd := &rows.fields[rows.columnIdx]
 	rows.columnIdx++
 	size := rows.mr.readInt32()
-	rows.vr = ValueReader{mr: rows.mr, fd: fd, valueBytesRemaining: size}
-	return &rows.vr, true
+	var buf []byte
+	if size >= 0 {
+		buf = rows.mr.readBytes(size)
+	}
+	return buf, fd, true
 }
 
 type scanArgError struct {
@@ -228,8 +191,8 @@ func (e scanArgError) Error() string {
 
 // Scan reads the values from the current row into dest values positionally.
 // dest can include pointers to core types, values implementing the Scanner
-// interface, and []byte. []byte will skip the decoding process and directly
-// copy the raw bytes received from PostgreSQL.
+// interface, []byte, and nil. []byte will skip the decoding process and directly
+// copy the raw bytes received from PostgreSQL. nil will skip the value entirely.
 func (rows *Rows) Scan(dest ...interface{}) (err error) {
 	if len(rows.fields) != len(dest) {
 		err = fmt.Errorf("Scan received wrong number of arguments, got %d but expected %d", len(dest), len(rows.fields))
@@ -238,69 +201,65 @@ func (rows *Rows) Scan(dest ...interface{}) (err error) {
 	}
 
 	for i, d := range dest {
-		vr, _ := rows.nextColumn()
+		buf, fd, _ := rows.nextColumn()
 
-		// Check for []byte first as we allow sidestepping the decoding process and retrieving the raw bytes
-		if b, ok := d.(*[]byte); ok {
-			// If it actually is a bytea then pass it through decodeBytea (so it can be decoded if it is in text format)
-			// Otherwise read the bytes directly regardless of what the actual type is.
-			if vr.Type().DataType == ByteaOid {
-				*b = decodeBytea(vr)
-			} else {
-				if vr.Len() != -1 {
-					*b = vr.ReadBytes(vr.Len())
-				} else {
-					*b = nil
-				}
-			}
-		} else if s, ok := d.(Scanner); ok {
-			err = s.Scan(vr)
-			if err != nil {
-				rows.Fatal(scanArgError{col: i, err: err})
-			}
-		} else if s, ok := d.(sql.Scanner); ok {
-			var val interface{}
-			if 0 <= vr.Len() {
-				switch vr.Type().DataType {
-				case BoolOid:
-					val = decodeBool(vr)
-				case Int8Oid:
-					val = int64(decodeInt8(vr))
-				case Int2Oid:
-					val = int64(decodeInt2(vr))
-				case Int4Oid:
-					val = int64(decodeInt4(vr))
-				case TextOid, VarcharOid:
-					val = decodeText(vr)
-				case OidOid:
-					val = int64(decodeOid(vr))
-				case Float4Oid:
-					val = float64(decodeFloat4(vr))
-				case Float8Oid:
-					val = decodeFloat8(vr)
-				case DateOid:
-					val = decodeDate(vr)
-				case TimestampOid:
-					val = decodeTimestamp(vr)
-				case TimestampTzOid:
-					val = decodeTimestampTz(vr)
-				default:
-					val = vr.ReadBytes(vr.Len())
-				}
-			}
-			err = s.Scan(val)
-			if err != nil {
-				rows.Fatal(scanArgError{col: i, err: err})
-			}
-		} else if vr.Type().DataType == JsonOid || vr.Type().DataType == JsonbOid {
-			decodeJson(vr, &d)
-		} else {
-			if err := Decode(vr, d); err != nil {
-				rows.Fatal(scanArgError{col: i, err: err})
-			}
+		if d == nil {
+			continue
 		}
-		if vr.Err() != nil {
-			rows.Fatal(scanArgError{col: i, err: vr.Err()})
+
+		if s, ok := d.(pgtype.BinaryDecoder); ok && fd.FormatCode == BinaryFormatCode {
+			err = s.DecodeBinary(rows.conn.ConnInfo, buf)
+			if err != nil {
+				rows.Fatal(scanArgError{col: i, err: err})
+			}
+		} else if s, ok := d.(pgtype.TextDecoder); ok && fd.FormatCode == TextFormatCode {
+			err = s.DecodeText(rows.conn.ConnInfo, buf)
+			if err != nil {
+				rows.Fatal(scanArgError{col: i, err: err})
+			}
+		} else {
+			if dt, ok := rows.conn.ConnInfo.DataTypeForOid(fd.DataType); ok {
+				value := dt.Value
+				switch fd.FormatCode {
+				case TextFormatCode:
+					if textDecoder, ok := value.(pgtype.TextDecoder); ok {
+						err = textDecoder.DecodeText(rows.conn.ConnInfo, buf)
+						if err != nil {
+							rows.Fatal(scanArgError{col: i, err: err})
+						}
+					} else {
+						rows.Fatal(scanArgError{col: i, err: fmt.Errorf("%T is not a pgtype.TextDecoder", value)})
+					}
+				case BinaryFormatCode:
+					if binaryDecoder, ok := value.(pgtype.BinaryDecoder); ok {
+						err = binaryDecoder.DecodeBinary(rows.conn.ConnInfo, buf)
+						if err != nil {
+							rows.Fatal(scanArgError{col: i, err: err})
+						}
+					} else {
+						rows.Fatal(scanArgError{col: i, err: fmt.Errorf("%T is not a pgtype.BinaryDecoder", value)})
+					}
+				default:
+					rows.Fatal(scanArgError{col: i, err: fmt.Errorf("unknown format code: %v", fd.FormatCode)})
+				}
+
+				if rows.Err() == nil {
+					if scanner, ok := d.(sql.Scanner); ok {
+						sqlSrc, err := pgtype.DatabaseSQLValue(rows.conn.ConnInfo, value)
+						if err != nil {
+							rows.Fatal(err)
+						}
+						err = scanner.Scan(sqlSrc)
+						if err != nil {
+							rows.Fatal(scanArgError{col: i, err: err})
+						}
+					} else if err := value.AssignTo(d); err != nil {
+						rows.Fatal(scanArgError{col: i, err: err})
+					}
+				}
+			} else {
+				rows.Fatal(scanArgError{col: i, err: fmt.Errorf("unknown oid: %v", fd.DataType)})
+			}
 		}
 
 		if rows.Err() != nil {
@@ -319,78 +278,43 @@ func (rows *Rows) Values() ([]interface{}, error) {
 
 	values := make([]interface{}, 0, len(rows.fields))
 
-	for _, _ = range rows.fields {
-		vr, _ := rows.nextColumn()
+	for range rows.fields {
+		buf, fd, _ := rows.nextColumn()
 
-		if vr.Len() == -1 {
+		if buf == nil {
 			values = append(values, nil)
 			continue
 		}
 
-		switch vr.Type().FormatCode {
-		// All intrinsic types (except string) are encoded with binary
-		// encoding so anything else should be treated as a string
-		case TextFormatCode:
-			values = append(values, vr.ReadString(vr.Len()))
-		case BinaryFormatCode:
-			switch vr.Type().DataType {
-			case BoolOid:
-				values = append(values, decodeBool(vr))
-			case ByteaOid:
-				values = append(values, decodeBytea(vr))
-			case Int8Oid:
-				values = append(values, decodeInt8(vr))
-			case Int2Oid:
-				values = append(values, decodeInt2(vr))
-			case Int4Oid:
-				values = append(values, decodeInt4(vr))
-			case OidOid:
-				values = append(values, decodeOid(vr))
-			case Float4Oid:
-				values = append(values, decodeFloat4(vr))
-			case Float8Oid:
-				values = append(values, decodeFloat8(vr))
-			case BoolArrayOid:
-				values = append(values, decodeBoolArray(vr))
-			case Int2ArrayOid:
-				values = append(values, decodeInt2Array(vr))
-			case Int4ArrayOid:
-				values = append(values, decodeInt4Array(vr))
-			case Int8ArrayOid:
-				values = append(values, decodeInt8Array(vr))
-			case Float4ArrayOid:
-				values = append(values, decodeFloat4Array(vr))
-			case Float8ArrayOid:
-				values = append(values, decodeFloat8Array(vr))
-			case TextArrayOid, VarcharArrayOid:
-				values = append(values, decodeTextArray(vr))
-			case TimestampArrayOid, TimestampTzArrayOid:
-				values = append(values, decodeTimestampArray(vr))
-			case DateOid:
-				values = append(values, decodeDate(vr))
-			case TimestampTzOid:
-				values = append(values, decodeTimestampTz(vr))
-			case TimestampOid:
-				values = append(values, decodeTimestamp(vr))
-			case InetOid, CidrOid:
-				values = append(values, decodeInet(vr))
-			case JsonOid:
-				var d interface{}
-				decodeJson(vr, &d)
-				values = append(values, d)
-			case JsonbOid:
-				var d interface{}
-				decodeJson(vr, &d)
-				values = append(values, d)
-			default:
-				rows.Fatal(errors.New("Values cannot handle binary format non-intrinsic types"))
-			}
-		default:
-			rows.Fatal(errors.New("Unknown format code"))
-		}
+		if dt, ok := rows.conn.ConnInfo.DataTypeForOid(fd.DataType); ok {
+			value := dt.Value
 
-		if vr.Err() != nil {
-			rows.Fatal(vr.Err())
+			switch fd.FormatCode {
+			case TextFormatCode:
+				decoder := value.(pgtype.TextDecoder)
+				if decoder == nil {
+					decoder = &pgtype.GenericText{}
+				}
+				err := decoder.DecodeText(rows.conn.ConnInfo, buf)
+				if err != nil {
+					rows.Fatal(err)
+				}
+				values = append(values, decoder.(pgtype.Value).Get())
+			case BinaryFormatCode:
+				decoder := value.(pgtype.BinaryDecoder)
+				if decoder == nil {
+					decoder = &pgtype.GenericBinary{}
+				}
+				err := decoder.DecodeBinary(rows.conn.ConnInfo, buf)
+				if err != nil {
+					rows.Fatal(err)
+				}
+				values = append(values, value.Get())
+			default:
+				rows.Fatal(errors.New("Unknown format code"))
+			}
+		} else {
+			rows.Fatal(errors.New("Unknown type"))
 		}
 
 		if rows.Err() != nil {
@@ -419,31 +343,23 @@ func (rows *Rows) AfterClose(f func(*Rows)) {
 // be returned in an error state. So it is allowed to ignore the error returned
 // from Query and handle it in *Rows.
 func (c *Conn) Query(sql string, args ...interface{}) (*Rows, error) {
-	c.lastActivityTime = time.Now()
-	rows := &Rows{conn: c, startTime: c.lastActivityTime, sql: sql, args: args, log: c.log, shouldLog: c.shouldLog}
+	return c.QueryEx(context.Background(), sql, nil, args...)
+}
 
-	if err := c.lock(); err != nil {
-		rows.abort(err)
-		return rows, err
-	}
-	rows.unlockConn = true
-
-	ps, ok := c.preparedStatements[sql]
-	if !ok {
-		var err error
-		ps, err = c.Prepare("", sql)
-		if err != nil {
-			rows.abort(err)
-			return rows, rows.err
-		}
+func (c *Conn) getRows(sql string, args []interface{}) *Rows {
+	if len(c.preallocatedRows) == 0 {
+		c.preallocatedRows = make([]Rows, 64)
 	}
 
-	rows.fields = ps.FieldDescriptions
-	err := c.sendPreparedQuery(ps, args...)
-	if err != nil {
-		rows.abort(err)
-	}
-	return rows, rows.err
+	r := &c.preallocatedRows[len(c.preallocatedRows)-1]
+	c.preallocatedRows = c.preallocatedRows[0 : len(c.preallocatedRows)-1]
+
+	r.conn = c
+	r.startTime = c.lastActivityTime
+	r.sql = sql
+	r.args = args
+
+	return r
 }
 
 // QueryRow is a convenience wrapper over Query. Any error that occurs while
@@ -451,5 +367,98 @@ func (c *Conn) Query(sql string, args ...interface{}) (*Rows, error) {
 // error with ErrNoRows if no rows are returned.
 func (c *Conn) QueryRow(sql string, args ...interface{}) *Row {
 	rows, _ := c.Query(sql, args...)
+	return (*Row)(rows)
+}
+
+type QueryExOptions struct {
+	SimpleProtocol bool
+}
+
+func (c *Conn) QueryEx(ctx context.Context, sql string, options *QueryExOptions, args ...interface{}) (rows *Rows, err error) {
+	err = c.waitForPreviousCancelQuery(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	c.lastActivityTime = time.Now()
+
+	rows = c.getRows(sql, args)
+
+	if err := c.lock(); err != nil {
+		rows.Fatal(err)
+		return rows, err
+	}
+	rows.unlockConn = true
+
+	if options != nil && options.SimpleProtocol {
+		err = c.initContext(ctx)
+		if err != nil {
+			rows.Fatal(err)
+			return rows, err
+		}
+
+		err = c.sanitizeAndSendSimpleQuery(sql, args...)
+		if err != nil {
+			rows.Fatal(err)
+			return rows, err
+		}
+
+		return rows, nil
+	}
+
+	ps, ok := c.preparedStatements[sql]
+	if !ok {
+		var err error
+		ps, err = c.PrepareExContext(ctx, "", sql, nil)
+		if err != nil {
+			rows.Fatal(err)
+			return rows, rows.err
+		}
+	}
+	rows.sql = ps.SQL
+	rows.fields = ps.FieldDescriptions
+
+	err = c.initContext(ctx)
+	if err != nil {
+		rows.Fatal(err)
+		return rows, err
+	}
+
+	err = c.sendPreparedQuery(ps, args...)
+	if err != nil {
+		rows.Fatal(err)
+		err = c.termContext(err)
+	}
+
+	return rows, err
+}
+
+func (c *Conn) sanitizeAndSendSimpleQuery(sql string, args ...interface{}) (err error) {
+	if c.RuntimeParams["standard_conforming_strings"] != "on" {
+		return errors.New("simple protocol queries must be run with standard_conforming_strings=on")
+	}
+
+	if c.RuntimeParams["client_encoding"] != "UTF8" {
+		return errors.New("simple protocol queries must be run with client_encoding=UTF8")
+	}
+
+	valueArgs := make([]interface{}, len(args))
+	for i, a := range args {
+		valueArgs[i], err = convertSimpleArgument(c.ConnInfo, a)
+		if err != nil {
+			return err
+		}
+	}
+
+	sql, err = sanitize.SanitizeSQL(sql, valueArgs...)
+	if err != nil {
+		return err
+	}
+
+	return c.sendSimpleQuery(sql)
+}
+
+func (c *Conn) QueryRowEx(ctx context.Context, sql string, options *QueryExOptions, args ...interface{}) *Row {
+	rows, _ := c.QueryEx(ctx, sql, options, args...)
 	return (*Row)(rows)
 }

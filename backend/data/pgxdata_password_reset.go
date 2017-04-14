@@ -6,16 +6,17 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx"
+	"github.com/jackc/pgx/pgtype"
 )
 
 type PasswordReset struct {
-	Token          String
-	Email          String
-	RequestIP      IPNet
-	RequestTime    Time
-	UserID         Int32
-	CompletionIP   IPNet
-	CompletionTime Time
+	Token          pgtype.Varchar
+	Email          pgtype.Varchar
+	RequestIP      pgtype.Inet
+	RequestTime    pgtype.Timestamptz
+	UserID         pgtype.Int4
+	CompletionIP   pgtype.Inet
+	CompletionTime pgtype.Timestamptz
 }
 
 const countPasswordResetSQL = `select count(*) from "password_resets"`
@@ -104,13 +105,34 @@ func InsertPasswordReset(db Queryer, row *PasswordReset) error {
 
 	var columns, values []string
 
-	row.Token.addInsert(`token`, &columns, &values, &args)
-	row.Email.addInsert(`email`, &columns, &values, &args)
-	row.RequestIP.addInsert(`request_ip`, &columns, &values, &args)
-	row.RequestTime.addInsert(`request_time`, &columns, &values, &args)
-	row.UserID.addInsert(`user_id`, &columns, &values, &args)
-	row.CompletionIP.addInsert(`completion_ip`, &columns, &values, &args)
-	row.CompletionTime.addInsert(`completion_time`, &columns, &values, &args)
+	if row.Token.Status != pgtype.Undefined {
+		columns = append(columns, `token`)
+		values = append(values, args.Append(&row.Token))
+	}
+	if row.Email.Status != pgtype.Undefined {
+		columns = append(columns, `email`)
+		values = append(values, args.Append(&row.Email))
+	}
+	if row.RequestIP.Status != pgtype.Undefined {
+		columns = append(columns, `request_ip`)
+		values = append(values, args.Append(&row.RequestIP))
+	}
+	if row.RequestTime.Status != pgtype.Undefined {
+		columns = append(columns, `request_time`)
+		values = append(values, args.Append(&row.RequestTime))
+	}
+	if row.UserID.Status != pgtype.Undefined {
+		columns = append(columns, `user_id`)
+		values = append(values, args.Append(&row.UserID))
+	}
+	if row.CompletionIP.Status != pgtype.Undefined {
+		columns = append(columns, `completion_ip`)
+		values = append(values, args.Append(&row.CompletionIP))
+	}
+	if row.CompletionTime.Status != pgtype.Undefined {
+		columns = append(columns, `completion_time`)
+		values = append(values, args.Append(&row.CompletionTime))
+	}
 
 	sql := `insert into "password_resets"(` + strings.Join(columns, ", ") + `)
 values(` + strings.Join(values, ",") + `)
@@ -129,13 +151,27 @@ func UpdatePasswordReset(db Queryer,
 	sets := make([]string, 0, 7)
 	args := pgx.QueryArgs(make([]interface{}, 0, 7))
 
-	row.Token.addUpdate(`token`, &sets, &args)
-	row.Email.addUpdate(`email`, &sets, &args)
-	row.RequestIP.addUpdate(`request_ip`, &sets, &args)
-	row.RequestTime.addUpdate(`request_time`, &sets, &args)
-	row.UserID.addUpdate(`user_id`, &sets, &args)
-	row.CompletionIP.addUpdate(`completion_ip`, &sets, &args)
-	row.CompletionTime.addUpdate(`completion_time`, &sets, &args)
+	if row.Token.Status != pgtype.Undefined {
+		sets = append(sets, `token`+"="+args.Append(&row.Token))
+	}
+	if row.Email.Status != pgtype.Undefined {
+		sets = append(sets, `email`+"="+args.Append(&row.Email))
+	}
+	if row.RequestIP.Status != pgtype.Undefined {
+		sets = append(sets, `request_ip`+"="+args.Append(&row.RequestIP))
+	}
+	if row.RequestTime.Status != pgtype.Undefined {
+		sets = append(sets, `request_time`+"="+args.Append(&row.RequestTime))
+	}
+	if row.UserID.Status != pgtype.Undefined {
+		sets = append(sets, `user_id`+"="+args.Append(&row.UserID))
+	}
+	if row.CompletionIP.Status != pgtype.Undefined {
+		sets = append(sets, `completion_ip`+"="+args.Append(&row.CompletionIP))
+	}
+	if row.CompletionTime.Status != pgtype.Undefined {
+		sets = append(sets, `completion_time`+"="+args.Append(&row.CompletionTime))
+	}
 
 	if len(sets) == 0 {
 		return nil

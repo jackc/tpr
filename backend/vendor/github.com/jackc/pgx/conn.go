@@ -1,7 +1,7 @@
 package pgx
 
 import (
-	"bufio"
+	"context"
 	"crypto/md5"
 	"crypto/tls"
 	"encoding/binary"
@@ -17,9 +17,35 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
+
+	"github.com/jackc/pgx/chunkreader"
+	"github.com/jackc/pgx/pgtype"
 )
 
+const (
+	connStatusUninitialized = iota
+	connStatusClosed
+	connStatusIdle
+	connStatusBusy
+)
+
+// minimalConnInfo has just enough static type information to establish the
+// connection and retrieve the type data.
+var minimalConnInfo *pgtype.ConnInfo
+
+func init() {
+	minimalConnInfo = pgtype.NewConnInfo()
+	minimalConnInfo.InitializeDataTypes(map[string]pgtype.Oid{
+		"int4": pgtype.Int4Oid,
+		"name": pgtype.NameOid,
+		"oid":  pgtype.OidOid,
+		"text": pgtype.TextOid,
+	})
+}
+
+// DialFunc is a function that can be used to connect to a PostgreSQL server
 type DialFunc func(network, addr string) (net.Conn, error)
 
 // ConnConfig contains all the options used to establish a connection.
@@ -38,53 +64,81 @@ type ConnConfig struct {
 	RuntimeParams     map[string]string // Run-time parameters to set on connection as session default values (e.g. search_path or application_name)
 }
 
+func (cc *ConnConfig) networkAddress() (network, address string) {
+	network = "tcp"
+	address = fmt.Sprintf("%s:%d", cc.Host, cc.Port)
+	// See if host is a valid path, if yes connect with a socket
+	if _, err := os.Stat(cc.Host); err == nil {
+		// For backward compatibility accept socket file paths -- but directories are now preferred
+		network = "unix"
+		address = cc.Host
+		if !strings.Contains(address, "/.s.PGSQL.") {
+			address = filepath.Join(address, ".s.PGSQL.") + strconv.FormatInt(int64(cc.Port), 10)
+		}
+	}
+
+	return network, address
+}
+
 // Conn is a PostgreSQL connection handle. It is not safe for concurrent usage.
 // Use ConnPool to manage access to multiple database connections from multiple
 // goroutines.
 type Conn struct {
-	conn               net.Conn      // the underlying TCP or unix domain socket connection
-	lastActivityTime   time.Time     // the last time the connection was used
-	reader             *bufio.Reader // buffered reader to improve read performance
+	conn               net.Conn  // the underlying TCP or unix domain socket connection
+	lastActivityTime   time.Time // the last time the connection was used
 	wbuf               [1024]byte
-	Pid                int32             // backend pid
-	SecretKey          int32             // key to use to send a cancel query message to the server
+	writeBuf           WriteBuf
+	pid                int32             // backend pid
+	secretKey          int32             // key to use to send a cancel query message to the server
 	RuntimeParams      map[string]string // parameters that have been reported by the server
-	PgTypes            map[Oid]PgType    // oids to PgTypes
 	config             ConnConfig        // config used when establishing this connection
-	TxStatus           byte
+	txStatus           byte
 	preparedStatements map[string]*PreparedStatement
 	channels           map[string]struct{}
 	notifications      []*Notification
-	alive              bool
-	causeOfDeath       error
 	logger             Logger
 	logLevel           int
 	mr                 msgReader
 	fp                 *fastpath
-	pgsql_af_inet      byte
-	pgsql_af_inet6     byte
-	busy               bool
 	poolResetCount     int
+	preallocatedRows   []Rows
+
+	status       int32 // One of connStatus* constants
+	causeOfDeath error
+
+	readyForQuery         bool // connection has received ReadyForQuery message since last query was sent
+	cancelQueryInProgress int32
+	cancelQueryCompleted  chan struct{}
+
+	// context support
+	ctxInProgress bool
+	doneChan      chan struct{}
+	closedChan    chan error
+
+	ConnInfo *pgtype.ConnInfo
 }
 
+// PreparedStatement is a description of a prepared statement
 type PreparedStatement struct {
 	Name              string
 	SQL               string
 	FieldDescriptions []FieldDescription
-	ParameterOids     []Oid
+	ParameterOids     []pgtype.Oid
 }
 
+// PrepareExOptions is an option struct that can be passed to PrepareEx
+type PrepareExOptions struct {
+	ParameterOids []pgtype.Oid
+}
+
+// Notification is a message received from the PostgreSQL LISTEN/NOTIFY system
 type Notification struct {
-	Pid     int32  // backend pid that sent the notification
+	PID     int32  // backend pid that sent the notification
 	Channel string // channel from which notification was received
 	Payload string
 }
 
-type PgType struct {
-	Name          string // name of type e.g. int4, text, date
-	DefaultFormat int16  // default format (text or binary) this type will be requested in
-}
-
+// CommandTag is the result of an Exec function
 type CommandTag string
 
 // RowsAffected returns the number of rows affected. If the CommandTag was not
@@ -99,13 +153,40 @@ func (ct CommandTag) RowsAffected() int64 {
 	return n
 }
 
+// Identifier a PostgreSQL identifier or name. Identifiers can be composed of
+// multiple parts such as ["schema", "table"] or ["table", "column"].
+type Identifier []string
+
+// Sanitize returns a sanitized string safe for SQL interpolation.
+func (ident Identifier) Sanitize() string {
+	parts := make([]string, len(ident))
+	for i := range ident {
+		parts[i] = `"` + strings.Replace(ident[i], `"`, `""`, -1) + `"`
+	}
+	return strings.Join(parts, ".")
+}
+
+// ErrNoRows occurs when rows are expected but none are returned.
 var ErrNoRows = errors.New("no rows in result set")
+
+// ErrNotificationTimeout occurs when WaitForNotification times out.
 var ErrNotificationTimeout = errors.New("notification timeout")
+
+// ErrDeadConn occurs on an attempt to use a dead connection
 var ErrDeadConn = errors.New("conn is dead")
+
+// ErrTLSRefused occurs when the connection attempt requires TLS and the
+// PostgreSQL server refuses to use TLS
 var ErrTLSRefused = errors.New("server refused TLS connection")
+
+// ErrConnBusy occurs when the connection is busy (for example, in the middle of
+// reading query results) and another action is attempts.
 var ErrConnBusy = errors.New("conn is busy")
+
+// ErrInvalidLogLevel occurs on attempt to set an invalid log level.
 var ErrInvalidLogLevel = errors.New("invalid log level")
 
+// ProtocolError occurs when unexpected data is received from PostgreSQL
 type ProtocolError string
 
 func (e ProtocolError) Error() string {
@@ -116,9 +197,14 @@ func (e ProtocolError) Error() string {
 // config.Host must be specified. config.User will default to the OS user name.
 // Other config fields are optional.
 func Connect(config ConnConfig) (c *Conn, err error) {
+	return connect(config, minimalConnInfo)
+}
+
+func connect(config ConnConfig, connInfo *pgtype.ConnInfo) (c *Conn, err error) {
 	c = new(Conn)
 
 	c.config = config
+	c.ConnInfo = connInfo
 
 	if c.config.LogLevel != 0 {
 		c.logLevel = c.config.LogLevel
@@ -148,27 +234,26 @@ func Connect(config ConnConfig) (c *Conn, err error) {
 		}
 	}
 
-	network := "tcp"
-	address := fmt.Sprintf("%s:%d", c.config.Host, c.config.Port)
-	// See if host is a valid path, if yes connect with a socket
-	if _, err := os.Stat(c.config.Host); err == nil {
-		// For backward compatibility accept socket file paths -- but directories are now preferred
-		network = "unix"
-		address = c.config.Host
-		if !strings.Contains(address, "/.s.PGSQL.") {
-			address = filepath.Join(address, ".s.PGSQL.") + strconv.FormatInt(int64(c.config.Port), 10)
-		}
-	}
+	network, address := c.config.networkAddress()
 	if c.config.Dial == nil {
 		c.config.Dial = (&net.Dialer{KeepAlive: 5 * time.Minute}).Dial
 	}
 
+	if c.shouldLog(LogLevelInfo) {
+		c.log(LogLevelInfo, fmt.Sprintf("Dialing PostgreSQL server at %s address: %s", network, address))
+	}
 	err = c.connect(config, network, address, config.TLSConfig)
 	if err != nil && config.UseFallbackTLS {
+		if c.shouldLog(LogLevelInfo) {
+			c.log(LogLevelInfo, fmt.Sprintf("Connect with TLSConfig failed, trying FallbackTLSConfig: %v", err))
+		}
 		err = c.connect(config, network, address, config.FallbackTLSConfig)
 	}
 
 	if err != nil {
+		if c.shouldLog(LogLevelError) {
+			c.log(LogLevelError, fmt.Sprintf("Connect failed: %v", err))
+		}
 		return nil, err
 	}
 
@@ -176,46 +261,36 @@ func Connect(config ConnConfig) (c *Conn, err error) {
 }
 
 func (c *Conn) connect(config ConnConfig, network, address string, tlsConfig *tls.Config) (err error) {
-	if c.shouldLog(LogLevelInfo) {
-		c.log(LogLevelInfo, fmt.Sprintf("Dialing PostgreSQL server at %s address: %s", network, address))
-	}
 	c.conn, err = c.config.Dial(network, address)
 	if err != nil {
-		if c.shouldLog(LogLevelError) {
-			c.log(LogLevelError, fmt.Sprintf("Connection failed: %v", err))
-		}
 		return err
 	}
 	defer func() {
 		if c != nil && err != nil {
 			c.conn.Close()
-			c.alive = false
-			if c.shouldLog(LogLevelError) {
-				c.log(LogLevelError, err.Error())
-			}
+			atomic.StoreInt32(&c.status, connStatusClosed)
 		}
 	}()
 
 	c.RuntimeParams = make(map[string]string)
 	c.preparedStatements = make(map[string]*PreparedStatement)
 	c.channels = make(map[string]struct{})
-	c.alive = true
+	atomic.StoreInt32(&c.status, connStatusIdle)
 	c.lastActivityTime = time.Now()
+	c.cancelQueryCompleted = make(chan struct{}, 1)
+	c.doneChan = make(chan struct{})
+	c.closedChan = make(chan error)
 
 	if tlsConfig != nil {
 		if c.shouldLog(LogLevelDebug) {
 			c.log(LogLevelDebug, "Starting TLS handshake")
 		}
 		if err := c.startTLS(tlsConfig); err != nil {
-			if c.shouldLog(LogLevelError) {
-				c.log(LogLevelError, fmt.Sprintf("TLS failed: %v", err))
-			}
 			return err
 		}
 	}
 
-	c.reader = bufio.NewReader(c.conn)
-	c.mr.reader = c.reader
+	c.mr.cr = chunkreader.NewChunkReader(c.conn)
 
 	msg := newStartupMessage()
 
@@ -262,14 +337,17 @@ func (c *Conn) connect(config ConnConfig, network, address string, tlsConfig *tl
 				c.log(LogLevelInfo, "Connection established")
 			}
 
-			err = c.loadPgTypes()
-			if err != nil {
-				return err
+			// Replication connections can't execute the queries to
+			// populate the c.PgTypes and c.pgsqlAfInet
+			if _, ok := msg.options["replication"]; ok {
+				return nil
 			}
 
-			err = c.loadInetConstants()
-			if err != nil {
-				return err
+			if c.ConnInfo == minimalConnInfo {
+				err = c.initConnInfo()
+				if err != nil {
+					return err
+				}
 			}
 
 			return nil
@@ -281,63 +359,89 @@ func (c *Conn) connect(config ConnConfig, network, address string, tlsConfig *tl
 	}
 }
 
-func (c *Conn) loadPgTypes() error {
-	rows, err := c.Query("select t.oid, t.typname from pg_type t where t.typtype='b'")
+func (c *Conn) initConnInfo() error {
+	nameOids := make(map[string]pgtype.Oid, 256)
+
+	rows, err := c.Query(`select t.oid, t.typname
+from pg_type t
+left join pg_type base_type on t.typelem=base_type.oid
+where (
+	  t.typtype in('b', 'p', 'r')
+	  and (base_type.oid is null or base_type.typtype in('b', 'p', 'r'))
+	)`)
 	if err != nil {
 		return err
 	}
-
-	c.PgTypes = make(map[Oid]PgType, 128)
 
 	for rows.Next() {
-		var oid Oid
-		var t PgType
+		var oid pgtype.Oid
+		var name pgtype.Text
+		if err := rows.Scan(&oid, &name); err != nil {
+			return err
+		}
 
-		rows.Scan(&oid, &t.Name)
-
-		// The zero value is text format so we ignore any types without a default type format
-		t.DefaultFormat, _ = DefaultTypeFormats[t.Name]
-
-		c.PgTypes[oid] = t
+		nameOids[name.String] = oid
 	}
 
-	return rows.Err()
+	if rows.Err() != nil {
+		return rows.Err()
+	}
+
+	c.ConnInfo = pgtype.NewConnInfo()
+	c.ConnInfo.InitializeDataTypes(nameOids)
+	return nil
 }
 
-// Family is needed for binary encoding of inet/cidr. The constant is based on
-// the server's definition of AF_INET. In theory, this could differ between
-// platforms, so request an IPv4 and an IPv6 inet and get the family from that.
-func (c *Conn) loadInetConstants() error {
-	var ipv4, ipv6 []byte
-
-	err := c.QueryRow("select '127.0.0.1'::inet, '1::'::inet").Scan(&ipv4, &ipv6)
-	if err != nil {
-		return err
-	}
-
-	c.pgsql_af_inet = ipv4[0]
-	c.pgsql_af_inet6 = ipv6[0]
-
-	return nil
+// PID returns the backend PID for this connection.
+func (c *Conn) PID() int32 {
+	return c.pid
 }
 
 // Close closes a connection. It is safe to call Close on a already closed
 // connection.
 func (c *Conn) Close() (err error) {
-	if !c.IsAlive() {
-		return nil
+	for {
+		status := atomic.LoadInt32(&c.status)
+		if status < connStatusIdle {
+			return nil
+		}
+		if atomic.CompareAndSwapInt32(&c.status, status, connStatusClosed) {
+			break
+		}
 	}
 
-	wbuf := newWriteBuf(c, 'X')
-	wbuf.closeMsg()
+	defer func() {
+		c.conn.Close()
+		c.die(errors.New("Closed"))
+		if c.shouldLog(LogLevelInfo) {
+			c.log(LogLevelInfo, "Closed connection")
+		}
+	}()
 
-	_, err = c.conn.Write(wbuf.buf)
-
-	c.die(errors.New("Closed"))
-	if c.shouldLog(LogLevelInfo) {
-		c.log(LogLevelInfo, "Closed connection")
+	err = c.conn.SetDeadline(time.Time{})
+	if err != nil && c.shouldLog(LogLevelWarn) {
+		c.log(LogLevelWarn, "Failed to clear deadlines to send close message", "err", err)
+		return err
 	}
-	return err
+
+	_, err = c.conn.Write([]byte{'X', 0, 0, 0, 4})
+	if err != nil && c.shouldLog(LogLevelWarn) {
+		c.log(LogLevelWarn, "Failed to send terminate message", "err", err)
+		return err
+	}
+
+	err = c.conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	if err != nil && c.shouldLog(LogLevelWarn) {
+		c.log(LogLevelWarn, "Failed to set read deadline to finish closing", "err", err)
+		return err
+	}
+
+	_, err = c.conn.Read(make([]byte, 1))
+	if err != io.EOF {
+		return err
+	}
+
+	return nil
 }
 
 // ParseURI parses a database URI into ConnConfig
@@ -373,7 +477,7 @@ func ParseURI(uri string) (ConnConfig, error) {
 	}
 
 	ignoreKeys := map[string]struct{}{
-		"sslmode": struct{}{},
+		"sslmode": {},
 	}
 
 	cp.RuntimeParams = make(map[string]string)
@@ -385,11 +489,13 @@ func ParseURI(uri string) (ConnConfig, error) {
 
 		cp.RuntimeParams[k] = v[0]
 	}
-
+	if cp.Password == "" {
+		pgpass(&cp)
+	}
 	return cp, nil
 }
 
-var dsn_regexp = regexp.MustCompile(`([a-zA-Z_]+)=((?:"[^"]+")|(?:[^ ]+))`)
+var dsnRegexp = regexp.MustCompile(`([a-zA-Z_]+)=((?:"[^"]+")|(?:[^ ]+))`)
 
 // ParseDSN parses a database DSN (data source name) into a ConnConfig
 //
@@ -405,7 +511,7 @@ var dsn_regexp = regexp.MustCompile(`([a-zA-Z_]+)=((?:"[^"]+")|(?:[^ ]+))`)
 func ParseDSN(s string) (ConnConfig, error) {
 	var cp ConnConfig
 
-	m := dsn_regexp.FindAllStringSubmatch(s, -1)
+	m := dsnRegexp.FindAllStringSubmatch(s, -1)
 
 	var sslmode string
 
@@ -420,11 +526,11 @@ func ParseDSN(s string) (ConnConfig, error) {
 		case "host":
 			cp.Host = b[2]
 		case "port":
-			if p, err := strconv.ParseUint(b[2], 10, 16); err != nil {
+			p, err := strconv.ParseUint(b[2], 10, 16)
+			if err != nil {
 				return cp, err
-			} else {
-				cp.Port = uint16(p)
 			}
+			cp.Port = uint16(p)
 		case "dbname":
 			cp.Database = b[2]
 		case "sslmode":
@@ -438,8 +544,19 @@ func ParseDSN(s string) (ConnConfig, error) {
 	if err != nil {
 		return cp, err
 	}
-
+	if cp.Password == "" {
+		pgpass(&cp)
+	}
 	return cp, nil
+}
+
+// ParseConnectionString parses either a URI or a DSN connection string.
+// see ParseURI and ParseDSN for details.
+func ParseConnectionString(s string) (ConnConfig, error) {
+	if strings.HasPrefix(s, "postgres://") || strings.HasPrefix(s, "postgresql://") {
+		return ParseURI(s)
+	}
+	return ParseDSN(s)
 }
 
 // ParseEnvLibpq parses the environment like libpq does into a ConnConfig
@@ -501,7 +618,9 @@ func ParseEnvLibpq() (ConnConfig, error) {
 	if appname := os.Getenv("PGAPPNAME"); appname != "" {
 		cc.RuntimeParams["application_name"] = appname
 	}
-
+	if cc.Password == "" {
+		pgpass(&cc)
+	}
 	return cc, nil
 }
 
@@ -538,10 +657,45 @@ func configSSL(sslmode string, cc *ConnConfig) error {
 // name and sql arguments. This allows a code path to Prepare and Query/Exec without
 // concern for if the statement has already been prepared.
 func (c *Conn) Prepare(name, sql string) (ps *PreparedStatement, err error) {
+	return c.PrepareEx(name, sql, nil)
+}
+
+// PrepareEx creates a prepared statement with name and sql. sql can contain placeholders
+// for bound parameters. These placeholders are referenced positional as $1, $2, etc.
+// It defers from Prepare as it allows additional options (such as parameter Oids) to be passed via struct
+//
+// PrepareEx is idempotent; i.e. it is safe to call PrepareEx multiple times with the same
+// name and sql arguments. This allows a code path to PrepareEx and Query/Exec without
+// concern for if the statement has already been prepared.
+func (c *Conn) PrepareEx(name, sql string, opts *PrepareExOptions) (ps *PreparedStatement, err error) {
+	return c.PrepareExContext(context.Background(), name, sql, opts)
+}
+
+func (c *Conn) PrepareExContext(ctx context.Context, name, sql string, opts *PrepareExOptions) (ps *PreparedStatement, err error) {
+	err = c.waitForPreviousCancelQuery(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	err = c.initContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	ps, err = c.prepareEx(name, sql, opts)
+	err = c.termContext(err)
+	return ps, err
+}
+
+func (c *Conn) prepareEx(name, sql string, opts *PrepareExOptions) (ps *PreparedStatement, err error) {
 	if name != "" {
 		if ps, ok := c.preparedStatements[name]; ok && ps.SQL == sql {
 			return ps, nil
 		}
+	}
+
+	if err := c.ensureConnectionReadyForQuery(); err != nil {
+		return nil, err
 	}
 
 	if c.shouldLog(LogLevelError) {
@@ -556,7 +710,18 @@ func (c *Conn) Prepare(name, sql string) (ps *PreparedStatement, err error) {
 	wbuf := newWriteBuf(c, 'P')
 	wbuf.WriteCString(name)
 	wbuf.WriteCString(sql)
-	wbuf.WriteInt16(0)
+
+	if opts != nil {
+		if len(opts.ParameterOids) > 65535 {
+			return nil, fmt.Errorf("Number of PrepareExOptions ParameterOids must be between 0 and 65535, received %d", len(opts.ParameterOids))
+		}
+		wbuf.WriteInt16(int16(len(opts.ParameterOids)))
+		for _, oid := range opts.ParameterOids {
+			wbuf.WriteInt32(int32(oid))
+		}
+	} else {
+		wbuf.WriteInt16(0)
+	}
 
 	// describe
 	wbuf.startMsg('D')
@@ -572,6 +737,7 @@ func (c *Conn) Prepare(name, sql string) (ps *PreparedStatement, err error) {
 		c.die(err)
 		return nil, err
 	}
+	c.readyForQuery = false
 
 	ps = &PreparedStatement{Name: name, SQL: sql}
 
@@ -586,20 +752,26 @@ func (c *Conn) Prepare(name, sql string) (ps *PreparedStatement, err error) {
 		}
 
 		switch t {
-		case parseComplete:
 		case parameterDescription:
 			ps.ParameterOids = c.rxParameterDescription(r)
+
 			if len(ps.ParameterOids) > 65535 && softErr == nil {
 				softErr = fmt.Errorf("PostgreSQL supports maximum of 65535 parameters, received %d", len(ps.ParameterOids))
 			}
 		case rowDescription:
 			ps.FieldDescriptions = c.rxRowDescription(r)
 			for i := range ps.FieldDescriptions {
-				t, _ := c.PgTypes[ps.FieldDescriptions[i].DataType]
-				ps.FieldDescriptions[i].DataTypeName = t.Name
-				ps.FieldDescriptions[i].FormatCode = t.DefaultFormat
+				if dt, ok := c.ConnInfo.DataTypeForOid(ps.FieldDescriptions[i].DataType); ok {
+					ps.FieldDescriptions[i].DataTypeName = dt.Name
+					if _, ok := dt.Value.(pgtype.BinaryDecoder); ok {
+						ps.FieldDescriptions[i].FormatCode = BinaryFormatCode
+					} else {
+						ps.FieldDescriptions[i].FormatCode = TextFormatCode
+					}
+				} else {
+					return nil, fmt.Errorf("unknown oid: %d", ps.FieldDescriptions[i].DataType)
+				}
 			}
-		case noData:
 		case readyForQuery:
 			c.rxReadyForQuery(r)
 
@@ -617,7 +789,29 @@ func (c *Conn) Prepare(name, sql string) (ps *PreparedStatement, err error) {
 }
 
 // Deallocate released a prepared statement
-func (c *Conn) Deallocate(name string) (err error) {
+func (c *Conn) Deallocate(name string) error {
+	return c.deallocateContext(context.Background(), name)
+}
+
+// TODO - consider making this public
+func (c *Conn) deallocateContext(ctx context.Context, name string) (err error) {
+	err = c.waitForPreviousCancelQuery(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = c.initContext(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		err = c.termContext(err)
+	}()
+
+	if err := c.ensureConnectionReadyForQuery(); err != nil {
+		return err
+	}
+
 	delete(c.preparedStatements, name)
 
 	// close
@@ -657,7 +851,7 @@ func (c *Conn) Deallocate(name string) (err error) {
 
 // Listen establishes a PostgreSQL listen/notify to channel
 func (c *Conn) Listen(channel string) error {
-	_, err := c.Exec("listen " + channel)
+	_, err := c.Exec("listen " + quoteIdentifier(channel))
 	if err != nil {
 		return err
 	}
@@ -669,7 +863,7 @@ func (c *Conn) Listen(channel string) error {
 
 // Unlisten unsubscribes from a listen channel
 func (c *Conn) Unlisten(channel string) error {
-	_, err := c.Exec("unlisten " + channel)
+	_, err := c.Exec("unlisten " + quoteIdentifier(channel))
 	if err != nil {
 		return err
 	}
@@ -678,9 +872,8 @@ func (c *Conn) Unlisten(channel string) error {
 	return nil
 }
 
-// WaitForNotification waits for a PostgreSQL notification for up to timeout.
-// If the timeout occurs it returns pgx.ErrNotificationTimeout
-func (c *Conn) WaitForNotification(timeout time.Duration) (*Notification, error) {
+// WaitForNotification waits for a PostgreSQL notification.
+func (c *Conn) WaitForNotification(ctx context.Context) (notification *Notification, err error) {
 	// Return already received notification immediately
 	if len(c.notifications) > 0 {
 		notification := c.notifications[0]
@@ -688,86 +881,40 @@ func (c *Conn) WaitForNotification(timeout time.Duration) (*Notification, error)
 		return notification, nil
 	}
 
-	stopTime := time.Now().Add(timeout)
-
-	for {
-		now := time.Now()
-
-		if now.After(stopTime) {
-			return nil, ErrNotificationTimeout
-		}
-
-		// If there has been no activity on this connection for a while send a nop message just to ensure
-		// the connection is alive
-		nextEnsureAliveTime := c.lastActivityTime.Add(15 * time.Second)
-		if nextEnsureAliveTime.Before(now) {
-			// If the server can't respond to a nop in 15 seconds, assume it's dead
-			err := c.conn.SetReadDeadline(now.Add(15 * time.Second))
-			if err != nil {
-				return nil, err
-			}
-
-			_, err = c.Exec("--;")
-			if err != nil {
-				return nil, err
-			}
-
-			c.lastActivityTime = now
-		}
-
-		var deadline time.Time
-		if stopTime.Before(nextEnsureAliveTime) {
-			deadline = stopTime
-		} else {
-			deadline = nextEnsureAliveTime
-		}
-
-		notification, err := c.waitForNotification(deadline)
-		if err != ErrNotificationTimeout {
-			return notification, err
-		}
+	err = c.waitForPreviousCancelQuery(ctx)
+	if err != nil {
+		return nil, err
 	}
-}
 
-func (c *Conn) waitForNotification(deadline time.Time) (*Notification, error) {
-	var zeroTime time.Time
+	err = c.initContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		err = c.termContext(err)
+	}()
+
+	if err = c.lock(); err != nil {
+		return nil, err
+	}
+	defer func() {
+		if unlockErr := c.unlock(); unlockErr != nil && err == nil {
+			err = unlockErr
+		}
+	}()
+
+	if err := c.ensureConnectionReadyForQuery(); err != nil {
+		return nil, err
+	}
 
 	for {
-		// Use SetReadDeadline to implement the timeout. SetReadDeadline will
-		// cause operations to fail with a *net.OpError that has a Timeout()
-		// of true. Because the normal pgx rxMsg path considers any error to
-		// have potentially corrupted the state of the connection, it dies
-		// on any errors. So to avoid timeout errors in rxMsg we set the
-		// deadline and peek into the reader. If a timeout error occurs there
-		// we don't break the pgx connection. If the Peek returns that data
-		// is available then we turn off the read deadline before the rxMsg.
-		err := c.conn.SetReadDeadline(deadline)
+		t, r, err := c.rxMsg()
 		if err != nil {
 			return nil, err
 		}
 
-		// Wait until there is a byte available before continuing onto the normal msg reading path
-		_, err = c.reader.Peek(1)
+		err = c.processContextFreeMsg(t, r)
 		if err != nil {
-			c.conn.SetReadDeadline(zeroTime) // we can only return one error and we already have one -- so ignore possiple error from SetReadDeadline
-			if err, ok := err.(*net.OpError); ok && err.Timeout() {
-				return nil, ErrNotificationTimeout
-			}
-			return nil, err
-		}
-
-		err = c.conn.SetReadDeadline(zeroTime)
-		if err != nil {
-			return nil, err
-		}
-
-		var t byte
-		var r *msgReader
-		if t, r, err = c.rxMsg(); err == nil {
-			if err = c.processContextFreeMsg(t, r); err != nil {
-				return nil, err
-			}
-		} else {
 			return nil, err
 		}
 
@@ -780,7 +927,7 @@ func (c *Conn) waitForNotification(deadline time.Time) (*Notification, error) {
 }
 
 func (c *Conn) IsAlive() bool {
-	return c.alive
+	return atomic.LoadInt32(&c.status) >= connStatusIdle
 }
 
 func (c *Conn) CauseOfDeath() error {
@@ -790,12 +937,15 @@ func (c *Conn) CauseOfDeath() error {
 func (c *Conn) sendQuery(sql string, arguments ...interface{}) (err error) {
 	if ps, present := c.preparedStatements[sql]; present {
 		return c.sendPreparedQuery(ps, arguments...)
-	} else {
-		return c.sendSimpleQuery(sql, arguments...)
 	}
+	return c.sendSimpleQuery(sql, arguments...)
 }
 
 func (c *Conn) sendSimpleQuery(sql string, args ...interface{}) error {
+	if err := c.ensureConnectionReadyForQuery(); err != nil {
+		return err
+	}
+
 	if len(args) == 0 {
 		wbuf := newWriteBuf(c, 'Q')
 		wbuf.WriteCString(sql)
@@ -806,6 +956,7 @@ func (c *Conn) sendSimpleQuery(sql string, args ...interface{}) error {
 			c.die(err)
 			return err
 		}
+		c.readyForQuery = false
 
 		return nil
 	}
@@ -823,6 +974,10 @@ func (c *Conn) sendPreparedQuery(ps *PreparedStatement, arguments ...interface{}
 		return fmt.Errorf("Prepared statement \"%v\" requires %d parameters, but %d were provided", ps.Name, len(ps.ParameterOids), len(arguments))
 	}
 
+	if err := c.ensureConnectionReadyForQuery(); err != nil {
+		return err
+	}
+
 	// bind
 	wbuf := newWriteBuf(c, 'B')
 	wbuf.WriteByte(0)
@@ -830,24 +985,12 @@ func (c *Conn) sendPreparedQuery(ps *PreparedStatement, arguments ...interface{}
 
 	wbuf.WriteInt16(int16(len(ps.ParameterOids)))
 	for i, oid := range ps.ParameterOids {
-		switch arg := arguments[i].(type) {
-		case Encoder:
-			wbuf.WriteInt16(arg.FormatCode())
-		case string, *string:
-			wbuf.WriteInt16(TextFormatCode)
-		default:
-			switch oid {
-			case BoolOid, ByteaOid, Int2Oid, Int4Oid, Int8Oid, Float4Oid, Float8Oid, TimestampTzOid, TimestampTzArrayOid, TimestampOid, TimestampArrayOid, DateOid, BoolArrayOid, Int2ArrayOid, Int4ArrayOid, Int8ArrayOid, Float4ArrayOid, Float8ArrayOid, TextArrayOid, VarcharArrayOid, OidOid, InetOid, CidrOid, InetArrayOid, CidrArrayOid:
-				wbuf.WriteInt16(BinaryFormatCode)
-			default:
-				wbuf.WriteInt16(TextFormatCode)
-			}
-		}
+		wbuf.WriteInt16(chooseParameterFormatCode(c.ConnInfo, oid, arguments[i]))
 	}
 
 	wbuf.WriteInt16(int16(len(arguments)))
 	for i, oid := range ps.ParameterOids {
-		if err := Encode(wbuf, oid, arguments[i]); err != nil {
+		if err := encodePreparedStatementArgument(wbuf, oid, arguments[i]); err != nil {
 			return err
 		}
 	}
@@ -870,6 +1013,7 @@ func (c *Conn) sendPreparedQuery(ps *PreparedStatement, arguments ...interface{}
 	if err != nil {
 		c.die(err)
 	}
+	c.readyForQuery = false
 
 	return err
 }
@@ -877,97 +1021,58 @@ func (c *Conn) sendPreparedQuery(ps *PreparedStatement, arguments ...interface{}
 // Exec executes sql. sql can be either a prepared statement name or an SQL string.
 // arguments should be referenced positionally from the sql string as $1, $2, etc.
 func (c *Conn) Exec(sql string, arguments ...interface{}) (commandTag CommandTag, err error) {
-	if err = c.lock(); err != nil {
-		return commandTag, err
-	}
-
-	startTime := time.Now()
-	c.lastActivityTime = startTime
-
-	defer func() {
-		if err == nil {
-			if c.shouldLog(LogLevelInfo) {
-				endTime := time.Now()
-				c.log(LogLevelInfo, "Exec", "sql", sql, "args", logQueryArgs(arguments), "time", endTime.Sub(startTime), "commandTag", commandTag)
-			}
-		} else {
-			if c.shouldLog(LogLevelError) {
-				c.log(LogLevelError, "Exec", "sql", sql, "args", logQueryArgs(arguments), "error", err)
-			}
-		}
-
-		if unlockErr := c.unlock(); unlockErr != nil && err == nil {
-			err = unlockErr
-		}
-	}()
-
-	if err = c.sendQuery(sql, arguments...); err != nil {
-		return
-	}
-
-	var softErr error
-
-	for {
-		var t byte
-		var r *msgReader
-		t, r, err = c.rxMsg()
-		if err != nil {
-			return commandTag, err
-		}
-
-		switch t {
-		case readyForQuery:
-			c.rxReadyForQuery(r)
-			return commandTag, softErr
-		case rowDescription:
-		case dataRow:
-		case bindComplete:
-		case commandComplete:
-			commandTag = CommandTag(r.readCString())
-		default:
-			if e := c.processContextFreeMsg(t, r); e != nil && softErr == nil {
-				softErr = e
-			}
-		}
-	}
+	return c.ExecEx(context.Background(), sql, nil, arguments...)
 }
 
 // Processes messages that are not exclusive to one context such as
-// authentication or query response. The response to these messages
-// is the same regardless of when they occur.
+// authentication or query response. The response to these messages is the same
+// regardless of when they occur. It also ignores messages that are only
+// meaningful in a given context. These messages can occur due to a context
+// deadline interrupting message processing. For example, an interrupted query
+// may have left DataRow messages on the wire.
 func (c *Conn) processContextFreeMsg(t byte, r *msgReader) (err error) {
 	switch t {
-	case 'S':
-		c.rxParameterStatus(r)
-		return nil
+	case bindComplete:
+	case commandComplete:
+	case dataRow:
+	case emptyQueryResponse:
 	case errorResponse:
 		return c.rxErrorResponse(r)
+	case noData:
 	case noticeResponse:
-		return nil
-	case emptyQueryResponse:
-		return nil
 	case notificationResponse:
 		c.rxNotificationResponse(r)
-		return nil
+	case parameterDescription:
+	case parseComplete:
+	case readyForQuery:
+		c.rxReadyForQuery(r)
+	case rowDescription:
+	case 'S':
+		c.rxParameterStatus(r)
+
 	default:
 		return fmt.Errorf("Received unknown message type: %c", t)
 	}
+
+	return nil
 }
 
 func (c *Conn) rxMsg() (t byte, r *msgReader, err error) {
-	if !c.alive {
+	if atomic.LoadInt32(&c.status) < connStatusIdle {
 		return 0, nil, ErrDeadConn
 	}
 
 	t, err = c.mr.rxMsg()
 	if err != nil {
-		c.die(err)
+		if netErr, ok := err.(net.Error); !(ok && netErr.Timeout()) {
+			c.die(err)
+		}
 	}
 
 	c.lastActivityTime = time.Now()
 
 	if c.shouldLog(LogLevelTrace) {
-		c.log(LogLevelTrace, "rxMsg", "type", string(t), "msgBytesRemaining", c.mr.msgBytesRemaining)
+		c.log(LogLevelTrace, "rxMsg", "type", string(t), "msgBodyLen", len(c.mr.msgBody))
 	}
 
 	return t, &c.mr, err
@@ -1057,12 +1162,13 @@ func (c *Conn) rxErrorResponse(r *msgReader) (err PgError) {
 }
 
 func (c *Conn) rxBackendKeyData(r *msgReader) {
-	c.Pid = r.readInt32()
-	c.SecretKey = r.readInt32()
+	c.pid = r.readInt32()
+	c.secretKey = r.readInt32()
 }
 
 func (c *Conn) rxReadyForQuery(r *msgReader) {
-	c.TxStatus = r.readByte()
+	c.readyForQuery = true
+	c.txStatus = r.readByte()
 }
 
 func (c *Conn) rxRowDescription(r *msgReader) (fields []FieldDescription) {
@@ -1071,9 +1177,9 @@ func (c *Conn) rxRowDescription(r *msgReader) (fields []FieldDescription) {
 	for i := int16(0); i < fieldCount; i++ {
 		f := &fields[i]
 		f.Name = r.readCString()
-		f.Table = r.readOid()
+		f.Table = pgtype.Oid(r.readUint32())
 		f.AttributeNumber = r.readInt16()
-		f.DataType = r.readOid()
+		f.DataType = pgtype.Oid(r.readUint32())
 		f.DataTypeSize = r.readInt16()
 		f.Modifier = r.readInt32()
 		f.FormatCode = r.readInt16()
@@ -1081,26 +1187,26 @@ func (c *Conn) rxRowDescription(r *msgReader) (fields []FieldDescription) {
 	return
 }
 
-func (c *Conn) rxParameterDescription(r *msgReader) (parameters []Oid) {
+func (c *Conn) rxParameterDescription(r *msgReader) (parameters []pgtype.Oid) {
 	// Internally, PostgreSQL supports greater than 64k parameters to a prepared
 	// statement. But the parameter description uses a 16-bit integer for the
 	// count of parameters. If there are more than 64K parameters, this count is
 	// wrong. So read the count, ignore it, and compute the proper value from
 	// the size of the message.
 	r.readInt16()
-	parameterCount := r.msgBytesRemaining / 4
+	parameterCount := len(r.msgBody[r.rp:]) / 4
 
-	parameters = make([]Oid, 0, parameterCount)
+	parameters = make([]pgtype.Oid, 0, parameterCount)
 
-	for i := int32(0); i < parameterCount; i++ {
-		parameters = append(parameters, r.readOid())
+	for i := 0; i < parameterCount; i++ {
+		parameters = append(parameters, pgtype.Oid(r.readUint32()))
 	}
 	return
 }
 
 func (c *Conn) rxNotificationResponse(r *msgReader) {
 	n := new(Notification)
-	n.Pid = r.readInt32()
+	n.PID = r.readInt32()
 	n.Channel = r.readCString()
 	n.Payload = r.readCString()
 	c.notifications = append(c.notifications, n)
@@ -1142,25 +1248,23 @@ func (c *Conn) txPasswordMessage(password string) (err error) {
 }
 
 func (c *Conn) die(err error) {
-	c.alive = false
+	atomic.StoreInt32(&c.status, connStatusClosed)
 	c.causeOfDeath = err
 	c.conn.Close()
 }
 
 func (c *Conn) lock() error {
-	if c.busy {
-		return ErrConnBusy
+	if atomic.CompareAndSwapInt32(&c.status, connStatusIdle, connStatusBusy) {
+		return nil
 	}
-	c.busy = true
-	return nil
+	return ErrConnBusy
 }
 
 func (c *Conn) unlock() error {
-	if !c.busy {
-		return errors.New("unlock conn that is not busy")
+	if atomic.CompareAndSwapInt32(&c.status, connStatusBusy, connStatusIdle) {
+		return nil
 	}
-	c.busy = false
-	return nil
+	return errors.New("unlock conn that is not busy")
 }
 
 func (c *Conn) shouldLog(lvl int) bool {
@@ -1168,22 +1272,11 @@ func (c *Conn) shouldLog(lvl int) bool {
 }
 
 func (c *Conn) log(lvl int, msg string, ctx ...interface{}) {
-	if c.Pid != 0 {
-		ctx = append(ctx, "pid", c.Pid)
+	if c.pid != 0 {
+		ctx = append(ctx, "pid", c.PID)
 	}
 
-	switch lvl {
-	case LogLevelTrace:
-		c.logger.Debug(msg, ctx...)
-	case LogLevelDebug:
-		c.logger.Debug(msg, ctx...)
-	case LogLevelInfo:
-		c.logger.Info(msg, ctx...)
-	case LogLevelWarn:
-		c.logger.Warn(msg, ctx...)
-	case LogLevelError:
-		c.logger.Error(msg, ctx...)
-	}
+	c.logger.Log(lvl, msg, ctx...)
 }
 
 // SetLogger replaces the current logger and returns the previous logger.
@@ -1204,4 +1297,272 @@ func (c *Conn) SetLogLevel(lvl int) (int, error) {
 
 	c.logLevel = lvl
 	return lvl, nil
+}
+
+func quoteIdentifier(s string) string {
+	return `"` + strings.Replace(s, `"`, `""`, -1) + `"`
+}
+
+// cancelQuery sends a cancel request to the PostgreSQL server. It returns an
+// error if unable to deliver the cancel request, but lack of an error does not
+// ensure that the query was canceled. As specified in the documentation, there
+// is no way to be sure a query was canceled. See
+// https://www.postgresql.org/docs/current/static/protocol-flow.html#AEN112861
+func (c *Conn) cancelQuery() {
+	if !atomic.CompareAndSwapInt32(&c.cancelQueryInProgress, 0, 1) {
+		panic("cancelQuery when cancelQueryInProgress")
+	}
+
+	if err := c.conn.SetDeadline(time.Now()); err != nil {
+		c.Close() // Close connection if unable to set deadline
+		return
+	}
+
+	doCancel := func() error {
+		network, address := c.config.networkAddress()
+		cancelConn, err := c.config.Dial(network, address)
+		if err != nil {
+			return err
+		}
+		defer cancelConn.Close()
+
+		// If server doesn't process cancellation request in bounded time then abort.
+		err = cancelConn.SetDeadline(time.Now().Add(15 * time.Second))
+		if err != nil {
+			return err
+		}
+
+		buf := make([]byte, 16)
+		binary.BigEndian.PutUint32(buf[0:4], 16)
+		binary.BigEndian.PutUint32(buf[4:8], 80877102)
+		binary.BigEndian.PutUint32(buf[8:12], uint32(c.pid))
+		binary.BigEndian.PutUint32(buf[12:16], uint32(c.secretKey))
+		_, err = cancelConn.Write(buf)
+		if err != nil {
+			return err
+		}
+
+		_, err = cancelConn.Read(buf)
+		if err != io.EOF {
+			return fmt.Errorf("Server failed to close connection after cancel query request: %v %v", err, buf)
+		}
+
+		return nil
+	}
+
+	go func() {
+		err := doCancel()
+		if err != nil {
+			c.Close() // Something is very wrong. Terminate the connection.
+		}
+		c.cancelQueryCompleted <- struct{}{}
+	}()
+}
+
+func (c *Conn) Ping() error {
+	return c.PingContext(context.Background())
+}
+
+func (c *Conn) PingContext(ctx context.Context) error {
+	_, err := c.ExecEx(ctx, ";", nil)
+	return err
+}
+
+func (c *Conn) ExecEx(ctx context.Context, sql string, options *QueryExOptions, arguments ...interface{}) (commandTag CommandTag, err error) {
+	err = c.waitForPreviousCancelQuery(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	if err = c.lock(); err != nil {
+		return commandTag, err
+	}
+
+	startTime := time.Now()
+	c.lastActivityTime = startTime
+
+	defer func() {
+		if err == nil {
+			if c.shouldLog(LogLevelInfo) {
+				endTime := time.Now()
+				c.log(LogLevelInfo, "Exec", "sql", sql, "args", logQueryArgs(arguments), "time", endTime.Sub(startTime), "commandTag", commandTag)
+			}
+		} else {
+			if c.shouldLog(LogLevelError) {
+				c.log(LogLevelError, "Exec", "sql", sql, "args", logQueryArgs(arguments), "error", err)
+			}
+		}
+
+		if unlockErr := c.unlock(); unlockErr != nil && err == nil {
+			err = unlockErr
+		}
+	}()
+
+	if options != nil && options.SimpleProtocol {
+		err = c.initContext(ctx)
+		if err != nil {
+			return "", err
+		}
+		defer func() {
+			err = c.termContext(err)
+		}()
+
+		err = c.sanitizeAndSendSimpleQuery(sql, arguments...)
+		if err != nil {
+			return "", err
+
+		}
+	} else {
+		if len(arguments) > 0 {
+			ps, ok := c.preparedStatements[sql]
+			if !ok {
+				var err error
+				ps, err = c.PrepareExContext(ctx, "", sql, nil)
+				if err != nil {
+					return "", err
+				}
+			}
+
+			err = c.initContext(ctx)
+			if err != nil {
+				return "", err
+			}
+			defer func() {
+				err = c.termContext(err)
+			}()
+
+			err = c.sendPreparedQuery(ps, arguments...)
+			if err != nil {
+				return "", err
+			}
+		} else {
+			err = c.initContext(ctx)
+			if err != nil {
+				return "", err
+			}
+			defer func() {
+				err = c.termContext(err)
+			}()
+
+			if err = c.sendQuery(sql, arguments...); err != nil {
+				return
+			}
+		}
+	}
+
+	var softErr error
+
+	for {
+		var t byte
+		var r *msgReader
+		t, r, err = c.rxMsg()
+		if err != nil {
+			return commandTag, err
+		}
+
+		switch t {
+		case readyForQuery:
+			c.rxReadyForQuery(r)
+			return commandTag, softErr
+		case commandComplete:
+			commandTag = CommandTag(r.readCString())
+		default:
+			if e := c.processContextFreeMsg(t, r); e != nil && softErr == nil {
+				softErr = e
+			}
+		}
+	}
+}
+
+func (c *Conn) initContext(ctx context.Context) error {
+	if c.ctxInProgress {
+		return errors.New("ctx already in progress")
+	}
+
+	if ctx.Done() == nil {
+		return nil
+	}
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	c.ctxInProgress = true
+
+	go c.contextHandler(ctx)
+
+	return nil
+}
+
+func (c *Conn) termContext(opErr error) error {
+	if !c.ctxInProgress {
+		return opErr
+	}
+
+	var err error
+
+	select {
+	case err = <-c.closedChan:
+		if opErr == nil {
+			err = nil
+		}
+	case c.doneChan <- struct{}{}:
+		err = opErr
+	}
+
+	c.ctxInProgress = false
+	return err
+}
+
+func (c *Conn) contextHandler(ctx context.Context) {
+	select {
+	case <-ctx.Done():
+		c.cancelQuery()
+		c.closedChan <- ctx.Err()
+	case <-c.doneChan:
+	}
+}
+
+func (c *Conn) waitForPreviousCancelQuery(ctx context.Context) error {
+	if atomic.LoadInt32(&c.cancelQueryInProgress) == 0 {
+		return nil
+	}
+
+	select {
+	case <-c.cancelQueryCompleted:
+		atomic.StoreInt32(&c.cancelQueryInProgress, 0)
+		if err := c.conn.SetDeadline(time.Time{}); err != nil {
+			c.Close() // Close connection if unable to disable deadline
+			return err
+		}
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (c *Conn) ensureConnectionReadyForQuery() error {
+	for !c.readyForQuery {
+		t, r, err := c.rxMsg()
+		if err != nil {
+			return err
+		}
+
+		switch t {
+		case errorResponse:
+			pgErr := c.rxErrorResponse(r)
+			if pgErr.Severity == "FATAL" {
+				return pgErr
+			}
+		default:
+			err = c.processContextFreeMsg(t, r)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

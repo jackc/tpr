@@ -2,31 +2,31 @@ package pgx
 
 import (
 	"encoding/binary"
+
+	"github.com/jackc/pgx/pgtype"
 )
 
-type fastpathArg []byte
-
 func newFastpath(cn *Conn) *fastpath {
-	return &fastpath{cn: cn, fns: make(map[string]Oid)}
+	return &fastpath{cn: cn, fns: make(map[string]pgtype.Oid)}
 }
 
 type fastpath struct {
 	cn  *Conn
-	fns map[string]Oid
+	fns map[string]pgtype.Oid
 }
 
-func (f *fastpath) functionOID(name string) Oid {
+func (f *fastpath) functionOid(name string) pgtype.Oid {
 	return f.fns[name]
 }
 
-func (f *fastpath) addFunction(name string, oid Oid) {
+func (f *fastpath) addFunction(name string, oid pgtype.Oid) {
 	f.fns[name] = oid
 }
 
 func (f *fastpath) addFunctions(rows *Rows) error {
 	for rows.Next() {
 		var name string
-		var oid Oid
+		var oid pgtype.Oid
 		if err := rows.Scan(&name, &oid); err != nil {
 			return err
 		}
@@ -49,7 +49,11 @@ func fpInt64Arg(n int64) fpArg {
 	return res
 }
 
-func (f *fastpath) Call(oid Oid, args []fpArg) (res []byte, err error) {
+func (f *fastpath) Call(oid pgtype.Oid, args []fpArg) (res []byte, err error) {
+	if err := f.cn.ensureConnectionReadyForQuery(); err != nil {
+		return nil, err
+	}
+
 	wbuf := newWriteBuf(f.cn, 'F')    // function call
 	wbuf.WriteInt32(int32(oid))       // function object id
 	wbuf.WriteInt16(1)                // # of argument format codes
@@ -91,7 +95,7 @@ func (f *fastpath) Call(oid Oid, args []fpArg) (res []byte, err error) {
 }
 
 func (f *fastpath) CallFn(fn string, args []fpArg) ([]byte, error) {
-	return f.Call(f.functionOID(fn), args)
+	return f.Call(f.functionOid(fn), args)
 }
 
 func fpInt32(data []byte, err error) (int32, error) {

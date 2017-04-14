@@ -3,11 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/jackc/cli"
-	"github.com/jackc/pgx"
-	"github.com/jackc/tpr/backend/data"
-	"github.com/vaughan0/go-ini"
-	log "gopkg.in/inconshreveable/log15.v2"
 	"net/http"
 	"net/http/httputil"
 	"net/smtp"
@@ -15,6 +10,12 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+
+	"github.com/jackc/cli"
+	"github.com/jackc/pgx"
+	"github.com/jackc/tpr/backend/data"
+	"github.com/vaughan0/go-ini"
+	log "gopkg.in/inconshreveable/log15.v2"
 )
 
 const version = "0.8.1"
@@ -112,7 +113,7 @@ func newPool(conf ini.File, logger log.Logger) (*pgx.ConnPool, error) {
 		setFilterHandler(level, logger, log.StdoutHandler)
 	}
 
-	connConfig := pgx.ConnConfig{Logger: logger}
+	connConfig := pgx.ConnConfig{Logger: &log15Adapter{logger: logger}}
 
 	connConfig.Host, _ = conf.Get("database", "host")
 	if connConfig.Host == "" {
@@ -304,7 +305,7 @@ func ResetPassword(c *cli.Context) {
 	update := &data.User{}
 	SetPassword(update, password)
 
-	err = data.UpdateUser(pool, user.ID.Value, update)
+	err = data.UpdateUser(pool, user.ID.Int, update)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

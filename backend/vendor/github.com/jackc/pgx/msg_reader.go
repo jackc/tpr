@@ -1,32 +1,29 @@
 package pgx
 
 import (
-	"bufio"
+	"bytes"
 	"encoding/binary"
 	"errors"
-	"io"
-	"io/ioutil"
+	"net"
+
+	"github.com/jackc/pgx/chunkreader"
 )
 
 // msgReader is a helper that reads values from a PostgreSQL message.
 type msgReader struct {
-	reader            *bufio.Reader
-	buf               [128]byte
-	msgBytesRemaining int32
-	err               error
-	log               func(lvl int, msg string, ctx ...interface{})
-	shouldLog         func(lvl int) bool
+	cr        *chunkreader.ChunkReader
+	msgType   byte
+	msgBody   []byte
+	rp        int // read position
+	err       error
+	log       func(lvl int, msg string, ctx ...interface{})
+	shouldLog func(lvl int) bool
 }
 
-// Err returns any error that the msgReader has experienced
-func (r *msgReader) Err() error {
-	return r.err
-}
-
-// fatal tells r that a Fatal error has occurred
+// fatal tells rc that a Fatal error has occurred
 func (r *msgReader) fatal(err error) {
 	if r.shouldLog(LogLevelTrace) {
-		r.log(LogLevelTrace, "msgReader.fatal", "error", err, "msgBytesRemaining", r.msgBytesRemaining)
+		r.log(LogLevelTrace, "msgReader.fatal", "error", err, "msgType", r.msgType, "msgBody", r.msgBody, "rp", r.rp)
 	}
 	r.err = err
 }
@@ -37,18 +34,28 @@ func (r *msgReader) rxMsg() (byte, error) {
 		return 0, r.err
 	}
 
-	if r.msgBytesRemaining > 0 {
-		if r.shouldLog(LogLevelTrace) {
-			r.log(LogLevelTrace, "msgReader.rxMsg discarding unread previous message", "msgBytesRemaining", r.msgBytesRemaining)
+	header, err := r.cr.Next(5)
+	if err != nil {
+		if netErr, ok := err.(net.Error); !(ok && netErr.Timeout()) {
+			r.fatal(err)
 		}
-
-		io.CopyN(ioutil.Discard, r.reader, int64(r.msgBytesRemaining))
+		return 0, err
 	}
 
-	b := r.buf[0:5]
-	_, err := io.ReadFull(r.reader, b)
-	r.msgBytesRemaining = int32(binary.BigEndian.Uint32(b[1:])) - 4
-	return b[0], err
+	r.msgType = header[0]
+	bodyLen := int(binary.BigEndian.Uint32(header[1:])) - 4
+
+	r.msgBody, err = r.cr.Next(bodyLen)
+	if err != nil {
+		if netErr, ok := err.(net.Error); !(ok && netErr.Timeout()) {
+			r.fatal(err)
+		}
+		return 0, err
+	}
+
+	r.rp = 0
+
+	return r.msgType, nil
 }
 
 func (r *msgReader) readByte() byte {
@@ -56,20 +63,16 @@ func (r *msgReader) readByte() byte {
 		return 0
 	}
 
-	r.msgBytesRemaining -= 1
-	if r.msgBytesRemaining < 0 {
+	if len(r.msgBody)-r.rp < 1 {
 		r.fatal(errors.New("read past end of message"))
 		return 0
 	}
 
-	b, err := r.reader.ReadByte()
-	if err != nil {
-		r.fatal(err)
-		return 0
-	}
+	b := r.msgBody[r.rp]
+	r.rp++
 
 	if r.shouldLog(LogLevelTrace) {
-		r.log(LogLevelTrace, "msgReader.readByte", "value", b, "byteAsString", string(b), "msgBytesRemaining", r.msgBytesRemaining)
+		r.log(LogLevelTrace, "msgReader.readByte", "value", b, "byteAsString", string(b), "msgType", r.msgType, "rp", r.rp)
 	}
 
 	return b
@@ -80,23 +83,16 @@ func (r *msgReader) readInt16() int16 {
 		return 0
 	}
 
-	r.msgBytesRemaining -= 2
-	if r.msgBytesRemaining < 0 {
+	if len(r.msgBody)-r.rp < 2 {
 		r.fatal(errors.New("read past end of message"))
 		return 0
 	}
 
-	b := r.buf[0:2]
-	_, err := io.ReadFull(r.reader, b)
-	if err != nil {
-		r.fatal(err)
-		return 0
-	}
-
-	n := int16(binary.BigEndian.Uint16(b))
+	n := int16(binary.BigEndian.Uint16(r.msgBody[r.rp:]))
+	r.rp += 2
 
 	if r.shouldLog(LogLevelTrace) {
-		r.log(LogLevelTrace, "msgReader.readInt16", "value", n, "msgBytesRemaining", r.msgBytesRemaining)
+		r.log(LogLevelTrace, "msgReader.readInt16", "value", n, "msgType", r.msgType, "rp", r.rp)
 	}
 
 	return n
@@ -107,23 +103,56 @@ func (r *msgReader) readInt32() int32 {
 		return 0
 	}
 
-	r.msgBytesRemaining -= 4
-	if r.msgBytesRemaining < 0 {
+	if len(r.msgBody)-r.rp < 4 {
 		r.fatal(errors.New("read past end of message"))
 		return 0
 	}
 
-	b := r.buf[0:4]
-	_, err := io.ReadFull(r.reader, b)
-	if err != nil {
-		r.fatal(err)
+	n := int32(binary.BigEndian.Uint32(r.msgBody[r.rp:]))
+	r.rp += 4
+
+	if r.shouldLog(LogLevelTrace) {
+		r.log(LogLevelTrace, "msgReader.readInt32", "value", n, "msgType", r.msgType, "rp", r.rp)
+	}
+
+	return n
+}
+
+func (r *msgReader) readUint16() uint16 {
+	if r.err != nil {
 		return 0
 	}
 
-	n := int32(binary.BigEndian.Uint32(b))
+	if len(r.msgBody)-r.rp < 2 {
+		r.fatal(errors.New("read past end of message"))
+		return 0
+	}
+
+	n := binary.BigEndian.Uint16(r.msgBody[r.rp:])
+	r.rp += 2
 
 	if r.shouldLog(LogLevelTrace) {
-		r.log(LogLevelTrace, "msgReader.readInt32", "value", n, "msgBytesRemaining", r.msgBytesRemaining)
+		r.log(LogLevelTrace, "msgReader.readUint16", "value", n, "msgType", r.msgType, "rp", r.rp)
+	}
+
+	return n
+}
+
+func (r *msgReader) readUint32() uint32 {
+	if r.err != nil {
+		return 0
+	}
+
+	if len(r.msgBody)-r.rp < 4 {
+		r.fatal(errors.New("read past end of message"))
+		return 0
+	}
+
+	n := binary.BigEndian.Uint32(r.msgBody[r.rp:])
+	r.rp += 4
+
+	if r.shouldLog(LogLevelTrace) {
+		r.log(LogLevelTrace, "msgReader.readUint32", "value", n, "msgType", r.msgType, "rp", r.rp)
 	}
 
 	return n
@@ -134,30 +163,19 @@ func (r *msgReader) readInt64() int64 {
 		return 0
 	}
 
-	r.msgBytesRemaining -= 8
-	if r.msgBytesRemaining < 0 {
+	if len(r.msgBody)-r.rp < 8 {
 		r.fatal(errors.New("read past end of message"))
 		return 0
 	}
 
-	b := r.buf[0:8]
-	_, err := io.ReadFull(r.reader, b)
-	if err != nil {
-		r.fatal(err)
-		return 0
-	}
-
-	n := int64(binary.BigEndian.Uint64(b))
+	n := int64(binary.BigEndian.Uint64(r.msgBody[r.rp:]))
+	r.rp += 8
 
 	if r.shouldLog(LogLevelTrace) {
-		r.log(LogLevelTrace, "msgReader.readInt64", "value", n, "msgBytesRemaining", r.msgBytesRemaining)
+		r.log(LogLevelTrace, "msgReader.readInt64", "value", n, "msgType", r.msgType, "rp", r.rp)
 	}
 
 	return n
-}
-
-func (r *msgReader) readOid() Oid {
-	return Oid(r.readInt32())
 }
 
 // readCString reads a null terminated string
@@ -166,83 +184,65 @@ func (r *msgReader) readCString() string {
 		return ""
 	}
 
-	b, err := r.reader.ReadBytes(0)
-	if err != nil {
-		r.fatal(err)
+	nullIdx := bytes.IndexByte(r.msgBody[r.rp:], 0)
+	if nullIdx == -1 {
+		r.fatal(errors.New("null terminated string not found"))
 		return ""
 	}
 
-	r.msgBytesRemaining -= int32(len(b))
-	if r.msgBytesRemaining < 0 {
-		r.fatal(errors.New("read past end of message"))
-		return ""
-	}
-
-	s := string(b[0 : len(b)-1])
+	s := string(r.msgBody[r.rp : r.rp+nullIdx])
+	r.rp += nullIdx + 1
 
 	if r.shouldLog(LogLevelTrace) {
-		r.log(LogLevelTrace, "msgReader.readCString", "value", s, "msgBytesRemaining", r.msgBytesRemaining)
+		r.log(LogLevelTrace, "msgReader.readCString", "value", s, "msgType", r.msgType, "rp", r.rp)
 	}
 
 	return s
 }
 
 // readString reads count bytes and returns as string
-func (r *msgReader) readString(count int32) string {
+func (r *msgReader) readString(countI32 int32) string {
 	if r.err != nil {
 		return ""
 	}
 
-	r.msgBytesRemaining -= count
-	if r.msgBytesRemaining < 0 {
+	count := int(countI32)
+
+	if len(r.msgBody)-r.rp < count {
 		r.fatal(errors.New("read past end of message"))
 		return ""
 	}
 
-	var b []byte
-	if count <= int32(len(r.buf)) {
-		b = r.buf[0:int(count)]
-	} else {
-		b = make([]byte, int(count))
-	}
-
-	_, err := io.ReadFull(r.reader, b)
-	if err != nil {
-		r.fatal(err)
-		return ""
-	}
-
-	s := string(b)
+	s := string(r.msgBody[r.rp : r.rp+count])
+	r.rp += count
 
 	if r.shouldLog(LogLevelTrace) {
-		r.log(LogLevelTrace, "msgReader.readString", "value", s, "msgBytesRemaining", r.msgBytesRemaining)
+		r.log(LogLevelTrace, "msgReader.readString", "value", s, "msgType", r.msgType, "rp", r.rp)
 	}
 
 	return s
 }
 
 // readBytes reads count bytes and returns as []byte
-func (r *msgReader) readBytes(count int32) []byte {
+func (r *msgReader) readBytes(countI32 int32) []byte {
 	if r.err != nil {
 		return nil
 	}
 
-	r.msgBytesRemaining -= count
-	if r.msgBytesRemaining < 0 {
+	count := int(countI32)
+
+	if len(r.msgBody)-r.rp < count {
 		r.fatal(errors.New("read past end of message"))
 		return nil
 	}
 
-	b := make([]byte, int(count))
+	b := r.msgBody[r.rp : r.rp+count]
+	r.rp += count
 
-	_, err := io.ReadFull(r.reader, b)
-	if err != nil {
-		r.fatal(err)
-		return nil
-	}
+	r.cr.KeepLast()
 
 	if r.shouldLog(LogLevelTrace) {
-		r.log(LogLevelTrace, "msgReader.readBytes", "value", b, "msgBytesRemaining", r.msgBytesRemaining)
+		r.log(LogLevelTrace, "msgReader.readBytes", "value", b, r.msgType, "rp", r.rp)
 	}
 
 	return b

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/pgtype"
 	"github.com/jackc/tpr/backend/data"
 	log "gopkg.in/inconshreveable/log15.v2"
 )
@@ -41,12 +42,12 @@ var feedParsingTests = []struct {
 				{
 					Title:           "Snow Storm",
 					URL:             "http://example.org/snow-storm",
-					PublicationTime: data.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
+					PublicationTime: pgtype.Timestamptz{Time: time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC), Status: pgtype.Present},
 				},
 				{
 					Title:           "Blizzard",
 					URL:             "http://example.org/blizzard",
-					PublicationTime: data.NewTime(time.Date(2014, 1, 4, 8, 15, 0, 0, time.UTC)),
+					PublicationTime: pgtype.Timestamptz{Time: time.Date(2014, 1, 4, 8, 15, 0, 0, time.UTC), Status: pgtype.Present},
 				},
 			}},
 		"",
@@ -75,12 +76,12 @@ var feedParsingTests = []struct {
 				{
 					Title:           "Snow Storm",
 					URL:             "http://example.org/snow-storm",
-					PublicationTime: data.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
+					PublicationTime: pgtype.Timestamptz{Time: time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC), Status: pgtype.Present},
 				},
 				{
 					Title:           "Blizzard",
 					URL:             "http://example.org/blizzard",
-					PublicationTime: data.NewTime(time.Date(2014, 1, 4, 8, 15, 0, 0, time.UTC)),
+					PublicationTime: pgtype.Timestamptz{Time: time.Date(2014, 1, 4, 8, 15, 0, 0, time.UTC), Status: pgtype.Present},
 				},
 			}},
 		"",
@@ -104,7 +105,7 @@ var feedParsingTests = []struct {
 				{
 					Title:           "Snow Storm",
 					URL:             "http://example.org/snow-storm",
-					PublicationTime: data.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
+					PublicationTime: pgtype.Timestamptz{Time: time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC), Status: pgtype.Present},
 				},
 			}},
 		"",
@@ -128,7 +129,7 @@ var feedParsingTests = []struct {
 				{
 					Title:           "Snow Storm",
 					URL:             "http://example.org/snow-storm",
-					PublicationTime: data.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
+					PublicationTime: pgtype.Timestamptz{Time: time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC), Status: pgtype.Present},
 				},
 			}},
 		"",
@@ -201,12 +202,12 @@ var feedParsingTests = []struct {
 				{
 					Title:           "Snow Storm",
 					URL:             "http://example.org/snow-storm",
-					PublicationTime: data.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
+					PublicationTime: pgtype.Timestamptz{Time: time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC), Status: pgtype.Present},
 				},
 				{
 					Title:           "Blizzard",
 					URL:             "http://example.org/blizzard",
-					PublicationTime: data.NewTime(time.Date(2014, 1, 4, 8, 15, 0, 0, time.UTC)),
+					PublicationTime: pgtype.Timestamptz{Time: time.Date(2014, 1, 4, 8, 15, 0, 0, time.UTC), Status: pgtype.Present},
 				},
 			}},
 		"",
@@ -233,12 +234,12 @@ var feedParsingTests = []struct {
 				{
 					Title:           "Snow Storm",
 					URL:             "http://example.org/snow-storm",
-					PublicationTime: data.NewTime(time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC)),
+					PublicationTime: pgtype.Timestamptz{Time: time.Date(2014, 1, 3, 22, 45, 0, 0, time.UTC), Status: pgtype.Present},
 				},
 				{
 					Title:           "Blizzard",
 					URL:             "http://example.org/blizzard",
-					PublicationTime: data.NewTime(time.Date(2014, 1, 4, 8, 15, 0, 0, time.UTC)),
+					PublicationTime: pgtype.Timestamptz{Time: time.Date(2014, 1, 4, 8, 15, 0, 0, time.UTC), Status: pgtype.Present},
 				},
 			}},
 		"",
@@ -277,7 +278,7 @@ func TestParseFeed(t *testing.T) {
 				t.Errorf("%d. %s Item %d: Expected url %#v, but is was %#v", i, tt.name, j, expectedItem.URL, actualItem.URL)
 			}
 			if actualItem.PublicationTime.Status == expectedItem.PublicationTime.Status {
-				if actualItem.PublicationTime.Status == data.Present && !actualItem.PublicationTime.Value.Equal(expectedItem.PublicationTime.Value) {
+				if actualItem.PublicationTime.Status == pgtype.Present && !actualItem.PublicationTime.Time.Equal(expectedItem.PublicationTime.Time) {
 					t.Errorf("%d. %s Item %d: Expected publicationTime %v, but is was %v", i, tt.name, j, expectedItem.PublicationTime, actualItem.PublicationTime)
 				}
 			} else {
@@ -309,7 +310,7 @@ func TestParseTime(t *testing.T) {
 			t.Errorf("%d. %s: Unexpected error: %v", i, tt.unparsed, err)
 			continue
 		}
-		if !tt.expected.Equal(actual.Value) {
+		if !tt.expected.Equal(actual.Time) {
 			t.Errorf("%d. %s: expected to parse to %s, but instead was %s", i, tt.unparsed, tt.expected, actual)
 		}
 	}
@@ -342,7 +343,7 @@ func TestFetchFeed(t *testing.T) {
 	defer ts.Close()
 
 	u := NewFeedUpdater(pool, log.Root())
-	rawFeed, err := u.fetchFeed(ts.URL, data.String{})
+	rawFeed, err := u.fetchFeed(ts.URL, pgtype.Varchar{})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -352,7 +353,7 @@ func TestFetchFeed(t *testing.T) {
 	if bytes.Compare(rssBody, rawFeed.body) != 0 {
 		t.Errorf("rawFeed body should match returned body but instead it was: %v", rawFeed.body)
 	}
-	if rawFeed.etag.Status != data.Null {
+	if rawFeed.etag.Status != pgtype.Null {
 		t.Errorf("Expected no ETag to be null but instead it was: %v", rawFeed.etag)
 	}
 }

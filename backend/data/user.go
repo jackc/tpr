@@ -62,5 +62,5 @@ func CreateUser(db Queryer, user *User) (int32, error) {
 		return 0, err
 	}
 
-	return user.ID.Value, nil
+	return user.ID.Int, nil
 }

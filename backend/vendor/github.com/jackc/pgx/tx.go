@@ -1,16 +1,35 @@
 package pgx
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 )
 
+type TxIsoLevel string
+
 // Transaction isolation levels
 const (
-	Serializable    = "serializable"
-	RepeatableRead  = "repeatable read"
-	ReadCommitted   = "read committed"
-	ReadUncommitted = "read uncommitted"
+	Serializable    = TxIsoLevel("serializable")
+	RepeatableRead  = TxIsoLevel("repeatable read")
+	ReadCommitted   = TxIsoLevel("read committed")
+	ReadUncommitted = TxIsoLevel("read uncommitted")
+)
+
+type TxAccessMode string
+
+// Transaction access modes
+const (
+	ReadWrite = TxAccessMode("read write")
+	ReadOnly  = TxAccessMode("read only")
+)
+
+type TxDeferrableMode string
+
+// Transaction deferrable modes
+const (
+	Deferrable    = TxDeferrableMode("deferrable")
+	NotDeferrable = TxDeferrableMode("not deferrable")
 )
 
 const (
@@ -21,6 +40,12 @@ const (
 	TxStatusRollbackSuccess = 2
 )
 
+type TxOptions struct {
+	IsoLevel       TxIsoLevel
+	AccessMode     TxAccessMode
+	DeferrableMode TxDeferrableMode
+}
+
 var ErrTxClosed = errors.New("tx is closed")
 
 // ErrTxCommitRollback occurs when an error has occurred in a transaction and
@@ -28,33 +53,35 @@ var ErrTxClosed = errors.New("tx is closed")
 // it is treated as ROLLBACK.
 var ErrTxCommitRollback = errors.New("commit unexpectedly resulted in rollback")
 
-// Begin starts a transaction with the default isolation level for the current
-// connection. To use a specific isolation level see BeginIso.
+// Begin starts a transaction with the default transaction mode for the
+// current connection. To use a specific transaction mode see BeginEx.
 func (c *Conn) Begin() (*Tx, error) {
-	return c.begin("")
+	return c.BeginEx(nil)
 }
 
-// BeginIso starts a transaction with isoLevel as the transaction isolation
-// level.
-//
-// Valid isolation levels (and their constants) are:
-//   serializable (pgx.Serializable)
-//   repeatable read (pgx.RepeatableRead)
-//   read committed (pgx.ReadCommitted)
-//   read uncommitted (pgx.ReadUncommitted)
-func (c *Conn) BeginIso(isoLevel string) (*Tx, error) {
-	return c.begin(isoLevel)
-}
-
-func (c *Conn) begin(isoLevel string) (*Tx, error) {
-	var beginSql string
-	if isoLevel == "" {
-		beginSql = "begin"
+// BeginEx starts a transaction with txOptions determining the transaction
+// mode.
+func (c *Conn) BeginEx(txOptions *TxOptions) (*Tx, error) {
+	var beginSQL string
+	if txOptions == nil {
+		beginSQL = "begin"
 	} else {
-		beginSql = fmt.Sprintf("begin isolation level %s", isoLevel)
+		buf := &bytes.Buffer{}
+		buf.WriteString("begin")
+		if txOptions.IsoLevel != "" {
+			fmt.Fprintf(buf, " isolation level %s", txOptions.IsoLevel)
+		}
+		if txOptions.AccessMode != "" {
+			fmt.Fprintf(buf, " %s", txOptions.AccessMode)
+		}
+		if txOptions.DeferrableMode != "" {
+			fmt.Fprintf(buf, " %s", txOptions.DeferrableMode)
+		}
+
+		beginSQL = buf.String()
 	}
 
-	_, err := c.Exec(beginSql)
+	_, err := c.Exec(beginSQL)
 	if err != nil {
 		return nil, err
 	}
@@ -86,6 +113,7 @@ func (tx *Tx) Commit() error {
 		tx.status = TxStatusCommitFailure
 		tx.err = ErrTxCommitRollback
 	} else {
+		tx.status = TxStatusCommitFailure
 		tx.err = err
 	}
 
@@ -126,6 +154,20 @@ func (tx *Tx) Exec(sql string, arguments ...interface{}) (commandTag CommandTag,
 	return tx.conn.Exec(sql, arguments...)
 }
 
+// Prepare delegates to the underlying *Conn
+func (tx *Tx) Prepare(name, sql string) (*PreparedStatement, error) {
+	return tx.PrepareEx(name, sql, nil)
+}
+
+// PrepareEx delegates to the underlying *Conn
+func (tx *Tx) PrepareEx(name, sql string, opts *PrepareExOptions) (*PreparedStatement, error) {
+	if tx.status != TxStatusInProgress {
+		return nil, ErrTxClosed
+	}
+
+	return tx.conn.PrepareEx(name, sql, opts)
+}
+
 // Query delegates to the underlying *Conn
 func (tx *Tx) Query(sql string, args ...interface{}) (*Rows, error) {
 	if tx.status != TxStatusInProgress {
@@ -141,6 +183,15 @@ func (tx *Tx) Query(sql string, args ...interface{}) (*Rows, error) {
 func (tx *Tx) QueryRow(sql string, args ...interface{}) *Row {
 	rows, _ := tx.Query(sql, args...)
 	return (*Row)(rows)
+}
+
+// CopyFrom delegates to the underlying *Conn
+func (tx *Tx) CopyFrom(tableName Identifier, columnNames []string, rowSrc CopyFromSource) (int, error) {
+	if tx.status != TxStatusInProgress {
+		return 0, ErrTxClosed
+	}
+
+	return tx.conn.CopyFrom(tableName, columnNames, rowSrc)
 }
 
 // Conn returns the *Conn this transaction is using.

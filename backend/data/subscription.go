@@ -2,18 +2,19 @@ package data
 
 import (
 	"github.com/jackc/pgx"
+	"github.com/jackc/pgx/pgtype"
 )
 
 type Subscription struct {
-	FeedID              Int32
-	Name                String
-	URL                 String
-	LastFetchTime       Time
-	LastFailure         String
-	LastFailureTime     Time
-	FailureCount        Int32
-	ItemCount           Int64
-	LastPublicationTime Time
+	FeedID              pgtype.Int4
+	Name                pgtype.Varchar
+	URL                 pgtype.Varchar
+	LastFetchTime       pgtype.Timestamptz
+	LastFailure         pgtype.Varchar
+	LastFailureTime     pgtype.Timestamptz
+	FailureCount        pgtype.Int4
+	ItemCount           pgtype.Int8
+	LastPublicationTime pgtype.Timestamptz
 }
 
 const createSubscriptionSQL = `select create_subscription($1::integer, $2::varchar)`
@@ -64,7 +65,7 @@ func DeleteSubscription(db *pgx.ConnPool, userID, feedID int32) error {
 		return err
 	}
 
-	tx, err := db.BeginIso(pgx.Serializable)
+	tx, err := db.BeginEx(&pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
 		return err
 	}

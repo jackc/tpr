@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx"
+	"github.com/jackc/pgx/pgtype"
 	"github.com/jackc/tpr/backend/data"
 	"golang.org/x/net/html/charset"
 	log "gopkg.in/inconshreveable/log15.v2"
@@ -78,15 +79,15 @@ func sleepUntil(t time.Time) {
 type rawFeed struct {
 	url  string
 	body []byte
-	etag data.String
+	etag pgtype.Varchar
 }
 
-func (u *FeedUpdater) fetchFeed(feedURL string, etag data.String) (*rawFeed, error) {
+func (u *FeedUpdater) fetchFeed(feedURL string, etag pgtype.Varchar) (*rawFeed, error) {
 	feed := &rawFeed{url: feedURL}
 
 	req, err := http.NewRequest("GET", feed.url, nil)
-	if etag.Status == data.Present {
-		req.Header.Add("If-None-Match", etag.Value)
+	if etag.Status == pgtype.Present {
+		req.Header.Add("If-None-Match", etag.String)
 	}
 
 	resp, err := u.client.Do(req)
@@ -102,7 +103,7 @@ func (u *FeedUpdater) fetchFeed(feedURL string, etag data.String) (*rawFeed, err
 			return nil, fmt.Errorf("Unable to read response body: %v", err)
 		}
 
-		feed.etag = newStringFallback(resp.Header.Get("Etag"), data.Null)
+		feed.etag = newStringFallback(resp.Header.Get("Etag"), pgtype.Null)
 
 		return feed, nil
 	case 304:
@@ -113,28 +114,28 @@ func (u *FeedUpdater) fetchFeed(feedURL string, etag data.String) (*rawFeed, err
 }
 
 func (u *FeedUpdater) RefreshFeed(staleFeed data.Feed) {
-	rawFeed, err := u.fetchFeed(staleFeed.URL.Value, staleFeed.ETag)
+	rawFeed, err := u.fetchFeed(staleFeed.URL.String, staleFeed.ETag)
 	if err != nil {
-		u.logger.Error("fetchFeed failed", "url", staleFeed.URL.Value, "error", err)
-		data.UpdateFeedWithFetchFailure(u.pool, staleFeed.ID.Value, err.Error(), time.Now())
+		u.logger.Error("fetchFeed failed", "url", staleFeed.URL.String, "error", err)
+		data.UpdateFeedWithFetchFailure(u.pool, staleFeed.ID.Int, err.Error(), time.Now())
 		return
 	}
 	// 304 unchanged
 	if rawFeed == nil {
 		u.logger.Info("fetchFeed 304 unchanged", "url", staleFeed.URL.Value)
-		data.UpdateFeedWithFetchUnchanged(u.pool, staleFeed.ID.Value, time.Now())
+		data.UpdateFeedWithFetchUnchanged(u.pool, staleFeed.ID.Int, time.Now())
 		return
 	}
 
 	feed, err := parseFeed(rawFeed.body)
 	if err != nil {
 		u.logger.Error("parseFeed failed", "url", staleFeed.URL.Value, "error", err)
-		data.UpdateFeedWithFetchFailure(u.pool, staleFeed.ID.Value, fmt.Sprintf("Unable to parse feed: %v", err), time.Now())
+		data.UpdateFeedWithFetchFailure(u.pool, staleFeed.ID.Int, fmt.Sprintf("Unable to parse feed: %v", err), time.Now())
 		return
 	}
 
-	u.logger.Info("refreshFeed succeeded", "url", staleFeed.URL.Value, "id", staleFeed.ID.Value)
-	data.UpdateFeedWithFetchSuccess(u.pool, staleFeed.ID.Value, feed, rawFeed.etag, time.Now())
+	u.logger.Info("refreshFeed succeeded", "url", staleFeed.URL.Value, "id", staleFeed.ID.Int)
+	data.UpdateFeedWithFetchSuccess(u.pool, staleFeed.ID.Int, feed, rawFeed.etag, time.Now())
 }
 
 func parseFeed(body []byte) (f *data.ParsedFeed, err error) {
@@ -258,7 +259,7 @@ func parseXML(body []byte, doc interface{}) error {
 }
 
 // Try multiple time formats one after another until one works or all fail
-func parseTime(value string) (data.Time, error) {
+func parseTime(value string) (pgtype.Timestamptz, error) {
 	formats := []string{
 		"2006-01-02T15:04:05-07:00",
 		"2006-01-02T15:04:05Z",
@@ -273,9 +274,9 @@ func parseTime(value string) (data.Time, error) {
 	for _, f := range formats {
 		t, err := time.Parse(f, value)
 		if err == nil {
-			return data.NewTime(t), nil
+			return pgtype.Timestamptz{Time: t, Status: pgtype.Present}, nil
 		}
 	}
 
-	return data.Time{}, errors.New("Unable to parse time")
+	return pgtype.Timestamptz{}, errors.New("Unable to parse time")
 }

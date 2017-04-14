@@ -2,6 +2,8 @@ package pgx
 
 import (
 	"encoding/binary"
+
+	"github.com/jackc/pgx/pgtype"
 )
 
 const (
@@ -25,6 +27,10 @@ const (
 	noData               = 'n'
 	closeComplete        = '3'
 	flush                = 'H'
+	copyInResponse       = 'G'
+	copyData             = 'd'
+	copyFail             = 'f'
+	copyDone             = 'c'
 )
 
 type startupMessage struct {
@@ -35,10 +41,10 @@ func newStartupMessage() *startupMessage {
 	return &startupMessage{map[string]string{}}
 }
 
-func (self *startupMessage) Bytes() (buf []byte) {
+func (s *startupMessage) Bytes() (buf []byte) {
 	buf = make([]byte, 8, 128)
 	binary.BigEndian.PutUint32(buf[4:8], uint32(protocolVersionNumber))
-	for key, value := range self.options {
+	for key, value := range s.options {
 		buf = append(buf, key...)
 		buf = append(buf, 0)
 		buf = append(buf, value...)
@@ -49,13 +55,11 @@ func (self *startupMessage) Bytes() (buf []byte) {
 	return buf
 }
 
-type Oid int32
-
 type FieldDescription struct {
 	Name            string
-	Table           Oid
+	Table           pgtype.Oid
 	AttributeNumber int16
-	DataType        Oid
+	DataType        pgtype.Oid
 	DataTypeSize    int16
 	DataTypeName    string
 	Modifier        int32
@@ -85,19 +89,21 @@ type PgError struct {
 	Routine          string
 }
 
-func (self PgError) Error() string {
-	return self.Severity + ": " + self.Message + " (SQLSTATE " + self.Code + ")"
+func (pe PgError) Error() string {
+	return pe.Severity + ": " + pe.Message + " (SQLSTATE " + pe.Code + ")"
 }
 
 func newWriteBuf(c *Conn, t byte) *WriteBuf {
 	buf := append(c.wbuf[0:0], t, 0, 0, 0, 0)
-	return &WriteBuf{buf: buf, sizeIdx: 1, conn: c}
+	c.writeBuf = WriteBuf{buf: buf, sizeIdx: 1, conn: c}
+	return &c.writeBuf
 }
 
-// WrifeBuf is used build messages to send to the PostgreSQL server. It is used
+// WriteBuf is used build messages to send to the PostgreSQL server. It is used
 // by the Encoder interface when implementing custom encoders.
 type WriteBuf struct {
 	buf     []byte
+	convBuf [8]byte
 	sizeIdx int
 	conn    *Conn
 }
@@ -122,23 +128,40 @@ func (wb *WriteBuf) WriteCString(s string) {
 }
 
 func (wb *WriteBuf) WriteInt16(n int16) {
-	b := make([]byte, 2)
-	binary.BigEndian.PutUint16(b, uint16(n))
-	wb.buf = append(wb.buf, b...)
+	wb.WriteUint16(uint16(n))
+}
+
+func (wb *WriteBuf) WriteUint16(n uint16) (int, error) {
+	binary.BigEndian.PutUint16(wb.convBuf[:2], n)
+	wb.buf = append(wb.buf, wb.convBuf[:2]...)
+	return 2, nil
 }
 
 func (wb *WriteBuf) WriteInt32(n int32) {
-	b := make([]byte, 4)
-	binary.BigEndian.PutUint32(b, uint32(n))
-	wb.buf = append(wb.buf, b...)
+	wb.WriteUint32(uint32(n))
+}
+
+func (wb *WriteBuf) WriteUint32(n uint32) (int, error) {
+	binary.BigEndian.PutUint32(wb.convBuf[:4], n)
+	wb.buf = append(wb.buf, wb.convBuf[:4]...)
+	return 4, nil
 }
 
 func (wb *WriteBuf) WriteInt64(n int64) {
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, uint64(n))
-	wb.buf = append(wb.buf, b...)
+	wb.WriteUint64(uint64(n))
+}
+
+func (wb *WriteBuf) WriteUint64(n uint64) (int, error) {
+	binary.BigEndian.PutUint64(wb.convBuf[:8], n)
+	wb.buf = append(wb.buf, wb.convBuf[:8]...)
+	return 8, nil
 }
 
 func (wb *WriteBuf) WriteBytes(b []byte) {
 	wb.buf = append(wb.buf, b...)
+}
+
+func (wb *WriteBuf) Write(b []byte) (int, error) {
+	wb.buf = append(wb.buf, b...)
+	return len(b), nil
 }

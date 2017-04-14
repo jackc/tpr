@@ -6,12 +6,13 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx"
+	"github.com/jackc/pgx/pgtype"
 )
 
 type Session struct {
-	ID        Bytes
-	UserID    Int32
-	StartTime Time
+	ID        pgtype.Bytea
+	UserID    pgtype.Int4
+	StartTime pgtype.Timestamptz
 }
 
 const countSessionSQL = `select count(*) from "sessions"`
@@ -84,9 +85,18 @@ func InsertSession(db Queryer, row *Session) error {
 
 	var columns, values []string
 
-	row.ID.addInsert(`id`, &columns, &values, &args)
-	row.UserID.addInsert(`user_id`, &columns, &values, &args)
-	row.StartTime.addInsert(`start_time`, &columns, &values, &args)
+	if row.ID.Status != pgtype.Undefined {
+		columns = append(columns, `id`)
+		values = append(values, args.Append(&row.ID))
+	}
+	if row.UserID.Status != pgtype.Undefined {
+		columns = append(columns, `user_id`)
+		values = append(values, args.Append(&row.UserID))
+	}
+	if row.StartTime.Status != pgtype.Undefined {
+		columns = append(columns, `start_time`)
+		values = append(values, args.Append(&row.StartTime))
+	}
 
 	sql := `insert into "sessions"(` + strings.Join(columns, ", ") + `)
 values(` + strings.Join(values, ",") + `)
@@ -105,9 +115,15 @@ func UpdateSession(db Queryer,
 	sets := make([]string, 0, 3)
 	args := pgx.QueryArgs(make([]interface{}, 0, 3))
 
-	row.ID.addUpdate(`id`, &sets, &args)
-	row.UserID.addUpdate(`user_id`, &sets, &args)
-	row.StartTime.addUpdate(`start_time`, &sets, &args)
+	if row.ID.Status != pgtype.Undefined {
+		sets = append(sets, `id`+"="+args.Append(&row.ID))
+	}
+	if row.UserID.Status != pgtype.Undefined {
+		sets = append(sets, `user_id`+"="+args.Append(&row.UserID))
+	}
+	if row.StartTime.Status != pgtype.Undefined {
+		sets = append(sets, `start_time`+"="+args.Append(&row.StartTime))
+	}
 
 	if len(sets) == 0 {
 		return nil

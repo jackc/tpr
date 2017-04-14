@@ -1,10 +1,69 @@
-# Tip
+# Unreleased
+
+## Fixes
+
+* Oid underlying type changed to uint32, previously it was incorrectly int32 (Manni Wood)
+* Explicitly close checked-in connections on ConnPool.Reset, previously they were closed by GC
+
+## Features
+
+* Add xid type support (Manni Wood)
+* Add cid type support (Manni Wood)
+* Add tid type support (Manni Wood)
+* Add "char" type support (Manni Wood)
+* Add NullOid type (Manni Wood)
+* Add json/jsonb binary support to allow use with CopyTo
+* Add named error ErrAcquireTimeout (Alexander Staubo)
+* Add logical replication decoding (Kris Wehner)
+* Add PgxScanner interface to allow types to simultaneously support database/sql and pgx (Jack Christensen)
+
+## Compatibility
+
+* jsonb now defaults to binary format. This means passing a []byte to a jsonb column will no longer work.
+
+# 2.9.0 (August 26, 2016)
+
+## Fixes
+
+* Fix *ConnPool.Deallocate() not deleting prepared statement from map
+* Fix stdlib not logging unprepared query SQL (Krzysztof Dryś)
+* Fix Rows.Values() with varchar binary format
+* Concurrent ConnPool.Acquire calls with Dialer timeouts now timeout in the expected amount of time (Konstantin Dzreev)
+
+## Features
+
+* Add CopyTo
+* Add PrepareEx
+* Add basic record to []interface{} decoding
+* Encode and decode between all Go and PostgreSQL integer types with bounds checking
+* Decode inet/cidr to net.IP
+* Encode/decode [][]byte to/from bytea[]
+* Encode/decode named types whose underlying types are string, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64
+
+## Performance
+
+* Substantial reduction in memory allocations
+
+# 2.8.1 (March 24, 2016)
+
+## Features
+
+* Scan accepts nil argument to ignore a column
+
+## Fixes
+
+* Fix compilation on 32-bit architecture
+* Fix Tx.status not being set on error on Commit
+* Fix Listen/Unlisten with special characters
+
+# 2.8.0 (March 18, 2016)
 
 ## Fixes
 
 * Fix unrecognized commit failure
 * Fix msgReader.rxMsg bug when msgReader already has error
 * Go float64 can no longer be encoded to a PostgreSQL float4
+* Fix connection corruption when query with error is closed early
 
 ## Features
 
@@ -28,6 +87,8 @@ standard database/sql package such as
 * Add Decode() to allow customer Decoders to reuse internal decoding functionality
 * Add ConnPool.Prepare method
 * Add ConnPool.Deallocate method
+* Add Scan to uint32 and uint64 (utrack)
+* Add encode and decode to []uint16, []uint32, and []uint64 (Max Musatov)
 
 ## Performance
 

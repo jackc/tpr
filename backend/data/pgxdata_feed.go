@@ -6,18 +6,19 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx"
+	"github.com/jackc/pgx/pgtype"
 )
 
 type Feed struct {
-	ID              Int32
-	Name            String
-	URL             String
-	LastFetchTime   Time
-	ETag            String
-	LastFailure     String
-	LastFailureTime Time
-	FailureCount    Int32
-	CreationTime    Time
+	ID              pgtype.Int4
+	Name            pgtype.Varchar
+	URL             pgtype.Varchar
+	LastFetchTime   pgtype.Timestamptz
+	ETag            pgtype.Varchar
+	LastFailure     pgtype.Varchar
+	LastFailureTime pgtype.Timestamptz
+	FailureCount    pgtype.Int4
+	CreationTime    pgtype.Timestamptz
 }
 
 const countFeedSQL = `select count(*) from "feeds"`
@@ -114,15 +115,42 @@ func InsertFeed(db Queryer, row *Feed) error {
 
 	var columns, values []string
 
-	row.ID.addInsert(`id`, &columns, &values, &args)
-	row.Name.addInsert(`name`, &columns, &values, &args)
-	row.URL.addInsert(`url`, &columns, &values, &args)
-	row.LastFetchTime.addInsert(`last_fetch_time`, &columns, &values, &args)
-	row.ETag.addInsert(`etag`, &columns, &values, &args)
-	row.LastFailure.addInsert(`last_failure`, &columns, &values, &args)
-	row.LastFailureTime.addInsert(`last_failure_time`, &columns, &values, &args)
-	row.FailureCount.addInsert(`failure_count`, &columns, &values, &args)
-	row.CreationTime.addInsert(`creation_time`, &columns, &values, &args)
+	if row.ID.Status != pgtype.Undefined {
+		columns = append(columns, `id`)
+		values = append(values, args.Append(&row.ID))
+	}
+	if row.Name.Status != pgtype.Undefined {
+		columns = append(columns, `name`)
+		values = append(values, args.Append(&row.Name))
+	}
+	if row.URL.Status != pgtype.Undefined {
+		columns = append(columns, `url`)
+		values = append(values, args.Append(&row.URL))
+	}
+	if row.LastFetchTime.Status != pgtype.Undefined {
+		columns = append(columns, `last_fetch_time`)
+		values = append(values, args.Append(&row.LastFetchTime))
+	}
+	if row.ETag.Status != pgtype.Undefined {
+		columns = append(columns, `etag`)
+		values = append(values, args.Append(&row.ETag))
+	}
+	if row.LastFailure.Status != pgtype.Undefined {
+		columns = append(columns, `last_failure`)
+		values = append(values, args.Append(&row.LastFailure))
+	}
+	if row.LastFailureTime.Status != pgtype.Undefined {
+		columns = append(columns, `last_failure_time`)
+		values = append(values, args.Append(&row.LastFailureTime))
+	}
+	if row.FailureCount.Status != pgtype.Undefined {
+		columns = append(columns, `failure_count`)
+		values = append(values, args.Append(&row.FailureCount))
+	}
+	if row.CreationTime.Status != pgtype.Undefined {
+		columns = append(columns, `creation_time`)
+		values = append(values, args.Append(&row.CreationTime))
+	}
 
 	sql := `insert into "feeds"(` + strings.Join(columns, ", ") + `)
 values(` + strings.Join(values, ",") + `)
@@ -141,15 +169,33 @@ func UpdateFeed(db Queryer,
 	sets := make([]string, 0, 9)
 	args := pgx.QueryArgs(make([]interface{}, 0, 9))
 
-	row.ID.addUpdate(`id`, &sets, &args)
-	row.Name.addUpdate(`name`, &sets, &args)
-	row.URL.addUpdate(`url`, &sets, &args)
-	row.LastFetchTime.addUpdate(`last_fetch_time`, &sets, &args)
-	row.ETag.addUpdate(`etag`, &sets, &args)
-	row.LastFailure.addUpdate(`last_failure`, &sets, &args)
-	row.LastFailureTime.addUpdate(`last_failure_time`, &sets, &args)
-	row.FailureCount.addUpdate(`failure_count`, &sets, &args)
-	row.CreationTime.addUpdate(`creation_time`, &sets, &args)
+	if row.ID.Status != pgtype.Undefined {
+		sets = append(sets, `id`+"="+args.Append(&row.ID))
+	}
+	if row.Name.Status != pgtype.Undefined {
+		sets = append(sets, `name`+"="+args.Append(&row.Name))
+	}
+	if row.URL.Status != pgtype.Undefined {
+		sets = append(sets, `url`+"="+args.Append(&row.URL))
+	}
+	if row.LastFetchTime.Status != pgtype.Undefined {
+		sets = append(sets, `last_fetch_time`+"="+args.Append(&row.LastFetchTime))
+	}
+	if row.ETag.Status != pgtype.Undefined {
+		sets = append(sets, `etag`+"="+args.Append(&row.ETag))
+	}
+	if row.LastFailure.Status != pgtype.Undefined {
+		sets = append(sets, `last_failure`+"="+args.Append(&row.LastFailure))
+	}
+	if row.LastFailureTime.Status != pgtype.Undefined {
+		sets = append(sets, `last_failure_time`+"="+args.Append(&row.LastFailureTime))
+	}
+	if row.FailureCount.Status != pgtype.Undefined {
+		sets = append(sets, `failure_count`+"="+args.Append(&row.FailureCount))
+	}
+	if row.CreationTime.Status != pgtype.Undefined {
+		sets = append(sets, `creation_time`+"="+args.Append(&row.CreationTime))
+	}
 
 	if len(sets) == 0 {
 		return nil
