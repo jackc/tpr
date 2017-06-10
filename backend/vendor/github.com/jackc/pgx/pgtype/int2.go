@@ -3,12 +3,11 @@ package pgtype
 import (
 	"database/sql/driver"
 	"encoding/binary"
-	"fmt"
-	"io"
 	"math"
 	"strconv"
 
 	"github.com/jackc/pgx/pgio"
+	"github.com/pkg/errors"
 )
 
 type Int2 struct {
@@ -31,46 +30,46 @@ func (dst *Int2) Set(src interface{}) error {
 		*dst = Int2{Int: int16(value), Status: Present}
 	case uint16:
 		if value > math.MaxInt16 {
-			return fmt.Errorf("%d is greater than maximum value for Int2", value)
+			return errors.Errorf("%d is greater than maximum value for Int2", value)
 		}
 		*dst = Int2{Int: int16(value), Status: Present}
 	case int32:
 		if value < math.MinInt16 {
-			return fmt.Errorf("%d is greater than maximum value for Int2", value)
+			return errors.Errorf("%d is greater than maximum value for Int2", value)
 		}
 		if value > math.MaxInt16 {
-			return fmt.Errorf("%d is greater than maximum value for Int2", value)
+			return errors.Errorf("%d is greater than maximum value for Int2", value)
 		}
 		*dst = Int2{Int: int16(value), Status: Present}
 	case uint32:
 		if value > math.MaxInt16 {
-			return fmt.Errorf("%d is greater than maximum value for Int2", value)
+			return errors.Errorf("%d is greater than maximum value for Int2", value)
 		}
 		*dst = Int2{Int: int16(value), Status: Present}
 	case int64:
 		if value < math.MinInt16 {
-			return fmt.Errorf("%d is greater than maximum value for Int2", value)
+			return errors.Errorf("%d is greater than maximum value for Int2", value)
 		}
 		if value > math.MaxInt16 {
-			return fmt.Errorf("%d is greater than maximum value for Int2", value)
+			return errors.Errorf("%d is greater than maximum value for Int2", value)
 		}
 		*dst = Int2{Int: int16(value), Status: Present}
 	case uint64:
 		if value > math.MaxInt16 {
-			return fmt.Errorf("%d is greater than maximum value for Int2", value)
+			return errors.Errorf("%d is greater than maximum value for Int2", value)
 		}
 		*dst = Int2{Int: int16(value), Status: Present}
 	case int:
 		if value < math.MinInt16 {
-			return fmt.Errorf("%d is greater than maximum value for Int2", value)
+			return errors.Errorf("%d is greater than maximum value for Int2", value)
 		}
 		if value > math.MaxInt16 {
-			return fmt.Errorf("%d is greater than maximum value for Int2", value)
+			return errors.Errorf("%d is greater than maximum value for Int2", value)
 		}
 		*dst = Int2{Int: int16(value), Status: Present}
 	case uint:
 		if value > math.MaxInt16 {
-			return fmt.Errorf("%d is greater than maximum value for Int2", value)
+			return errors.Errorf("%d is greater than maximum value for Int2", value)
 		}
 		*dst = Int2{Int: int16(value), Status: Present}
 	case string:
@@ -83,7 +82,7 @@ func (dst *Int2) Set(src interface{}) error {
 		if originalSrc, ok := underlyingNumberType(src); ok {
 			return dst.Set(originalSrc)
 		}
-		return fmt.Errorf("cannot convert %v to Int2", value)
+		return errors.Errorf("cannot convert %v to Int2", value)
 	}
 
 	return nil
@@ -126,7 +125,7 @@ func (dst *Int2) DecodeBinary(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) != 2 {
-		return fmt.Errorf("invalid length for int2: %v", len(src))
+		return errors.Errorf("invalid length for int2: %v", len(src))
 	}
 
 	n := int16(binary.BigEndian.Uint16(src))
@@ -134,28 +133,26 @@ func (dst *Int2) DecodeBinary(ci *ConnInfo, src []byte) error {
 	return nil
 }
 
-func (src Int2) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Int2) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	_, err := io.WriteString(w, strconv.FormatInt(int64(src.Int), 10))
-	return false, err
+	return append(buf, strconv.FormatInt(int64(src.Int), 10)...), nil
 }
 
-func (src Int2) EncodeBinary(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Int2) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	_, err := pgio.WriteInt16(w, src.Int)
-	return false, err
+	return pgio.AppendInt16(buf, src.Int), nil
 }
 
 // Scan implements the database/sql Scanner interface.
@@ -168,24 +165,26 @@ func (dst *Int2) Scan(src interface{}) error {
 	switch src := src.(type) {
 	case int64:
 		if src < math.MinInt16 {
-			return fmt.Errorf("%d is greater than maximum value for Int2", src)
+			return errors.Errorf("%d is greater than maximum value for Int2", src)
 		}
 		if src > math.MaxInt16 {
-			return fmt.Errorf("%d is greater than maximum value for Int2", src)
+			return errors.Errorf("%d is greater than maximum value for Int2", src)
 		}
 		*dst = Int2{Int: int16(src), Status: Present}
 		return nil
 	case string:
 		return dst.DecodeText(nil, []byte(src))
 	case []byte:
-		return dst.DecodeText(nil, src)
+		srcCopy := make([]byte, len(src))
+		copy(srcCopy, src)
+		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
-func (src Int2) Value() (driver.Value, error) {
+func (src *Int2) Value() (driver.Value, error) {
 	switch src.Status {
 	case Present:
 		return int64(src.Int), nil
@@ -196,7 +195,7 @@ func (src Int2) Value() (driver.Value, error) {
 	}
 }
 
-func (src Int2) MarshalJSON() ([]byte, error) {
+func (src *Int2) MarshalJSON() ([]byte, error) {
 	switch src.Status {
 	case Present:
 		return []byte(strconv.FormatInt(int64(src.Int), 10)), nil

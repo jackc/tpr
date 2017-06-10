@@ -2,11 +2,11 @@ package pgtype
 
 import (
 	"database/sql/driver"
-	"fmt"
-	"io"
+
+	"github.com/pkg/errors"
 )
 
-// Aclitem is used for PostgreSQL's aclitem data type. A sample aclitem
+// ACLItem is used for PostgreSQL's aclitem data type. A sample aclitem
 // might look like this:
 //
 //	postgres=arwdDxt/postgres
@@ -18,32 +18,32 @@ import (
 //
 //	postgres=arwdDxt/"role with spaces"
 //
-type Aclitem struct {
+type ACLItem struct {
 	String string
 	Status Status
 }
 
-func (dst *Aclitem) Set(src interface{}) error {
+func (dst *ACLItem) Set(src interface{}) error {
 	switch value := src.(type) {
 	case string:
-		*dst = Aclitem{String: value, Status: Present}
+		*dst = ACLItem{String: value, Status: Present}
 	case *string:
 		if value == nil {
-			*dst = Aclitem{Status: Null}
+			*dst = ACLItem{Status: Null}
 		} else {
-			*dst = Aclitem{String: *value, Status: Present}
+			*dst = ACLItem{String: *value, Status: Present}
 		}
 	default:
 		if originalSrc, ok := underlyingStringType(src); ok {
 			return dst.Set(originalSrc)
 		}
-		return fmt.Errorf("cannot convert %v to Aclitem", value)
+		return errors.Errorf("cannot convert %v to ACLItem", value)
 	}
 
 	return nil
 }
 
-func (dst *Aclitem) Get() interface{} {
+func (dst *ACLItem) Get() interface{} {
 	switch dst.Status {
 	case Present:
 		return dst.String
@@ -54,7 +54,7 @@ func (dst *Aclitem) Get() interface{} {
 	}
 }
 
-func (src *Aclitem) AssignTo(dst interface{}) error {
+func (src *ACLItem) AssignTo(dst interface{}) error {
 	switch src.Status {
 	case Present:
 		switch v := dst.(type) {
@@ -67,38 +67,37 @@ func (src *Aclitem) AssignTo(dst interface{}) error {
 			}
 		}
 	case Null:
-		return nullAssignTo(dst)
+		return NullAssignTo(dst)
 	}
 
-	return fmt.Errorf("cannot decode %v into %T", src, dst)
+	return errors.Errorf("cannot decode %v into %T", src, dst)
 }
 
-func (dst *Aclitem) DecodeText(ci *ConnInfo, src []byte) error {
+func (dst *ACLItem) DecodeText(ci *ConnInfo, src []byte) error {
 	if src == nil {
-		*dst = Aclitem{Status: Null}
+		*dst = ACLItem{Status: Null}
 		return nil
 	}
 
-	*dst = Aclitem{String: string(src), Status: Present}
+	*dst = ACLItem{String: string(src), Status: Present}
 	return nil
 }
 
-func (src Aclitem) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *ACLItem) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	_, err := io.WriteString(w, src.String)
-	return false, err
+	return append(buf, src.String...), nil
 }
 
 // Scan implements the database/sql Scanner interface.
-func (dst *Aclitem) Scan(src interface{}) error {
+func (dst *ACLItem) Scan(src interface{}) error {
 	if src == nil {
-		*dst = Aclitem{Status: Null}
+		*dst = ACLItem{Status: Null}
 		return nil
 	}
 
@@ -106,14 +105,16 @@ func (dst *Aclitem) Scan(src interface{}) error {
 	case string:
 		return dst.DecodeText(nil, []byte(src))
 	case []byte:
-		return dst.DecodeText(nil, src)
+		srcCopy := make([]byte, len(src))
+		copy(srcCopy, src)
+		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
-func (src Aclitem) Value() (driver.Value, error) {
+func (src *ACLItem) Value() (driver.Value, error) {
 	switch src.Status {
 	case Present:
 		return src.String, nil

@@ -13,6 +13,7 @@ import (
 
 	"github.com/jackc/cli"
 	"github.com/jackc/pgx"
+	"github.com/jackc/pgx/log/log15adapter"
 	"github.com/jackc/tpr/backend/data"
 	"github.com/vaughan0/go-ini"
 	log "gopkg.in/inconshreveable/log15.v2"
@@ -113,7 +114,7 @@ func newPool(conf ini.File, logger log.Logger) (*pgx.ConnPool, error) {
 		setFilterHandler(level, logger, log.StdoutHandler)
 	}
 
-	connConfig := pgx.ConnConfig{Logger: &log15Adapter{logger: logger}}
+	connConfig := pgx.ConnConfig{Logger: log15adapter.NewLogger(logger)}
 
 	connConfig.Host, _ = conf.Get("database", "host")
 	if connConfig.Host == "" {

@@ -3,25 +3,24 @@ package pgtype
 import (
 	"database/sql/driver"
 	"encoding/binary"
-	"fmt"
-	"io"
 	"strconv"
 
 	"github.com/jackc/pgx/pgio"
+	"github.com/pkg/errors"
 )
 
-// Oid (Object Identifier Type) is, according to
+// OID (Object Identifier Type) is, according to
 // https://www.postgresql.org/docs/current/static/datatype-oid.html, used
 // internally by PostgreSQL as a primary key for various system tables. It is
 // currently implemented as an unsigned four-byte integer. Its definition can be
 // found in src/include/postgres_ext.h in the PostgreSQL sources. Because it is
-// so frequently required to be in a NOT NULL condition Oid cannot be NULL. To
-// allow for NULL Oids use OidValue.
-type Oid uint32
+// so frequently required to be in a NOT NULL condition OID cannot be NULL. To
+// allow for NULL OIDs use OIDValue.
+type OID uint32
 
-func (dst *Oid) DecodeText(ci *ConnInfo, src []byte) error {
+func (dst *OID) DecodeText(ci *ConnInfo, src []byte) error {
 	if src == nil {
-		return fmt.Errorf("cannot decode nil into Oid")
+		return errors.Errorf("cannot decode nil into OID")
 	}
 
 	n, err := strconv.ParseUint(string(src), 10, 32)
@@ -29,54 +28,54 @@ func (dst *Oid) DecodeText(ci *ConnInfo, src []byte) error {
 		return err
 	}
 
-	*dst = Oid(n)
+	*dst = OID(n)
 	return nil
 }
 
-func (dst *Oid) DecodeBinary(ci *ConnInfo, src []byte) error {
+func (dst *OID) DecodeBinary(ci *ConnInfo, src []byte) error {
 	if src == nil {
-		return fmt.Errorf("cannot decode nil into Oid")
+		return errors.Errorf("cannot decode nil into OID")
 	}
 
 	if len(src) != 4 {
-		return fmt.Errorf("invalid length: %v", len(src))
+		return errors.Errorf("invalid length: %v", len(src))
 	}
 
 	n := binary.BigEndian.Uint32(src)
-	*dst = Oid(n)
+	*dst = OID(n)
 	return nil
 }
 
-func (src Oid) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
-	_, err := io.WriteString(w, strconv.FormatUint(uint64(src), 10))
-	return false, err
+func (src OID) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
+	return append(buf, strconv.FormatUint(uint64(src), 10)...), nil
 }
 
-func (src Oid) EncodeBinary(ci *ConnInfo, w io.Writer) (bool, error) {
-	_, err := pgio.WriteUint32(w, uint32(src))
-	return false, err
+func (src OID) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
+	return pgio.AppendUint32(buf, uint32(src)), nil
 }
 
 // Scan implements the database/sql Scanner interface.
-func (dst *Oid) Scan(src interface{}) error {
+func (dst *OID) Scan(src interface{}) error {
 	if src == nil {
-		return fmt.Errorf("cannot scan NULL into %T", src)
+		return errors.Errorf("cannot scan NULL into %T", src)
 	}
 
 	switch src := src.(type) {
 	case int64:
-		*dst = Oid(src)
+		*dst = OID(src)
 		return nil
 	case string:
 		return dst.DecodeText(nil, []byte(src))
 	case []byte:
-		return dst.DecodeText(nil, src)
+		srcCopy := make([]byte, len(src))
+		copy(srcCopy, src)
+		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
-func (src Oid) Value() (driver.Value, error) {
+func (src OID) Value() (driver.Value, error) {
 	return int64(src), nil
 }

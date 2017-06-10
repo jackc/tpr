@@ -3,12 +3,11 @@ package pgtype
 import (
 	"database/sql/driver"
 	"encoding/binary"
-	"fmt"
-	"io"
 	"math"
 	"strconv"
 
 	"github.com/jackc/pgx/pgio"
+	"github.com/pkg/errors"
 )
 
 type Int4 struct {
@@ -35,33 +34,33 @@ func (dst *Int4) Set(src interface{}) error {
 		*dst = Int4{Int: int32(value), Status: Present}
 	case uint32:
 		if value > math.MaxInt32 {
-			return fmt.Errorf("%d is greater than maximum value for Int4", value)
+			return errors.Errorf("%d is greater than maximum value for Int4", value)
 		}
 		*dst = Int4{Int: int32(value), Status: Present}
 	case int64:
 		if value < math.MinInt32 {
-			return fmt.Errorf("%d is greater than maximum value for Int4", value)
+			return errors.Errorf("%d is greater than maximum value for Int4", value)
 		}
 		if value > math.MaxInt32 {
-			return fmt.Errorf("%d is greater than maximum value for Int4", value)
+			return errors.Errorf("%d is greater than maximum value for Int4", value)
 		}
 		*dst = Int4{Int: int32(value), Status: Present}
 	case uint64:
 		if value > math.MaxInt32 {
-			return fmt.Errorf("%d is greater than maximum value for Int4", value)
+			return errors.Errorf("%d is greater than maximum value for Int4", value)
 		}
 		*dst = Int4{Int: int32(value), Status: Present}
 	case int:
 		if value < math.MinInt32 {
-			return fmt.Errorf("%d is greater than maximum value for Int4", value)
+			return errors.Errorf("%d is greater than maximum value for Int4", value)
 		}
 		if value > math.MaxInt32 {
-			return fmt.Errorf("%d is greater than maximum value for Int4", value)
+			return errors.Errorf("%d is greater than maximum value for Int4", value)
 		}
 		*dst = Int4{Int: int32(value), Status: Present}
 	case uint:
 		if value > math.MaxInt32 {
-			return fmt.Errorf("%d is greater than maximum value for Int4", value)
+			return errors.Errorf("%d is greater than maximum value for Int4", value)
 		}
 		*dst = Int4{Int: int32(value), Status: Present}
 	case string:
@@ -74,7 +73,7 @@ func (dst *Int4) Set(src interface{}) error {
 		if originalSrc, ok := underlyingNumberType(src); ok {
 			return dst.Set(originalSrc)
 		}
-		return fmt.Errorf("cannot convert %v to Int4", value)
+		return errors.Errorf("cannot convert %v to Int4", value)
 	}
 
 	return nil
@@ -117,7 +116,7 @@ func (dst *Int4) DecodeBinary(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) != 4 {
-		return fmt.Errorf("invalid length for int4: %v", len(src))
+		return errors.Errorf("invalid length for int4: %v", len(src))
 	}
 
 	n := int32(binary.BigEndian.Uint32(src))
@@ -125,28 +124,26 @@ func (dst *Int4) DecodeBinary(ci *ConnInfo, src []byte) error {
 	return nil
 }
 
-func (src Int4) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Int4) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	_, err := io.WriteString(w, strconv.FormatInt(int64(src.Int), 10))
-	return false, err
+	return append(buf, strconv.FormatInt(int64(src.Int), 10)...), nil
 }
 
-func (src Int4) EncodeBinary(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Int4) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	_, err := pgio.WriteInt32(w, src.Int)
-	return false, err
+	return pgio.AppendInt32(buf, src.Int), nil
 }
 
 // Scan implements the database/sql Scanner interface.
@@ -159,24 +156,26 @@ func (dst *Int4) Scan(src interface{}) error {
 	switch src := src.(type) {
 	case int64:
 		if src < math.MinInt32 {
-			return fmt.Errorf("%d is greater than maximum value for Int4", src)
+			return errors.Errorf("%d is greater than maximum value for Int4", src)
 		}
 		if src > math.MaxInt32 {
-			return fmt.Errorf("%d is greater than maximum value for Int4", src)
+			return errors.Errorf("%d is greater than maximum value for Int4", src)
 		}
 		*dst = Int4{Int: int32(src), Status: Present}
 		return nil
 	case string:
 		return dst.DecodeText(nil, []byte(src))
 	case []byte:
-		return dst.DecodeText(nil, src)
+		srcCopy := make([]byte, len(src))
+		copy(srcCopy, src)
+		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
-func (src Int4) Value() (driver.Value, error) {
+func (src *Int4) Value() (driver.Value, error) {
 	switch src.Status {
 	case Present:
 		return int64(src.Int), nil
@@ -187,7 +186,7 @@ func (src Int4) Value() (driver.Value, error) {
 	}
 }
 
-func (src Int4) MarshalJSON() ([]byte, error) {
+func (src *Int4) MarshalJSON() ([]byte, error) {
 	switch src.Status {
 	case Present:
 		return []byte(strconv.FormatInt(int64(src.Int), 10)), nil

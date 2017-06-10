@@ -2,78 +2,69 @@ package pgtype
 
 import (
 	"database/sql/driver"
-	"fmt"
-	"io"
+
+	"github.com/pkg/errors"
 )
 
-type Jsonb Json
+type JSONB JSON
 
-func (dst *Jsonb) Set(src interface{}) error {
-	return (*Json)(dst).Set(src)
+func (dst *JSONB) Set(src interface{}) error {
+	return (*JSON)(dst).Set(src)
 }
 
-func (dst *Jsonb) Get() interface{} {
-	return (*Json)(dst).Get()
+func (dst *JSONB) Get() interface{} {
+	return (*JSON)(dst).Get()
 }
 
-func (src *Jsonb) AssignTo(dst interface{}) error {
-	return (*Json)(src).AssignTo(dst)
+func (src *JSONB) AssignTo(dst interface{}) error {
+	return (*JSON)(src).AssignTo(dst)
 }
 
-func (dst *Jsonb) DecodeText(ci *ConnInfo, src []byte) error {
-	return (*Json)(dst).DecodeText(ci, src)
+func (dst *JSONB) DecodeText(ci *ConnInfo, src []byte) error {
+	return (*JSON)(dst).DecodeText(ci, src)
 }
 
-func (dst *Jsonb) DecodeBinary(ci *ConnInfo, src []byte) error {
+func (dst *JSONB) DecodeBinary(ci *ConnInfo, src []byte) error {
 	if src == nil {
-		*dst = Jsonb{Status: Null}
+		*dst = JSONB{Status: Null}
 		return nil
 	}
 
 	if len(src) == 0 {
-		return fmt.Errorf("jsonb too short")
+		return errors.Errorf("jsonb too short")
 	}
 
 	if src[0] != 1 {
-		return fmt.Errorf("unknown jsonb version number %d", src[0])
+		return errors.Errorf("unknown jsonb version number %d", src[0])
 	}
-	src = src[1:]
 
-	buf := make([]byte, len(src))
-	copy(buf, src)
-
-	*dst = Jsonb{Bytes: buf, Status: Present}
+	*dst = JSONB{Bytes: src[1:], Status: Present}
 	return nil
 
 }
 
-func (src Jsonb) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
-	return (Json)(src).EncodeText(ci, w)
+func (src *JSONB) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
+	return (*JSON)(src).EncodeText(ci, buf)
 }
 
-func (src Jsonb) EncodeBinary(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *JSONB) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	_, err := w.Write([]byte{1})
-	if err != nil {
-		return false, err
-	}
-
-	_, err = w.Write(src.Bytes)
-	return false, err
+	buf = append(buf, 1)
+	return append(buf, src.Bytes...), nil
 }
 
 // Scan implements the database/sql Scanner interface.
-func (dst *Jsonb) Scan(src interface{}) error {
-	return (*Json)(dst).Scan(src)
+func (dst *JSONB) Scan(src interface{}) error {
+	return (*JSON)(dst).Scan(src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
-func (src Jsonb) Value() (driver.Value, error) {
-	return (Json)(src).Value()
+func (src *JSONB) Value() (driver.Value, error) {
+	return (*JSON)(src).Value()
 }

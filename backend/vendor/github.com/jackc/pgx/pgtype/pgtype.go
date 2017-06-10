@@ -1,54 +1,54 @@
 package pgtype
 
 import (
-	"errors"
-	"io"
 	"reflect"
+
+	"github.com/pkg/errors"
 )
 
 // PostgreSQL oids for common types
 const (
-	BoolOid             = 16
-	ByteaOid            = 17
-	CharOid             = 18
-	NameOid             = 19
-	Int8Oid             = 20
-	Int2Oid             = 21
-	Int4Oid             = 23
-	TextOid             = 25
-	OidOid              = 26
-	TidOid              = 27
-	XidOid              = 28
-	CidOid              = 29
-	JsonOid             = 114
-	CidrOid             = 650
-	CidrArrayOid        = 651
-	Float4Oid           = 700
-	Float8Oid           = 701
-	UnknownOid          = 705
-	InetOid             = 869
-	BoolArrayOid        = 1000
-	Int2ArrayOid        = 1005
-	Int4ArrayOid        = 1007
-	TextArrayOid        = 1009
-	ByteaArrayOid       = 1001
-	VarcharArrayOid     = 1015
-	Int8ArrayOid        = 1016
-	Float4ArrayOid      = 1021
-	Float8ArrayOid      = 1022
-	AclitemOid          = 1033
-	AclitemArrayOid     = 1034
-	InetArrayOid        = 1041
-	VarcharOid          = 1043
-	DateOid             = 1082
-	TimestampOid        = 1114
-	TimestampArrayOid   = 1115
-	DateArrayOid        = 1182
-	TimestamptzOid      = 1184
-	TimestamptzArrayOid = 1185
-	RecordOid           = 2249
-	UuidOid             = 2950
-	JsonbOid            = 3802
+	BoolOID             = 16
+	ByteaOID            = 17
+	CharOID             = 18
+	NameOID             = 19
+	Int8OID             = 20
+	Int2OID             = 21
+	Int4OID             = 23
+	TextOID             = 25
+	OIDOID              = 26
+	TIDOID              = 27
+	XIDOID              = 28
+	CIDOID              = 29
+	JSONOID             = 114
+	CIDROID             = 650
+	CIDRArrayOID        = 651
+	Float4OID           = 700
+	Float8OID           = 701
+	UnknownOID          = 705
+	InetOID             = 869
+	BoolArrayOID        = 1000
+	Int2ArrayOID        = 1005
+	Int4ArrayOID        = 1007
+	TextArrayOID        = 1009
+	ByteaArrayOID       = 1001
+	VarcharArrayOID     = 1015
+	Int8ArrayOID        = 1016
+	Float4ArrayOID      = 1021
+	Float8ArrayOID      = 1022
+	ACLItemOID          = 1033
+	ACLItemArrayOID     = 1034
+	InetArrayOID        = 1041
+	VarcharOID          = 1043
+	DateOID             = 1082
+	TimestampOID        = 1114
+	TimestampArrayOID   = 1115
+	DateArrayOID        = 1182
+	TimestamptzOID      = 1184
+	TimestamptzArrayOID = 1185
+	RecordOID           = 2249
+	UUIDOID             = 2950
+	JSONBOID            = 3802
 )
 
 type Status byte
@@ -96,36 +96,36 @@ type Value interface {
 
 type BinaryDecoder interface {
 	// DecodeBinary decodes src into BinaryDecoder. If src is nil then the
-	// original SQL value is NULL. BinaryDecoder MUST not retain a reference to
-	// src. It MUST make a copy if it needs to retain the raw bytes.
+	// original SQL value is NULL. BinaryDecoder takes ownership of src. The
+	// caller MUST not use it again.
 	DecodeBinary(ci *ConnInfo, src []byte) error
 }
 
 type TextDecoder interface {
 	// DecodeText decodes src into TextDecoder. If src is nil then the original
-	// SQL value is NULL. TextDecoder MUST not retain a reference to src. It MUST
-	// make a copy if it needs to retain the raw bytes.
+	// SQL value is NULL. TextDecoder takes ownership of src. The caller MUST not
+	// use it again.
 	DecodeText(ci *ConnInfo, src []byte) error
 }
 
 // BinaryEncoder is implemented by types that can encode themselves into the
 // PostgreSQL binary wire format.
 type BinaryEncoder interface {
-	// EncodeBinary should encode the binary format of self to w. If self is the
-	// SQL value NULL then write nothing and return (true, nil). The caller of
+	// EncodeBinary should append the binary format of self to buf. If self is the
+	// SQL value NULL then append nothing and return (nil, nil). The caller of
 	// EncodeBinary is responsible for writing the correct NULL value or the
 	// length of the data written.
-	EncodeBinary(ci *ConnInfo, w io.Writer) (null bool, err error)
+	EncodeBinary(ci *ConnInfo, buf []byte) (newBuf []byte, err error)
 }
 
 // TextEncoder is implemented by types that can encode themselves into the
 // PostgreSQL text wire format.
 type TextEncoder interface {
-	// EncodeText should encode the text format of self to w. If self is the SQL
-	// value NULL then write nothing and return (true, nil). The caller of
-	// EncodeText is responsible for writing the correct NULL value or the length
-	// of the data written.
-	EncodeText(ci *ConnInfo, w io.Writer) (null bool, err error)
+	// EncodeText should append the text format of self to buf. If self is the
+	// SQL value NULL then append nothing and return (nil, nil). The caller of
+	// EncodeText is responsible for writing the correct NULL value or the
+	// length of the data written.
+	EncodeText(ci *ConnInfo, buf []byte) (newBuf []byte, err error)
 }
 
 var errUndefined = errors.New("cannot encode status undefined")
@@ -134,42 +134,42 @@ var errBadStatus = errors.New("invalid status")
 type DataType struct {
 	Value Value
 	Name  string
-	Oid   Oid
+	OID   OID
 }
 
 type ConnInfo struct {
-	oidToDataType         map[Oid]*DataType
+	oidToDataType         map[OID]*DataType
 	nameToDataType        map[string]*DataType
 	reflectTypeToDataType map[reflect.Type]*DataType
 }
 
 func NewConnInfo() *ConnInfo {
 	return &ConnInfo{
-		oidToDataType:         make(map[Oid]*DataType, 256),
+		oidToDataType:         make(map[OID]*DataType, 256),
 		nameToDataType:        make(map[string]*DataType, 256),
 		reflectTypeToDataType: make(map[reflect.Type]*DataType, 256),
 	}
 }
 
-func (ci *ConnInfo) InitializeDataTypes(nameOids map[string]Oid) {
-	for name, oid := range nameOids {
+func (ci *ConnInfo) InitializeDataTypes(nameOIDs map[string]OID) {
+	for name, oid := range nameOIDs {
 		var value Value
 		if t, ok := nameValues[name]; ok {
 			value = reflect.New(reflect.ValueOf(t).Elem().Type()).Interface().(Value)
 		} else {
 			value = &GenericText{}
 		}
-		ci.RegisterDataType(DataType{Value: value, Name: name, Oid: oid})
+		ci.RegisterDataType(DataType{Value: value, Name: name, OID: oid})
 	}
 }
 
 func (ci *ConnInfo) RegisterDataType(t DataType) {
-	ci.oidToDataType[t.Oid] = &t
+	ci.oidToDataType[t.OID] = &t
 	ci.nameToDataType[t.Name] = &t
 	ci.reflectTypeToDataType[reflect.ValueOf(t.Value).Type()] = &t
 }
 
-func (ci *ConnInfo) DataTypeForOid(oid Oid) (*DataType, bool) {
+func (ci *ConnInfo) DataTypeForOID(oid OID) (*DataType, bool) {
 	dt, ok := ci.oidToDataType[oid]
 	return dt, ok
 }
@@ -187,7 +187,7 @@ func (ci *ConnInfo) DataTypeForValue(v Value) (*DataType, bool) {
 // DeepCopy makes a deep copy of the ConnInfo.
 func (ci *ConnInfo) DeepCopy() *ConnInfo {
 	ci2 := &ConnInfo{
-		oidToDataType:         make(map[Oid]*DataType, len(ci.oidToDataType)),
+		oidToDataType:         make(map[OID]*DataType, len(ci.oidToDataType)),
 		nameToDataType:        make(map[string]*DataType, len(ci.nameToDataType)),
 		reflectTypeToDataType: make(map[reflect.Type]*DataType, len(ci.reflectTypeToDataType)),
 	}
@@ -196,7 +196,7 @@ func (ci *ConnInfo) DeepCopy() *ConnInfo {
 		ci2.RegisterDataType(DataType{
 			Value: reflect.New(reflect.ValueOf(dt.Value).Elem().Type()).Interface().(Value),
 			Name:  dt.Name,
-			Oid:   dt.Oid,
+			OID:   dt.OID,
 		})
 	}
 
@@ -207,10 +207,10 @@ var nameValues map[string]Value
 
 func init() {
 	nameValues = map[string]Value{
-		"_aclitem":     &AclitemArray{},
+		"_aclitem":     &ACLItemArray{},
 		"_bool":        &BoolArray{},
 		"_bytea":       &ByteaArray{},
-		"_cidr":        &CidrArray{},
+		"_cidr":        &CIDRArray{},
 		"_date":        &DateArray{},
 		"_float4":      &Float4Array{},
 		"_float8":      &Float8Array{},
@@ -223,13 +223,13 @@ func init() {
 		"_timestamp":   &TimestampArray{},
 		"_timestamptz": &TimestamptzArray{},
 		"_varchar":     &VarcharArray{},
-		"aclitem":      &Aclitem{},
+		"aclitem":      &ACLItem{},
 		"bool":         &Bool{},
 		"box":          &Box{},
 		"bytea":        &Bytea{},
 		"char":         &QChar{},
-		"cid":          &Cid{},
-		"cidr":         &Cidr{},
+		"cid":          &CID{},
+		"cidr":         &CIDR{},
 		"circle":       &Circle{},
 		"date":         &Date{},
 		"daterange":    &Daterange{},
@@ -243,29 +243,29 @@ func init() {
 		"int4range":    &Int4range{},
 		"int8":         &Int8{},
 		"int8range":    &Int8range{},
-		"json":         &Json{},
-		"jsonb":        &Jsonb{},
+		"json":         &JSON{},
+		"jsonb":        &JSONB{},
 		"line":         &Line{},
 		"lseg":         &Lseg{},
 		"macaddr":      &Macaddr{},
 		"name":         &Name{},
 		"numeric":      &Numeric{},
 		"numrange":     &Numrange{},
-		"oid":          &OidValue{},
+		"oid":          &OIDValue{},
 		"path":         &Path{},
 		"point":        &Point{},
 		"polygon":      &Polygon{},
 		"record":       &Record{},
 		"text":         &Text{},
-		"tid":          &Tid{},
+		"tid":          &TID{},
 		"timestamp":    &Timestamp{},
 		"timestamptz":  &Timestamptz{},
 		"tsrange":      &Tsrange{},
 		"tstzrange":    &Tstzrange{},
 		"unknown":      &Unknown{},
-		"uuid":         &Uuid{},
+		"uuid":         &UUID{},
 		"varbit":       &Varbit{},
 		"varchar":      &Varchar{},
-		"xid":          &Xid{},
+		"xid":          &XID{},
 	}
 }

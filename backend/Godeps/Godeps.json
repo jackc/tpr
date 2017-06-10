@@ -10,28 +10,38 @@
 		},
 		{
 			"ImportPath": "github.com/jackc/pgx",
-			"Comment": "v2.9.0-292-gfe7d9d3",
-			"Rev": "fe7d9d34622c6c3f0aaee4293ecef0f0971e219d"
+			"Comment": "v2.9.0-378-g1c452a4",
+			"Rev": "1c452a4a1e4585d60f7d2059a0b279fe991fd650"
 		},
 		{
 			"ImportPath": "github.com/jackc/pgx/chunkreader",
-			"Comment": "v2.9.0-292-gfe7d9d3",
-			"Rev": "fe7d9d34622c6c3f0aaee4293ecef0f0971e219d"
+			"Comment": "v2.9.0-378-g1c452a4",
+			"Rev": "1c452a4a1e4585d60f7d2059a0b279fe991fd650"
 		},
 		{
 			"ImportPath": "github.com/jackc/pgx/internal/sanitize",
-			"Comment": "v2.9.0-292-gfe7d9d3",
-			"Rev": "fe7d9d34622c6c3f0aaee4293ecef0f0971e219d"
+			"Comment": "v2.9.0-378-g1c452a4",
+			"Rev": "1c452a4a1e4585d60f7d2059a0b279fe991fd650"
+		},
+		{
+			"ImportPath": "github.com/jackc/pgx/log/log15adapter",
+			"Comment": "v2.9.0-378-g1c452a4",
+			"Rev": "1c452a4a1e4585d60f7d2059a0b279fe991fd650"
 		},
 		{
 			"ImportPath": "github.com/jackc/pgx/pgio",
-			"Comment": "v2.9.0-292-gfe7d9d3",
-			"Rev": "fe7d9d34622c6c3f0aaee4293ecef0f0971e219d"
+			"Comment": "v2.9.0-378-g1c452a4",
+			"Rev": "1c452a4a1e4585d60f7d2059a0b279fe991fd650"
+		},
+		{
+			"ImportPath": "github.com/jackc/pgx/pgproto3",
+			"Comment": "v2.9.0-378-g1c452a4",
+			"Rev": "1c452a4a1e4585d60f7d2059a0b279fe991fd650"
 		},
 		{
 			"ImportPath": "github.com/jackc/pgx/pgtype",
-			"Comment": "v2.9.0-292-gfe7d9d3",
-			"Rev": "fe7d9d34622c6c3f0aaee4293ecef0f0971e219d"
+			"Comment": "v2.9.0-378-g1c452a4",
+			"Rev": "1c452a4a1e4585d60f7d2059a0b279fe991fd650"
 		},
 		{
 			"ImportPath": "github.com/jackc/quo_vadis",
@@ -39,11 +49,17 @@
 		},
 		{
 			"ImportPath": "github.com/mattn/go-colorable",
-			"Rev": "40e4aedc8fabf8c23e040057540867186712faa5"
+			"Comment": "v0.0.7-24-gded68f7",
+			"Rev": "ded68f7a9561c023e790de24279db7ebf473ea80"
 		},
 		{
 			"ImportPath": "github.com/mattn/go-isatty",
 			"Rev": "56b76bdf51f7708750eac80fa38b952bb9f32639"
+		},
+		{
+			"ImportPath": "github.com/pkg/errors",
+			"Comment": "v0.8.0-4-gff09b13",
+			"Rev": "ff09b135c25aae272398c51a07235b90a75aa4f0"
 		},
 		{
 			"ImportPath": "github.com/vaughan0/go-ini",
@@ -59,15 +75,15 @@
 		},
 		{
 			"ImportPath": "golang.org/x/net/html",
-			"Rev": "db8e4de5b2d6653f66aea53094624468caad15d2"
+			"Rev": "0819898fb4973868bba6de59b6aaad75beea9a6a"
 		},
 		{
 			"ImportPath": "golang.org/x/net/html/atom",
-			"Rev": "db8e4de5b2d6653f66aea53094624468caad15d2"
+			"Rev": "0819898fb4973868bba6de59b6aaad75beea9a6a"
 		},
 		{
 			"ImportPath": "golang.org/x/net/html/charset",
-			"Rev": "db8e4de5b2d6653f66aea53094624468caad15d2"
+			"Rev": "0819898fb4973868bba6de59b6aaad75beea9a6a"
 		},
 		{
 			"ImportPath": "golang.org/x/sys/unix",
@@ -79,6 +95,10 @@
 		},
 		{
 			"ImportPath": "golang.org/x/text/encoding/charmap",
+			"Rev": "a49bea13b776691cb1b49873e5d8df96ec74831a"
+		},
+		{
+			"ImportPath": "golang.org/x/text/encoding/htmlindex",
 			"Rev": "a49bea13b776691cb1b49873e5d8df96ec74831a"
 		},
 		{
@@ -110,7 +130,15 @@
 			"Rev": "a49bea13b776691cb1b49873e5d8df96ec74831a"
 		},
 		{
+			"ImportPath": "golang.org/x/text/internal/tag",
+			"Rev": "a49bea13b776691cb1b49873e5d8df96ec74831a"
+		},
+		{
 			"ImportPath": "golang.org/x/text/internal/utf8internal",
+			"Rev": "a49bea13b776691cb1b49873e5d8df96ec74831a"
+		},
+		{
+			"ImportPath": "golang.org/x/text/language",
 			"Rev": "a49bea13b776691cb1b49873e5d8df96ec74831a"
 		},
 		{

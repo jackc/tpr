@@ -4,12 +4,12 @@ import (
 	"database/sql/driver"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"math"
 	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/pgio"
+	"github.com/pkg/errors"
 )
 
 type Circle struct {
@@ -19,7 +19,7 @@ type Circle struct {
 }
 
 func (dst *Circle) Set(src interface{}) error {
-	return fmt.Errorf("cannot convert %v to Circle", src)
+	return errors.Errorf("cannot convert %v to Circle", src)
 }
 
 func (dst *Circle) Get() interface{} {
@@ -34,7 +34,7 @@ func (dst *Circle) Get() interface{} {
 }
 
 func (src *Circle) AssignTo(dst interface{}) error {
-	return fmt.Errorf("cannot assign %v to %T", src, dst)
+	return errors.Errorf("cannot assign %v to %T", src, dst)
 }
 
 func (dst *Circle) DecodeText(ci *ConnInfo, src []byte) error {
@@ -44,7 +44,7 @@ func (dst *Circle) DecodeText(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) < 9 {
-		return fmt.Errorf("invalid length for Circle: %v", len(src))
+		return errors.Errorf("invalid length for Circle: %v", len(src))
 	}
 
 	str := string(src[2:])
@@ -80,7 +80,7 @@ func (dst *Circle) DecodeBinary(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) != 24 {
-		return fmt.Errorf("invalid length for Circle: %v", len(src))
+		return errors.Errorf("invalid length for Circle: %v", len(src))
 	}
 
 	x := binary.BigEndian.Uint64(src)
@@ -95,36 +95,30 @@ func (dst *Circle) DecodeBinary(ci *ConnInfo, src []byte) error {
 	return nil
 }
 
-func (src *Circle) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Circle) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	_, err := io.WriteString(w, fmt.Sprintf(`<(%f,%f),%f>`, src.P.X, src.P.Y, src.R))
-	return false, err
+	buf = append(buf, fmt.Sprintf(`<(%f,%f),%f>`, src.P.X, src.P.Y, src.R)...)
+	return buf, nil
 }
 
-func (src *Circle) EncodeBinary(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Circle) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	if _, err := pgio.WriteUint64(w, math.Float64bits(src.P.X)); err != nil {
-		return false, err
-	}
-
-	if _, err := pgio.WriteUint64(w, math.Float64bits(src.P.Y)); err != nil {
-		return false, err
-	}
-
-	_, err := pgio.WriteUint64(w, math.Float64bits(src.R))
-	return false, err
+	buf = pgio.AppendUint64(buf, math.Float64bits(src.P.X))
+	buf = pgio.AppendUint64(buf, math.Float64bits(src.P.Y))
+	buf = pgio.AppendUint64(buf, math.Float64bits(src.R))
+	return buf, nil
 }
 
 // Scan implements the database/sql Scanner interface.
@@ -138,13 +132,15 @@ func (dst *Circle) Scan(src interface{}) error {
 	case string:
 		return dst.DecodeText(nil, []byte(src))
 	case []byte:
-		return dst.DecodeText(nil, src)
+		srcCopy := make([]byte, len(src))
+		copy(srcCopy, src)
+		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
 func (src *Circle) Value() (driver.Value, error) {
-	return encodeValueText(src)
+	return EncodeValueText(src)
 }

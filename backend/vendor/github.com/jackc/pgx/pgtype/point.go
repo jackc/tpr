@@ -4,12 +4,12 @@ import (
 	"database/sql/driver"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"math"
 	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/pgio"
+	"github.com/pkg/errors"
 )
 
 type Vec2 struct {
@@ -23,7 +23,7 @@ type Point struct {
 }
 
 func (dst *Point) Set(src interface{}) error {
-	return fmt.Errorf("cannot convert %v to Point", src)
+	return errors.Errorf("cannot convert %v to Point", src)
 }
 
 func (dst *Point) Get() interface{} {
@@ -38,7 +38,7 @@ func (dst *Point) Get() interface{} {
 }
 
 func (src *Point) AssignTo(dst interface{}) error {
-	return fmt.Errorf("cannot assign %v to %T", src, dst)
+	return errors.Errorf("cannot assign %v to %T", src, dst)
 }
 
 func (dst *Point) DecodeText(ci *ConnInfo, src []byte) error {
@@ -48,12 +48,12 @@ func (dst *Point) DecodeText(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) < 5 {
-		return fmt.Errorf("invalid length for point: %v", len(src))
+		return errors.Errorf("invalid length for point: %v", len(src))
 	}
 
 	parts := strings.SplitN(string(src[1:len(src)-1]), ",", 2)
 	if len(parts) < 2 {
-		return fmt.Errorf("invalid format for point")
+		return errors.Errorf("invalid format for point")
 	}
 
 	x, err := strconv.ParseFloat(parts[0], 64)
@@ -77,7 +77,7 @@ func (dst *Point) DecodeBinary(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) != 16 {
-		return fmt.Errorf("invalid length for point: %v", len(src))
+		return errors.Errorf("invalid length for point: %v", len(src))
 	}
 
 	x := binary.BigEndian.Uint64(src)
@@ -90,33 +90,28 @@ func (dst *Point) DecodeBinary(ci *ConnInfo, src []byte) error {
 	return nil
 }
 
-func (src *Point) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Point) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	_, err := io.WriteString(w, fmt.Sprintf(`(%f,%f)`, src.P.X, src.P.Y))
-	return false, err
+	return append(buf, fmt.Sprintf(`(%f,%f)`, src.P.X, src.P.Y)...), nil
 }
 
-func (src *Point) EncodeBinary(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Point) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	_, err := pgio.WriteUint64(w, math.Float64bits(src.P.X))
-	if err != nil {
-		return false, err
-	}
-
-	_, err = pgio.WriteUint64(w, math.Float64bits(src.P.Y))
-	return false, err
+	buf = pgio.AppendUint64(buf, math.Float64bits(src.P.X))
+	buf = pgio.AppendUint64(buf, math.Float64bits(src.P.Y))
+	return buf, nil
 }
 
 // Scan implements the database/sql Scanner interface.
@@ -130,13 +125,15 @@ func (dst *Point) Scan(src interface{}) error {
 	case string:
 		return dst.DecodeText(nil, []byte(src))
 	case []byte:
-		return dst.DecodeText(nil, src)
+		srcCopy := make([]byte, len(src))
+		copy(srcCopy, src)
+		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
 func (src *Point) Value() (driver.Value, error) {
-	return encodeValueText(src)
+	return EncodeValueText(src)
 }

@@ -4,14 +4,14 @@ import (
 	"database/sql/driver"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/pgio"
+	"github.com/pkg/errors"
 )
 
-// Tid is PostgreSQL's Tuple Identifier type.
+// TID is PostgreSQL's Tuple Identifier type.
 //
 // When one does
 //
@@ -22,17 +22,17 @@ import (
 // It is currently implemented as a pair unsigned two byte integers.
 // Its conversion functions can be found in src/backend/utils/adt/tid.c
 // in the PostgreSQL sources.
-type Tid struct {
+type TID struct {
 	BlockNumber  uint32
 	OffsetNumber uint16
 	Status       Status
 }
 
-func (dst *Tid) Set(src interface{}) error {
-	return fmt.Errorf("cannot convert %v to Tid", src)
+func (dst *TID) Set(src interface{}) error {
+	return errors.Errorf("cannot convert %v to TID", src)
 }
 
-func (dst *Tid) Get() interface{} {
+func (dst *TID) Get() interface{} {
 	switch dst.Status {
 	case Present:
 		return dst
@@ -43,23 +43,23 @@ func (dst *Tid) Get() interface{} {
 	}
 }
 
-func (src *Tid) AssignTo(dst interface{}) error {
-	return fmt.Errorf("cannot assign %v to %T", src, dst)
+func (src *TID) AssignTo(dst interface{}) error {
+	return errors.Errorf("cannot assign %v to %T", src, dst)
 }
 
-func (dst *Tid) DecodeText(ci *ConnInfo, src []byte) error {
+func (dst *TID) DecodeText(ci *ConnInfo, src []byte) error {
 	if src == nil {
-		*dst = Tid{Status: Null}
+		*dst = TID{Status: Null}
 		return nil
 	}
 
 	if len(src) < 5 {
-		return fmt.Errorf("invalid length for tid: %v", len(src))
+		return errors.Errorf("invalid length for tid: %v", len(src))
 	}
 
 	parts := strings.SplitN(string(src[1:len(src)-1]), ",", 2)
 	if len(parts) < 2 {
-		return fmt.Errorf("invalid format for tid")
+		return errors.Errorf("invalid format for tid")
 	}
 
 	blockNumber, err := strconv.ParseUint(parts[0], 10, 32)
@@ -72,21 +72,21 @@ func (dst *Tid) DecodeText(ci *ConnInfo, src []byte) error {
 		return err
 	}
 
-	*dst = Tid{BlockNumber: uint32(blockNumber), OffsetNumber: uint16(offsetNumber), Status: Present}
+	*dst = TID{BlockNumber: uint32(blockNumber), OffsetNumber: uint16(offsetNumber), Status: Present}
 	return nil
 }
 
-func (dst *Tid) DecodeBinary(ci *ConnInfo, src []byte) error {
+func (dst *TID) DecodeBinary(ci *ConnInfo, src []byte) error {
 	if src == nil {
-		*dst = Tid{Status: Null}
+		*dst = TID{Status: Null}
 		return nil
 	}
 
 	if len(src) != 6 {
-		return fmt.Errorf("invalid length for tid: %v", len(src))
+		return errors.Errorf("invalid length for tid: %v", len(src))
 	}
 
-	*dst = Tid{
+	*dst = TID{
 		BlockNumber:  binary.BigEndian.Uint32(src),
 		OffsetNumber: binary.BigEndian.Uint16(src[4:]),
 		Status:       Present,
@@ -94,39 +94,35 @@ func (dst *Tid) DecodeBinary(ci *ConnInfo, src []byte) error {
 	return nil
 }
 
-func (src Tid) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *TID) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	_, err := io.WriteString(w, fmt.Sprintf(`(%d,%d)`, src.BlockNumber, src.OffsetNumber))
-	return false, err
+	buf = append(buf, fmt.Sprintf(`(%d,%d)`, src.BlockNumber, src.OffsetNumber)...)
+	return buf, nil
 }
 
-func (src Tid) EncodeBinary(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *TID) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	_, err := pgio.WriteUint32(w, src.BlockNumber)
-	if err != nil {
-		return false, err
-	}
-
-	_, err = pgio.WriteUint16(w, src.OffsetNumber)
-	return false, err
+	buf = pgio.AppendUint32(buf, src.BlockNumber)
+	buf = pgio.AppendUint16(buf, src.OffsetNumber)
+	return buf, nil
 }
 
 // Scan implements the database/sql Scanner interface.
-func (dst *Tid) Scan(src interface{}) error {
+func (dst *TID) Scan(src interface{}) error {
 	if src == nil {
-		*dst = Tid{Status: Null}
+		*dst = TID{Status: Null}
 		return nil
 	}
 
@@ -134,13 +130,15 @@ func (dst *Tid) Scan(src interface{}) error {
 	case string:
 		return dst.DecodeText(nil, []byte(src))
 	case []byte:
-		return dst.DecodeText(nil, src)
+		srcCopy := make([]byte, len(src))
+		copy(srcCopy, src)
+		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
-func (src Tid) Value() (driver.Value, error) {
-	return encodeValueText(src)
+func (src *TID) Value() (driver.Value, error) {
+	return EncodeValueText(src)
 }

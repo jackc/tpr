@@ -1,36 +1,33 @@
 package pgtype
 
 import (
-	"bytes"
 	"database/sql/driver"
-	"fmt"
-	"io"
 
-	"github.com/jackc/pgx/pgio"
+	"github.com/pkg/errors"
 )
 
-type AclitemArray struct {
-	Elements   []Aclitem
+type ACLItemArray struct {
+	Elements   []ACLItem
 	Dimensions []ArrayDimension
 	Status     Status
 }
 
-func (dst *AclitemArray) Set(src interface{}) error {
+func (dst *ACLItemArray) Set(src interface{}) error {
 	switch value := src.(type) {
 
 	case []string:
 		if value == nil {
-			*dst = AclitemArray{Status: Null}
+			*dst = ACLItemArray{Status: Null}
 		} else if len(value) == 0 {
-			*dst = AclitemArray{Status: Present}
+			*dst = ACLItemArray{Status: Present}
 		} else {
-			elements := make([]Aclitem, len(value))
+			elements := make([]ACLItem, len(value))
 			for i := range value {
 				if err := elements[i].Set(value[i]); err != nil {
 					return err
 				}
 			}
-			*dst = AclitemArray{
+			*dst = ACLItemArray{
 				Elements:   elements,
 				Dimensions: []ArrayDimension{{Length: int32(len(elements)), LowerBound: 1}},
 				Status:     Present,
@@ -41,13 +38,13 @@ func (dst *AclitemArray) Set(src interface{}) error {
 		if originalSrc, ok := underlyingSliceType(src); ok {
 			return dst.Set(originalSrc)
 		}
-		return fmt.Errorf("cannot convert %v to Aclitem", value)
+		return errors.Errorf("cannot convert %v to ACLItem", value)
 	}
 
 	return nil
 }
 
-func (dst *AclitemArray) Get() interface{} {
+func (dst *ACLItemArray) Get() interface{} {
 	switch dst.Status {
 	case Present:
 		return dst
@@ -58,7 +55,7 @@ func (dst *AclitemArray) Get() interface{} {
 	}
 }
 
-func (src *AclitemArray) AssignTo(dst interface{}) error {
+func (src *ACLItemArray) AssignTo(dst interface{}) error {
 	switch src.Status {
 	case Present:
 		switch v := dst.(type) {
@@ -78,15 +75,15 @@ func (src *AclitemArray) AssignTo(dst interface{}) error {
 			}
 		}
 	case Null:
-		return nullAssignTo(dst)
+		return NullAssignTo(dst)
 	}
 
-	return fmt.Errorf("cannot decode %v into %T", src, dst)
+	return errors.Errorf("cannot decode %v into %T", src, dst)
 }
 
-func (dst *AclitemArray) DecodeText(ci *ConnInfo, src []byte) error {
+func (dst *ACLItemArray) DecodeText(ci *ConnInfo, src []byte) error {
 	if src == nil {
-		*dst = AclitemArray{Status: Null}
+		*dst = ACLItemArray{Status: Null}
 		return nil
 	}
 
@@ -95,13 +92,13 @@ func (dst *AclitemArray) DecodeText(ci *ConnInfo, src []byte) error {
 		return err
 	}
 
-	var elements []Aclitem
+	var elements []ACLItem
 
 	if len(uta.Elements) > 0 {
-		elements = make([]Aclitem, len(uta.Elements))
+		elements = make([]ACLItem, len(uta.Elements))
 
 		for i, s := range uta.Elements {
-			var elem Aclitem
+			var elem ACLItem
 			var elemSrc []byte
 			if s != "NULL" {
 				elemSrc = []byte(s)
@@ -115,28 +112,24 @@ func (dst *AclitemArray) DecodeText(ci *ConnInfo, src []byte) error {
 		}
 	}
 
-	*dst = AclitemArray{Elements: elements, Dimensions: uta.Dimensions, Status: Present}
+	*dst = ACLItemArray{Elements: elements, Dimensions: uta.Dimensions, Status: Present}
 
 	return nil
 }
 
-func (src *AclitemArray) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *ACLItemArray) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
 	if len(src.Dimensions) == 0 {
-		_, err := io.WriteString(w, "{}")
-		return false, err
+		return append(buf, '{', '}'), nil
 	}
 
-	err := EncodeTextArrayDimensions(w, src.Dimensions)
-	if err != nil {
-		return false, err
-	}
+	buf = EncodeTextArrayDimensions(buf, src.Dimensions)
 
 	// dimElemCounts is the multiples of elements that each array lies on. For
 	// example, a single dimension array of length 4 would have a dimElemCounts of
@@ -149,55 +142,40 @@ func (src *AclitemArray) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
 		dimElemCounts[i] = int(src.Dimensions[i].Length) * dimElemCounts[i+1]
 	}
 
+	inElemBuf := make([]byte, 0, 32)
 	for i, elem := range src.Elements {
 		if i > 0 {
-			err = pgio.WriteByte(w, ',')
-			if err != nil {
-				return false, err
-			}
+			buf = append(buf, ',')
 		}
 
 		for _, dec := range dimElemCounts {
 			if i%dec == 0 {
-				err = pgio.WriteByte(w, '{')
-				if err != nil {
-					return false, err
-				}
+				buf = append(buf, '{')
 			}
 		}
 
-		elemBuf := &bytes.Buffer{}
-		null, err := elem.EncodeText(ci, elemBuf)
+		elemBuf, err := elem.EncodeText(ci, inElemBuf)
 		if err != nil {
-			return false, err
+			return nil, err
 		}
-		if null {
-			_, err = io.WriteString(w, `NULL`)
-			if err != nil {
-				return false, err
-			}
+		if elemBuf == nil {
+			buf = append(buf, `NULL`...)
 		} else {
-			_, err = io.WriteString(w, QuoteArrayElementIfNeeded(elemBuf.String()))
-			if err != nil {
-				return false, err
-			}
+			buf = append(buf, QuoteArrayElementIfNeeded(string(elemBuf))...)
 		}
 
 		for _, dec := range dimElemCounts {
 			if (i+1)%dec == 0 {
-				err = pgio.WriteByte(w, '}')
-				if err != nil {
-					return false, err
-				}
+				buf = append(buf, '}')
 			}
 		}
 	}
 
-	return false, nil
+	return buf, nil
 }
 
 // Scan implements the database/sql Scanner interface.
-func (dst *AclitemArray) Scan(src interface{}) error {
+func (dst *ACLItemArray) Scan(src interface{}) error {
 	if src == nil {
 		return dst.DecodeText(nil, nil)
 	}
@@ -206,22 +184,23 @@ func (dst *AclitemArray) Scan(src interface{}) error {
 	case string:
 		return dst.DecodeText(nil, []byte(src))
 	case []byte:
-		return dst.DecodeText(nil, src)
+		srcCopy := make([]byte, len(src))
+		copy(srcCopy, src)
+		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
-func (src *AclitemArray) Value() (driver.Value, error) {
-	buf := &bytes.Buffer{}
-	null, err := src.EncodeText(nil, buf)
+func (src *ACLItemArray) Value() (driver.Value, error) {
+	buf, err := src.EncodeText(nil, nil)
 	if err != nil {
 		return nil, err
 	}
-	if null {
+	if buf == nil {
 		return nil, nil
 	}
 
-	return buf.String(), nil
+	return string(buf), nil
 }

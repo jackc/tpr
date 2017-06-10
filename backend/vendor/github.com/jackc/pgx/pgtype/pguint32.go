@@ -3,16 +3,15 @@ package pgtype
 import (
 	"database/sql/driver"
 	"encoding/binary"
-	"fmt"
-	"io"
 	"math"
 	"strconv"
 
 	"github.com/jackc/pgx/pgio"
+	"github.com/pkg/errors"
 )
 
 // pguint32 is the core type that is used to implement PostgreSQL types such as
-// Cid and Xid.
+// CID and XID.
 type pguint32 struct {
 	Uint   uint32
 	Status Status
@@ -25,16 +24,16 @@ func (dst *pguint32) Set(src interface{}) error {
 	switch value := src.(type) {
 	case int64:
 		if value < 0 {
-			return fmt.Errorf("%d is less than minimum value for pguint32", value)
+			return errors.Errorf("%d is less than minimum value for pguint32", value)
 		}
 		if value > math.MaxUint32 {
-			return fmt.Errorf("%d is greater than maximum value for pguint32", value)
+			return errors.Errorf("%d is greater than maximum value for pguint32", value)
 		}
 		*dst = pguint32{Uint: uint32(value), Status: Present}
 	case uint32:
 		*dst = pguint32{Uint: value, Status: Present}
 	default:
-		return fmt.Errorf("cannot convert %v to pguint32", value)
+		return errors.Errorf("cannot convert %v to pguint32", value)
 	}
 
 	return nil
@@ -59,7 +58,7 @@ func (src *pguint32) AssignTo(dst interface{}) error {
 		if src.Status == Present {
 			*v = src.Uint
 		} else {
-			return fmt.Errorf("cannot assign %v into %T", src, dst)
+			return errors.Errorf("cannot assign %v into %T", src, dst)
 		}
 	case **uint32:
 		if src.Status == Present {
@@ -95,7 +94,7 @@ func (dst *pguint32) DecodeBinary(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) != 4 {
-		return fmt.Errorf("invalid length: %v", len(src))
+		return errors.Errorf("invalid length: %v", len(src))
 	}
 
 	n := binary.BigEndian.Uint32(src)
@@ -103,28 +102,26 @@ func (dst *pguint32) DecodeBinary(ci *ConnInfo, src []byte) error {
 	return nil
 }
 
-func (src pguint32) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *pguint32) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	_, err := io.WriteString(w, strconv.FormatUint(uint64(src.Uint), 10))
-	return false, err
+	return append(buf, strconv.FormatUint(uint64(src.Uint), 10)...), nil
 }
 
-func (src pguint32) EncodeBinary(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *pguint32) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	_, err := pgio.WriteUint32(w, src.Uint)
-	return false, err
+	return pgio.AppendUint32(buf, src.Uint), nil
 }
 
 // Scan implements the database/sql Scanner interface.
@@ -144,14 +141,16 @@ func (dst *pguint32) Scan(src interface{}) error {
 	case string:
 		return dst.DecodeText(nil, []byte(src))
 	case []byte:
-		return dst.DecodeText(nil, src)
+		srcCopy := make([]byte, len(src))
+		copy(srcCopy, src)
+		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
-func (src pguint32) Value() (driver.Value, error) {
+func (src *pguint32) Value() (driver.Value, error) {
 	switch src.Status {
 	case Present:
 		return int64(src.Uint), nil

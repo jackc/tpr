@@ -440,14 +440,14 @@ func GetFeedsHandler(w http.ResponseWriter, req *http.Request, env *environment)
 
 func GetAccountHandler(w http.ResponseWriter, req *http.Request, env *environment) {
 	var user struct {
-		ID    pgtype.Int4    `json:"id"`
-		Name  pgtype.Varchar `json:"name"`
-		Email pgtype.Varchar `json:"email"`
+		ID    int32  `json:"id"`
+		Name  string `json:"name"`
+		Email string `json:"email"`
 	}
 
-	user.ID = env.user.ID
-	user.Name = env.user.Name
-	user.Email = env.user.Email
+	user.ID = env.user.ID.Int
+	user.Name = env.user.Name.String
+	user.Email = env.user.Email.String
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(user)

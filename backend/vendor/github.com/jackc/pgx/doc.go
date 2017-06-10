@@ -146,7 +146,7 @@ JSON and JSONB Mapping
 pgx includes built-in support to marshal and unmarshal between Go types and
 the PostgreSQL JSON and JSONB.
 
-Inet and Cidr Mapping
+Inet and CIDR Mapping
 
 pgx encodes from net.IPNet to and from inet and cidr PostgreSQL types. In
 addition, as a convenience pgx will encode from a net.IP; it will assume a /32
@@ -239,7 +239,8 @@ connection.
 Logging
 
 pgx defines a simple logger interface. Connections optionally accept a logger
-that satisfies this interface. Set LogLevel to control logging
-verbosity.
+that satisfies this interface. Set LogLevel to control logging verbosity.
+Adapters for github.com/inconshreveable/log15, github.com/Sirupsen/logrus, and
+the testing log are provided in the log directory.
 */
 package pgx

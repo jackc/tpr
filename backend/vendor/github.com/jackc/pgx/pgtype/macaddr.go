@@ -2,9 +2,9 @@ package pgtype
 
 import (
 	"database/sql/driver"
-	"fmt"
-	"io"
 	"net"
+
+	"github.com/pkg/errors"
 )
 
 type Macaddr struct {
@@ -33,7 +33,7 @@ func (dst *Macaddr) Set(src interface{}) error {
 		if originalSrc, ok := underlyingPtrType(src); ok {
 			return dst.Set(originalSrc)
 		}
-		return fmt.Errorf("cannot convert %v to Macaddr", value)
+		return errors.Errorf("cannot convert %v to Macaddr", value)
 	}
 
 	return nil
@@ -67,10 +67,10 @@ func (src *Macaddr) AssignTo(dst interface{}) error {
 			}
 		}
 	case Null:
-		return nullAssignTo(dst)
+		return NullAssignTo(dst)
 	}
 
-	return fmt.Errorf("cannot decode %v into %T", src, dst)
+	return errors.Errorf("cannot decode %v into %T", src, dst)
 }
 
 func (dst *Macaddr) DecodeText(ci *ConnInfo, src []byte) error {
@@ -95,7 +95,7 @@ func (dst *Macaddr) DecodeBinary(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) != 6 {
-		return fmt.Errorf("Received an invalid size for a macaddr: %d", len(src))
+		return errors.Errorf("Received an invalid size for a macaddr: %d", len(src))
 	}
 
 	addr := make(net.HardwareAddr, 6)
@@ -106,29 +106,27 @@ func (dst *Macaddr) DecodeBinary(ci *ConnInfo, src []byte) error {
 	return nil
 }
 
-func (src Macaddr) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Macaddr) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	_, err := io.WriteString(w, src.Addr.String())
-	return false, err
+	return append(buf, src.Addr.String()...), nil
 }
 
 // EncodeBinary encodes src into w.
-func (src Macaddr) EncodeBinary(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Macaddr) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	_, err := w.Write([]byte(src.Addr))
-	return false, err
+	return append(buf, src.Addr...), nil
 }
 
 // Scan implements the database/sql Scanner interface.
@@ -142,13 +140,15 @@ func (dst *Macaddr) Scan(src interface{}) error {
 	case string:
 		return dst.DecodeText(nil, []byte(src))
 	case []byte:
-		return dst.DecodeText(nil, src)
+		srcCopy := make([]byte, len(src))
+		copy(srcCopy, src)
+		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
-func (src Macaddr) Value() (driver.Value, error) {
-	return encodeValueText(src)
+func (src *Macaddr) Value() (driver.Value, error) {
+	return EncodeValueText(src)
 }

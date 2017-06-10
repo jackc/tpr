@@ -2,8 +2,11 @@ package pgx
 
 import (
 	"bytes"
-	"errors"
+	"context"
 	"fmt"
+	"time"
+
+	"github.com/pkg/errors"
 )
 
 type TxIsoLevel string
@@ -46,6 +49,26 @@ type TxOptions struct {
 	DeferrableMode TxDeferrableMode
 }
 
+func (txOptions *TxOptions) beginSQL() string {
+	if txOptions == nil {
+		return "begin"
+	}
+
+	buf := &bytes.Buffer{}
+	buf.WriteString("begin")
+	if txOptions.IsoLevel != "" {
+		fmt.Fprintf(buf, " isolation level %s", txOptions.IsoLevel)
+	}
+	if txOptions.AccessMode != "" {
+		fmt.Fprintf(buf, " %s", txOptions.AccessMode)
+	}
+	if txOptions.DeferrableMode != "" {
+		fmt.Fprintf(buf, " %s", txOptions.DeferrableMode)
+	}
+
+	return buf.String()
+}
+
 var ErrTxClosed = errors.New("tx is closed")
 
 // ErrTxCommitRollback occurs when an error has occurred in a transaction and
@@ -56,33 +79,18 @@ var ErrTxCommitRollback = errors.New("commit unexpectedly resulted in rollback")
 // Begin starts a transaction with the default transaction mode for the
 // current connection. To use a specific transaction mode see BeginEx.
 func (c *Conn) Begin() (*Tx, error) {
-	return c.BeginEx(nil)
+	return c.BeginEx(context.Background(), nil)
 }
 
 // BeginEx starts a transaction with txOptions determining the transaction
-// mode.
-func (c *Conn) BeginEx(txOptions *TxOptions) (*Tx, error) {
-	var beginSQL string
-	if txOptions == nil {
-		beginSQL = "begin"
-	} else {
-		buf := &bytes.Buffer{}
-		buf.WriteString("begin")
-		if txOptions.IsoLevel != "" {
-			fmt.Fprintf(buf, " isolation level %s", txOptions.IsoLevel)
-		}
-		if txOptions.AccessMode != "" {
-			fmt.Fprintf(buf, " %s", txOptions.AccessMode)
-		}
-		if txOptions.DeferrableMode != "" {
-			fmt.Fprintf(buf, " %s", txOptions.DeferrableMode)
-		}
-
-		beginSQL = buf.String()
-	}
-
-	_, err := c.Exec(beginSQL)
+// mode. Unlike database/sql, the context only affects the begin command. i.e.
+// there is no auto-rollback on context cancelation.
+func (c *Conn) BeginEx(ctx context.Context, txOptions *TxOptions) (*Tx, error) {
+	_, err := c.ExecEx(ctx, txOptions.beginSQL(), nil)
 	if err != nil {
+		// begin should never fail unless there is an underlying connection issue or
+		// a context timeout. In either case, the connection is possibly broken.
+		c.die(errors.New("failed to begin transaction"))
 		return nil, err
 	}
 
@@ -94,19 +102,24 @@ func (c *Conn) BeginEx(txOptions *TxOptions) (*Tx, error) {
 // All Tx methods return ErrTxClosed if Commit or Rollback has already been
 // called on the Tx.
 type Tx struct {
-	conn       *Conn
-	afterClose func(*Tx)
-	err        error
-	status     int8
+	conn     *Conn
+	connPool *ConnPool
+	err      error
+	status   int8
 }
 
 // Commit commits the transaction
 func (tx *Tx) Commit() error {
+	return tx.CommitEx(context.Background())
+}
+
+// CommitEx commits the transaction with a context.
+func (tx *Tx) CommitEx(ctx context.Context) error {
 	if tx.status != TxStatusInProgress {
 		return ErrTxClosed
 	}
 
-	commandTag, err := tx.conn.Exec("commit")
+	commandTag, err := tx.conn.ExecEx(ctx, "commit", nil)
 	if err == nil && commandTag == "COMMIT" {
 		tx.status = TxStatusCommitSuccess
 	} else if err == nil && commandTag == "ROLLBACK" {
@@ -115,11 +128,14 @@ func (tx *Tx) Commit() error {
 	} else {
 		tx.status = TxStatusCommitFailure
 		tx.err = err
+		// A commit failure leaves the connection in an undefined state
+		tx.conn.die(errors.New("commit failed"))
 	}
 
-	if tx.afterClose != nil {
-		tx.afterClose(tx)
+	if tx.connPool != nil {
+		tx.connPool.Release(tx.conn)
 	}
+
 	return tx.err
 }
 
@@ -132,16 +148,20 @@ func (tx *Tx) Rollback() error {
 		return ErrTxClosed
 	}
 
-	_, tx.err = tx.conn.Exec("rollback")
+	ctx, _ := context.WithTimeout(context.Background(), 15*time.Second)
+	_, tx.err = tx.conn.ExecEx(ctx, "rollback", nil)
 	if tx.err == nil {
 		tx.status = TxStatusRollbackSuccess
 	} else {
 		tx.status = TxStatusRollbackFailure
+		// A rollback failure leaves the connection in an undefined state
+		tx.conn.die(errors.New("rollback failed"))
 	}
 
-	if tx.afterClose != nil {
-		tx.afterClose(tx)
+	if tx.connPool != nil {
+		tx.connPool.Release(tx.conn)
 	}
+
 	return tx.err
 }
 
@@ -156,16 +176,16 @@ func (tx *Tx) Exec(sql string, arguments ...interface{}) (commandTag CommandTag,
 
 // Prepare delegates to the underlying *Conn
 func (tx *Tx) Prepare(name, sql string) (*PreparedStatement, error) {
-	return tx.PrepareEx(name, sql, nil)
+	return tx.PrepareEx(context.Background(), name, sql, nil)
 }
 
 // PrepareEx delegates to the underlying *Conn
-func (tx *Tx) PrepareEx(name, sql string, opts *PrepareExOptions) (*PreparedStatement, error) {
+func (tx *Tx) PrepareEx(ctx context.Context, name, sql string, opts *PrepareExOptions) (*PreparedStatement, error) {
 	if tx.status != TxStatusInProgress {
 		return nil, ErrTxClosed
 	}
 
-	return tx.conn.PrepareEx(name, sql, opts)
+	return tx.conn.PrepareEx(ctx, name, sql, opts)
 }
 
 // Query delegates to the underlying *Conn
@@ -194,11 +214,6 @@ func (tx *Tx) CopyFrom(tableName Identifier, columnNames []string, rowSrc CopyFr
 	return tx.conn.CopyFrom(tableName, columnNames, rowSrc)
 }
 
-// Conn returns the *Conn this transaction is using.
-func (tx *Tx) Conn() *Conn {
-	return tx.conn
-}
-
 // Status returns the status of the transaction from the set of
 // pgx.TxStatus* constants.
 func (tx *Tx) Status() int8 {
@@ -208,18 +223,4 @@ func (tx *Tx) Status() int8 {
 // Err returns the final error state, if any, of calling Commit or Rollback.
 func (tx *Tx) Err() error {
 	return tx.err
-}
-
-// AfterClose adds f to a LILO queue of functions that will be called when
-// the transaction is closed (either Commit or Rollback).
-func (tx *Tx) AfterClose(f func(*Tx)) {
-	if tx.afterClose == nil {
-		tx.afterClose = f
-	} else {
-		prevFn := tx.afterClose
-		tx.afterClose = func(tx *Tx) {
-			f(tx)
-			prevFn(tx)
-		}
-	}
 }

@@ -3,8 +3,8 @@ package pgtype
 import (
 	"database/sql/driver"
 	"encoding/hex"
-	"fmt"
-	"io"
+
+	"github.com/pkg/errors"
 )
 
 type Bytea struct {
@@ -29,7 +29,7 @@ func (dst *Bytea) Set(src interface{}) error {
 		if originalSrc, ok := underlyingBytesType(src); ok {
 			return dst.Set(originalSrc)
 		}
-		return fmt.Errorf("cannot convert %v to Bytea", value)
+		return errors.Errorf("cannot convert %v to Bytea", value)
 	}
 
 	return nil
@@ -61,10 +61,10 @@ func (src *Bytea) AssignTo(dst interface{}) error {
 			}
 		}
 	case Null:
-		return nullAssignTo(dst)
+		return NullAssignTo(dst)
 	}
 
-	return fmt.Errorf("cannot decode %v into %T", src, dst)
+	return errors.Errorf("cannot decode %v into %T", src, dst)
 }
 
 // DecodeText only supports the hex format. This has been the default since
@@ -76,7 +76,7 @@ func (dst *Bytea) DecodeText(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) < 2 || src[0] != '\\' || src[1] != 'x' {
-		return fmt.Errorf("invalid hex format")
+		return errors.Errorf("invalid hex format")
 	}
 
 	buf := make([]byte, (len(src)-2)/2)
@@ -95,40 +95,32 @@ func (dst *Bytea) DecodeBinary(ci *ConnInfo, src []byte) error {
 		return nil
 	}
 
-	buf := make([]byte, len(src))
-	copy(buf, src)
-
-	*dst = Bytea{Bytes: buf, Status: Present}
+	*dst = Bytea{Bytes: src, Status: Present}
 	return nil
 }
 
-func (src Bytea) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Bytea) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	_, err := io.WriteString(w, `\x`)
-	if err != nil {
-		return false, err
-	}
-
-	_, err = io.WriteString(w, hex.EncodeToString(src.Bytes))
-	return false, err
+	buf = append(buf, `\x`...)
+	buf = append(buf, hex.EncodeToString(src.Bytes)...)
+	return buf, nil
 }
 
-func (src Bytea) EncodeBinary(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Bytea) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	_, err := w.Write(src.Bytes)
-	return false, err
+	return append(buf, src.Bytes...), nil
 }
 
 // Scan implements the database/sql Scanner interface.
@@ -148,11 +140,11 @@ func (dst *Bytea) Scan(src interface{}) error {
 		return nil
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
-func (src Bytea) Value() (driver.Value, error) {
+func (src *Bytea) Value() (driver.Value, error) {
 	switch src.Status {
 	case Present:
 		return src.Bytes, nil

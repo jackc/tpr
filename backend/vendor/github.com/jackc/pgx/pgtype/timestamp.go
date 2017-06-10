@@ -3,11 +3,10 @@ package pgtype
 import (
 	"database/sql/driver"
 	"encoding/binary"
-	"fmt"
-	"io"
 	"time"
 
 	"github.com/jackc/pgx/pgio"
+	"github.com/pkg/errors"
 )
 
 const pgTimestampFormat = "2006-01-02 15:04:05.999999999"
@@ -38,7 +37,7 @@ func (dst *Timestamp) Set(src interface{}) error {
 		if originalSrc, ok := underlyingTimeType(src); ok {
 			return dst.Set(originalSrc)
 		}
-		return fmt.Errorf("cannot convert %v to Timestamp", value)
+		return errors.Errorf("cannot convert %v to Timestamp", value)
 	}
 
 	return nil
@@ -64,7 +63,7 @@ func (src *Timestamp) AssignTo(dst interface{}) error {
 		switch v := dst.(type) {
 		case *time.Time:
 			if src.InfinityModifier != None {
-				return fmt.Errorf("cannot assign %v to %T", src, dst)
+				return errors.Errorf("cannot assign %v to %T", src, dst)
 			}
 			*v = src.Time
 			return nil
@@ -74,10 +73,10 @@ func (src *Timestamp) AssignTo(dst interface{}) error {
 			}
 		}
 	case Null:
-		return nullAssignTo(dst)
+		return NullAssignTo(dst)
 	}
 
-	return fmt.Errorf("cannot decode %v into %T", src, dst)
+	return errors.Errorf("cannot decode %v into %T", src, dst)
 }
 
 // DecodeText decodes from src into dst. The decoded time is considered to
@@ -115,7 +114,7 @@ func (dst *Timestamp) DecodeBinary(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) != 8 {
-		return fmt.Errorf("invalid length for timestamp: %v", len(src))
+		return errors.Errorf("invalid length for timestamp: %v", len(src))
 	}
 
 	microsecSinceY2K := int64(binary.BigEndian.Uint64(src))
@@ -136,15 +135,15 @@ func (dst *Timestamp) DecodeBinary(ci *ConnInfo, src []byte) error {
 
 // EncodeText writes the text encoding of src into w. If src.Time is not in
 // the UTC time zone it returns an error.
-func (src Timestamp) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Timestamp) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 	if src.Time.Location() != time.UTC {
-		return false, fmt.Errorf("cannot encode non-UTC time into timestamp")
+		return nil, errors.Errorf("cannot encode non-UTC time into timestamp")
 	}
 
 	var s string
@@ -158,21 +157,20 @@ func (src Timestamp) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
 		s = "-infinity"
 	}
 
-	_, err := io.WriteString(w, s)
-	return false, err
+	return append(buf, s...), nil
 }
 
 // EncodeBinary writes the binary encoding of src into w. If src.Time is not in
 // the UTC time zone it returns an error.
-func (src Timestamp) EncodeBinary(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Timestamp) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 	if src.Time.Location() != time.UTC {
-		return false, fmt.Errorf("cannot encode non-UTC time into timestamp")
+		return nil, errors.Errorf("cannot encode non-UTC time into timestamp")
 	}
 
 	var microsecSinceY2K int64
@@ -186,8 +184,7 @@ func (src Timestamp) EncodeBinary(ci *ConnInfo, w io.Writer) (bool, error) {
 		microsecSinceY2K = negativeInfinityMicrosecondOffset
 	}
 
-	_, err := pgio.WriteInt64(w, microsecSinceY2K)
-	return false, err
+	return pgio.AppendInt64(buf, microsecSinceY2K), nil
 }
 
 // Scan implements the database/sql Scanner interface.
@@ -201,17 +198,19 @@ func (dst *Timestamp) Scan(src interface{}) error {
 	case string:
 		return dst.DecodeText(nil, []byte(src))
 	case []byte:
-		return dst.DecodeText(nil, src)
+		srcCopy := make([]byte, len(src))
+		copy(srcCopy, src)
+		return dst.DecodeText(nil, srcCopy)
 	case time.Time:
 		*dst = Timestamp{Time: src, Status: Present}
 		return nil
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
-func (src Timestamp) Value() (driver.Value, error) {
+func (src *Timestamp) Value() (driver.Value, error) {
 	switch src.Status {
 	case Present:
 		if src.InfinityModifier != None {

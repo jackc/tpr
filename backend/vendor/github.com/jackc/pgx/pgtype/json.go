@@ -3,48 +3,48 @@ package pgtype
 import (
 	"database/sql/driver"
 	"encoding/json"
-	"fmt"
-	"io"
+
+	"github.com/pkg/errors"
 )
 
-type Json struct {
+type JSON struct {
 	Bytes  []byte
 	Status Status
 }
 
-func (dst *Json) Set(src interface{}) error {
+func (dst *JSON) Set(src interface{}) error {
 	if src == nil {
-		*dst = Json{Status: Null}
+		*dst = JSON{Status: Null}
 		return nil
 	}
 
 	switch value := src.(type) {
 	case string:
-		*dst = Json{Bytes: []byte(value), Status: Present}
+		*dst = JSON{Bytes: []byte(value), Status: Present}
 	case *string:
 		if value == nil {
-			*dst = Json{Status: Null}
+			*dst = JSON{Status: Null}
 		} else {
-			*dst = Json{Bytes: []byte(*value), Status: Present}
+			*dst = JSON{Bytes: []byte(*value), Status: Present}
 		}
 	case []byte:
 		if value == nil {
-			*dst = Json{Status: Null}
+			*dst = JSON{Status: Null}
 		} else {
-			*dst = Json{Bytes: value, Status: Present}
+			*dst = JSON{Bytes: value, Status: Present}
 		}
 	default:
 		buf, err := json.Marshal(value)
 		if err != nil {
 			return err
 		}
-		*dst = Json{Bytes: buf, Status: Present}
+		*dst = JSON{Bytes: buf, Status: Present}
 	}
 
 	return nil
 }
 
-func (dst *Json) Get() interface{} {
+func (dst *JSON) Get() interface{} {
 	switch dst.Status {
 	case Present:
 		var i interface{}
@@ -60,7 +60,7 @@ func (dst *Json) Get() interface{} {
 	}
 }
 
-func (src *Json) AssignTo(dst interface{}) error {
+func (src *JSON) AssignTo(dst interface{}) error {
 	switch v := dst.(type) {
 	case *string:
 		if src.Status != Present {
@@ -91,43 +91,39 @@ func (src *Json) AssignTo(dst interface{}) error {
 	return nil
 }
 
-func (dst *Json) DecodeText(ci *ConnInfo, src []byte) error {
+func (dst *JSON) DecodeText(ci *ConnInfo, src []byte) error {
 	if src == nil {
-		*dst = Json{Status: Null}
+		*dst = JSON{Status: Null}
 		return nil
 	}
 
-	buf := make([]byte, len(src))
-	copy(buf, src)
-
-	*dst = Json{Bytes: buf, Status: Present}
+	*dst = JSON{Bytes: src, Status: Present}
 	return nil
 }
 
-func (dst *Json) DecodeBinary(ci *ConnInfo, src []byte) error {
+func (dst *JSON) DecodeBinary(ci *ConnInfo, src []byte) error {
 	return dst.DecodeText(ci, src)
 }
 
-func (src Json) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *JSON) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	_, err := w.Write(src.Bytes)
-	return false, err
+	return append(buf, src.Bytes...), nil
 }
 
-func (src Json) EncodeBinary(ci *ConnInfo, w io.Writer) (bool, error) {
-	return src.EncodeText(ci, w)
+func (src *JSON) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
+	return src.EncodeText(ci, buf)
 }
 
 // Scan implements the database/sql Scanner interface.
-func (dst *Json) Scan(src interface{}) error {
+func (dst *JSON) Scan(src interface{}) error {
 	if src == nil {
-		*dst = Json{Status: Null}
+		*dst = JSON{Status: Null}
 		return nil
 	}
 
@@ -135,14 +131,16 @@ func (dst *Json) Scan(src interface{}) error {
 	case string:
 		return dst.DecodeText(nil, []byte(src))
 	case []byte:
-		return dst.DecodeText(nil, src)
+		srcCopy := make([]byte, len(src))
+		copy(srcCopy, src)
+		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
-func (src Json) Value() (driver.Value, error) {
+func (src *JSON) Value() (driver.Value, error) {
 	switch src.Status {
 	case Present:
 		return string(src.Bytes), nil

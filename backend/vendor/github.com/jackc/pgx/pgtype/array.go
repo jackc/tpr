@@ -3,13 +3,13 @@ package pgtype
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"io"
 	"strconv"
 	"strings"
 	"unicode"
 
 	"github.com/jackc/pgx/pgio"
+	"github.com/pkg/errors"
 )
 
 // Information on the internals of PostgreSQL arrays can be found in
@@ -18,7 +18,7 @@ import (
 
 type ArrayHeader struct {
 	ContainsNull bool
-	ElementOid   int32
+	ElementOID   int32
 	Dimensions   []ArrayDimension
 }
 
@@ -29,7 +29,7 @@ type ArrayDimension struct {
 
 func (dst *ArrayHeader) DecodeBinary(ci *ConnInfo, src []byte) (int, error) {
 	if len(src) < 12 {
-		return 0, fmt.Errorf("array header too short: %d", len(src))
+		return 0, errors.Errorf("array header too short: %d", len(src))
 	}
 
 	rp := 0
@@ -40,14 +40,14 @@ func (dst *ArrayHeader) DecodeBinary(ci *ConnInfo, src []byte) (int, error) {
 	dst.ContainsNull = binary.BigEndian.Uint32(src[rp:]) == 1
 	rp += 4
 
-	dst.ElementOid = int32(binary.BigEndian.Uint32(src[rp:]))
+	dst.ElementOID = int32(binary.BigEndian.Uint32(src[rp:]))
 	rp += 4
 
 	if numDims > 0 {
 		dst.Dimensions = make([]ArrayDimension, numDims)
 	}
 	if len(src) < 12+numDims*8 {
-		return 0, fmt.Errorf("array header too short for %d dimensions: %d", numDims, len(src))
+		return 0, errors.Errorf("array header too short for %d dimensions: %d", numDims, len(src))
 	}
 	for i := range dst.Dimensions {
 		dst.Dimensions[i].Length = int32(binary.BigEndian.Uint32(src[rp:]))
@@ -60,39 +60,23 @@ func (dst *ArrayHeader) DecodeBinary(ci *ConnInfo, src []byte) (int, error) {
 	return rp, nil
 }
 
-func (src *ArrayHeader) EncodeBinary(ci *ConnInfo, w io.Writer) error {
-	_, err := pgio.WriteInt32(w, int32(len(src.Dimensions)))
-	if err != nil {
-		return err
-	}
+func (src *ArrayHeader) EncodeBinary(ci *ConnInfo, buf []byte) []byte {
+	buf = pgio.AppendInt32(buf, int32(len(src.Dimensions)))
 
 	var containsNull int32
 	if src.ContainsNull {
 		containsNull = 1
 	}
-	_, err = pgio.WriteInt32(w, containsNull)
-	if err != nil {
-		return err
-	}
+	buf = pgio.AppendInt32(buf, containsNull)
 
-	_, err = pgio.WriteInt32(w, src.ElementOid)
-	if err != nil {
-		return err
-	}
+	buf = pgio.AppendInt32(buf, src.ElementOID)
 
 	for i := range src.Dimensions {
-		_, err = pgio.WriteInt32(w, src.Dimensions[i].Length)
-		if err != nil {
-			return err
-		}
-
-		_, err = pgio.WriteInt32(w, src.Dimensions[i].LowerBound)
-		if err != nil {
-			return err
-		}
+		buf = pgio.AppendInt32(buf, src.Dimensions[i].Length)
+		buf = pgio.AppendInt32(buf, src.Dimensions[i].LowerBound)
 	}
 
-	return nil
+	return buf
 }
 
 type UntypedTextArray struct {
@@ -109,7 +93,7 @@ func ParseUntypedTextArray(src string) (*UntypedTextArray, error) {
 
 	r, _, err := buf.ReadRune()
 	if err != nil {
-		return nil, fmt.Errorf("invalid array: %v", err)
+		return nil, errors.Errorf("invalid array: %v", err)
 	}
 
 	var explicitDimensions []ArrayDimension
@@ -121,41 +105,41 @@ func ParseUntypedTextArray(src string) (*UntypedTextArray, error) {
 		for {
 			r, _, err = buf.ReadRune()
 			if err != nil {
-				return nil, fmt.Errorf("invalid array: %v", err)
+				return nil, errors.Errorf("invalid array: %v", err)
 			}
 
 			if r == '=' {
 				break
 			} else if r != '[' {
-				return nil, fmt.Errorf("invalid array, expected '[' or '=' got %v", r)
+				return nil, errors.Errorf("invalid array, expected '[' or '=' got %v", r)
 			}
 
 			lower, err := arrayParseInteger(buf)
 			if err != nil {
-				return nil, fmt.Errorf("invalid array: %v", err)
+				return nil, errors.Errorf("invalid array: %v", err)
 			}
 
 			r, _, err = buf.ReadRune()
 			if err != nil {
-				return nil, fmt.Errorf("invalid array: %v", err)
+				return nil, errors.Errorf("invalid array: %v", err)
 			}
 
 			if r != ':' {
-				return nil, fmt.Errorf("invalid array, expected ':' got %v", r)
+				return nil, errors.Errorf("invalid array, expected ':' got %v", r)
 			}
 
 			upper, err := arrayParseInteger(buf)
 			if err != nil {
-				return nil, fmt.Errorf("invalid array: %v", err)
+				return nil, errors.Errorf("invalid array: %v", err)
 			}
 
 			r, _, err = buf.ReadRune()
 			if err != nil {
-				return nil, fmt.Errorf("invalid array: %v", err)
+				return nil, errors.Errorf("invalid array: %v", err)
 			}
 
 			if r != ']' {
-				return nil, fmt.Errorf("invalid array, expected ']' got %v", r)
+				return nil, errors.Errorf("invalid array, expected ']' got %v", r)
 			}
 
 			explicitDimensions = append(explicitDimensions, ArrayDimension{LowerBound: lower, Length: upper - lower + 1})
@@ -163,12 +147,12 @@ func ParseUntypedTextArray(src string) (*UntypedTextArray, error) {
 
 		r, _, err = buf.ReadRune()
 		if err != nil {
-			return nil, fmt.Errorf("invalid array: %v", err)
+			return nil, errors.Errorf("invalid array: %v", err)
 		}
 	}
 
 	if r != '{' {
-		return nil, fmt.Errorf("invalid array, expected '{': %v", err)
+		return nil, errors.Errorf("invalid array, expected '{': %v", err)
 	}
 
 	implicitDimensions := []ArrayDimension{{LowerBound: 1, Length: 0}}
@@ -177,7 +161,7 @@ func ParseUntypedTextArray(src string) (*UntypedTextArray, error) {
 	for {
 		r, _, err = buf.ReadRune()
 		if err != nil {
-			return nil, fmt.Errorf("invalid array: %v", err)
+			return nil, errors.Errorf("invalid array: %v", err)
 		}
 
 		if r == '{' {
@@ -194,7 +178,7 @@ func ParseUntypedTextArray(src string) (*UntypedTextArray, error) {
 	for {
 		r, _, err = buf.ReadRune()
 		if err != nil {
-			return nil, fmt.Errorf("invalid array: %v", err)
+			return nil, errors.Errorf("invalid array: %v", err)
 		}
 
 		switch r {
@@ -213,7 +197,7 @@ func ParseUntypedTextArray(src string) (*UntypedTextArray, error) {
 			buf.UnreadRune()
 			value, err := arrayParseValue(buf)
 			if err != nil {
-				return nil, fmt.Errorf("invalid array value: %v", err)
+				return nil, errors.Errorf("invalid array value: %v", err)
 			}
 			if currentDim == counterDim {
 				implicitDimensions[currentDim].Length++
@@ -229,7 +213,7 @@ func ParseUntypedTextArray(src string) (*UntypedTextArray, error) {
 	skipWhitespace(buf)
 
 	if buf.Len() > 0 {
-		return nil, fmt.Errorf("unexpected trailing data: %v", buf.String())
+		return nil, errors.Errorf("unexpected trailing data: %v", buf.String())
 	}
 
 	if len(dst.Elements) == 0 {
@@ -331,7 +315,7 @@ func arrayParseInteger(buf *bytes.Buffer) (int32, error) {
 	}
 }
 
-func EncodeTextArrayDimensions(w io.Writer, dimensions []ArrayDimension) error {
+func EncodeTextArrayDimensions(buf []byte, dimensions []ArrayDimension) []byte {
 	var customDimensions bool
 	for _, dim := range dimensions {
 		if dim.LowerBound != 1 {
@@ -340,37 +324,18 @@ func EncodeTextArrayDimensions(w io.Writer, dimensions []ArrayDimension) error {
 	}
 
 	if !customDimensions {
-		return nil
+		return buf
 	}
 
 	for _, dim := range dimensions {
-		err := pgio.WriteByte(w, '[')
-		if err != nil {
-			return err
-		}
-
-		_, err = io.WriteString(w, strconv.FormatInt(int64(dim.LowerBound), 10))
-		if err != nil {
-			return err
-		}
-
-		err = pgio.WriteByte(w, ':')
-		if err != nil {
-			return err
-		}
-
-		_, err = io.WriteString(w, strconv.FormatInt(int64(dim.LowerBound+dim.Length-1), 10))
-		if err != nil {
-			return err
-		}
-
-		err = pgio.WriteByte(w, ']')
-		if err != nil {
-			return err
-		}
+		buf = append(buf, '[')
+		buf = append(buf, strconv.FormatInt(int64(dim.LowerBound), 10)...)
+		buf = append(buf, ':')
+		buf = append(buf, strconv.FormatInt(int64(dim.LowerBound+dim.Length-1), 10)...)
+		buf = append(buf, ']')
 	}
 
-	return pgio.WriteByte(w, '=')
+	return append(buf, '=')
 }
 
 var quoteArrayReplacer = strings.NewReplacer(`\`, `\\`, `"`, `\"`)

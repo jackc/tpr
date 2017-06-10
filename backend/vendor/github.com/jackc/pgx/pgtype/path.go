@@ -4,12 +4,12 @@ import (
 	"database/sql/driver"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"math"
 	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/pgio"
+	"github.com/pkg/errors"
 )
 
 type Path struct {
@@ -19,7 +19,7 @@ type Path struct {
 }
 
 func (dst *Path) Set(src interface{}) error {
-	return fmt.Errorf("cannot convert %v to Path", src)
+	return errors.Errorf("cannot convert %v to Path", src)
 }
 
 func (dst *Path) Get() interface{} {
@@ -34,7 +34,7 @@ func (dst *Path) Get() interface{} {
 }
 
 func (src *Path) AssignTo(dst interface{}) error {
-	return fmt.Errorf("cannot assign %v to %T", src, dst)
+	return errors.Errorf("cannot assign %v to %T", src, dst)
 }
 
 func (dst *Path) DecodeText(ci *ConnInfo, src []byte) error {
@@ -44,7 +44,7 @@ func (dst *Path) DecodeText(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) < 7 {
-		return fmt.Errorf("invalid length for Path: %v", len(src))
+		return errors.Errorf("invalid length for Path: %v", len(src))
 	}
 
 	closed := src[0] == '('
@@ -87,7 +87,7 @@ func (dst *Path) DecodeBinary(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) < 5 {
-		return fmt.Errorf("invalid length for Path: %v", len(src))
+		return errors.Errorf("invalid length for Path: %v", len(src))
 	}
 
 	closed := src[0] == 1
@@ -96,7 +96,7 @@ func (dst *Path) DecodeBinary(ci *ConnInfo, src []byte) error {
 	rp := 5
 
 	if 5+pointCount*16 != len(src) {
-		return fmt.Errorf("invalid length for Path with %d points: %v", pointCount, len(src))
+		return errors.Errorf("invalid length for Path with %d points: %v", pointCount, len(src))
 	}
 
 	points := make([]Vec2, pointCount)
@@ -116,12 +116,12 @@ func (dst *Path) DecodeBinary(ci *ConnInfo, src []byte) error {
 	return nil
 }
 
-func (src *Path) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Path) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
 	var startByte, endByte byte
@@ -132,56 +132,40 @@ func (src *Path) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
 		startByte = '['
 		endByte = ']'
 	}
-	if err := pgio.WriteByte(w, startByte); err != nil {
-		return false, err
-	}
+	buf = append(buf, startByte)
 
 	for i, p := range src.P {
 		if i > 0 {
-			if err := pgio.WriteByte(w, ','); err != nil {
-				return false, err
-			}
+			buf = append(buf, ',')
 		}
-		if _, err := io.WriteString(w, fmt.Sprintf(`(%f,%f)`, p.X, p.Y)); err != nil {
-			return false, err
-		}
+		buf = append(buf, fmt.Sprintf(`(%f,%f)`, p.X, p.Y)...)
 	}
 
-	err := pgio.WriteByte(w, endByte)
-	return false, err
+	return append(buf, endByte), nil
 }
 
-func (src *Path) EncodeBinary(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Path) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
 	var closeByte byte
 	if src.Closed {
 		closeByte = 1
 	}
-	if err := pgio.WriteByte(w, closeByte); err != nil {
-		return false, err
-	}
+	buf = append(buf, closeByte)
 
-	if _, err := pgio.WriteInt32(w, int32(len(src.P))); err != nil {
-		return false, err
-	}
+	buf = pgio.AppendInt32(buf, int32(len(src.P)))
 
 	for _, p := range src.P {
-		if _, err := pgio.WriteUint64(w, math.Float64bits(p.X)); err != nil {
-			return false, err
-		}
-
-		if _, err := pgio.WriteUint64(w, math.Float64bits(p.Y)); err != nil {
-			return false, err
-		}
+		buf = pgio.AppendUint64(buf, math.Float64bits(p.X))
+		buf = pgio.AppendUint64(buf, math.Float64bits(p.Y))
 	}
 
-	return false, nil
+	return buf, nil
 }
 
 // Scan implements the database/sql Scanner interface.
@@ -195,13 +179,15 @@ func (dst *Path) Scan(src interface{}) error {
 	case string:
 		return dst.DecodeText(nil, []byte(src))
 	case []byte:
-		return dst.DecodeText(nil, src)
+		srcCopy := make([]byte, len(src))
+		copy(srcCopy, src)
+		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
 func (src *Path) Value() (driver.Value, error) {
-	return encodeValueText(src)
+	return EncodeValueText(src)
 }

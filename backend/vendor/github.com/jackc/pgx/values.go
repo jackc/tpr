@@ -1,14 +1,15 @@
 package pgx
 
 import (
-	"bytes"
 	"database/sql/driver"
 	"fmt"
 	"math"
 	"reflect"
 	"time"
 
+	"github.com/jackc/pgx/pgio"
 	"github.com/jackc/pgx/pgtype"
+	"github.com/pkg/errors"
 )
 
 // PostgreSQL format codes
@@ -33,15 +34,14 @@ func convertSimpleArgument(ci *pgtype.ConnInfo, arg interface{}) (interface{}, e
 	case driver.Valuer:
 		return arg.Value()
 	case pgtype.TextEncoder:
-		buf := &bytes.Buffer{}
-		null, err := arg.EncodeText(ci, buf)
+		buf, err := arg.EncodeText(ci, nil)
 		if err != nil {
 			return nil, err
 		}
-		if null {
+		if buf == nil {
 			return nil, nil
 		}
-		return buf.String(), nil
+		return string(buf), nil
 	case int64:
 		return arg, nil
 	case float64:
@@ -70,12 +70,12 @@ func convertSimpleArgument(ci *pgtype.ConnInfo, arg interface{}) (interface{}, e
 		return int64(arg), nil
 	case uint64:
 		if arg > math.MaxInt64 {
-			return nil, fmt.Errorf("arg too big for int64: %v", arg)
+			return nil, errors.Errorf("arg too big for int64: %v", arg)
 		}
 		return int64(arg), nil
 	case uint:
 		if arg > math.MaxInt64 {
-			return nil, fmt.Errorf("arg too big for int64: %v", arg)
+			return nil, errors.Errorf("arg too big for int64: %v", arg)
 		}
 		return int64(arg), nil
 	case float32:
@@ -98,93 +98,88 @@ func convertSimpleArgument(ci *pgtype.ConnInfo, arg interface{}) (interface{}, e
 	return nil, SerializationError(fmt.Sprintf("Cannot encode %T in simple protocol - %T must implement driver.Valuer, pgtype.TextEncoder, or be a native type", arg, arg))
 }
 
-func encodePreparedStatementArgument(wbuf *WriteBuf, oid pgtype.Oid, arg interface{}) error {
+func encodePreparedStatementArgument(ci *pgtype.ConnInfo, buf []byte, oid pgtype.OID, arg interface{}) ([]byte, error) {
 	if arg == nil {
-		wbuf.WriteInt32(-1)
-		return nil
+		return pgio.AppendInt32(buf, -1), nil
 	}
 
 	switch arg := arg.(type) {
 	case pgtype.BinaryEncoder:
-		buf := &bytes.Buffer{}
-		null, err := arg.EncodeBinary(wbuf.conn.ConnInfo, buf)
+		sp := len(buf)
+		buf = pgio.AppendInt32(buf, -1)
+		argBuf, err := arg.EncodeBinary(ci, buf)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		if null {
-			wbuf.WriteInt32(-1)
-		} else {
-			wbuf.WriteInt32(int32(buf.Len()))
-			wbuf.WriteBytes(buf.Bytes())
+		if argBuf != nil {
+			buf = argBuf
+			pgio.SetInt32(buf[sp:], int32(len(buf[sp:])-4))
 		}
-		return nil
+		return buf, nil
 	case pgtype.TextEncoder:
-		buf := &bytes.Buffer{}
-		null, err := arg.EncodeText(wbuf.conn.ConnInfo, buf)
+		sp := len(buf)
+		buf = pgio.AppendInt32(buf, -1)
+		argBuf, err := arg.EncodeText(ci, buf)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		if null {
-			wbuf.WriteInt32(-1)
-		} else {
-			wbuf.WriteInt32(int32(buf.Len()))
-			wbuf.WriteBytes(buf.Bytes())
+		if argBuf != nil {
+			buf = argBuf
+			pgio.SetInt32(buf[sp:], int32(len(buf[sp:])-4))
 		}
-		return nil
+		return buf, nil
 	case driver.Valuer:
 		v, err := arg.Value()
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return encodePreparedStatementArgument(wbuf, oid, v)
+		return encodePreparedStatementArgument(ci, buf, oid, v)
 	case string:
-		wbuf.WriteInt32(int32(len(arg)))
-		wbuf.WriteBytes([]byte(arg))
-		return nil
+		buf = pgio.AppendInt32(buf, int32(len(arg)))
+		buf = append(buf, arg...)
+		return buf, nil
 	}
 
 	refVal := reflect.ValueOf(arg)
 
 	if refVal.Kind() == reflect.Ptr {
 		if refVal.IsNil() {
-			wbuf.WriteInt32(-1)
-			return nil
+			return pgio.AppendInt32(buf, -1), nil
 		}
 		arg = refVal.Elem().Interface()
-		return encodePreparedStatementArgument(wbuf, oid, arg)
+		return encodePreparedStatementArgument(ci, buf, oid, arg)
 	}
 
-	if dt, ok := wbuf.conn.ConnInfo.DataTypeForOid(oid); ok {
+	if dt, ok := ci.DataTypeForOID(oid); ok {
 		value := dt.Value
 		err := value.Set(arg)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		buf := &bytes.Buffer{}
-		null, err := value.(pgtype.BinaryEncoder).EncodeBinary(wbuf.conn.ConnInfo, buf)
+		sp := len(buf)
+		buf = pgio.AppendInt32(buf, -1)
+		argBuf, err := value.(pgtype.BinaryEncoder).EncodeBinary(ci, buf)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		if null {
-			wbuf.WriteInt32(-1)
-		} else {
-			wbuf.WriteInt32(int32(buf.Len()))
-			wbuf.WriteBytes(buf.Bytes())
+		if argBuf != nil {
+			buf = argBuf
+			pgio.SetInt32(buf[sp:], int32(len(buf[sp:])-4))
 		}
-		return nil
+		return buf, nil
 	}
 
 	if strippedArg, ok := stripNamedType(&refVal); ok {
-		return encodePreparedStatementArgument(wbuf, oid, strippedArg)
+		return encodePreparedStatementArgument(ci, buf, oid, strippedArg)
 	}
-	return SerializationError(fmt.Sprintf("Cannot encode %T into oid %v - %T must implement Encoder or be converted to a string", arg, oid, arg))
+	return nil, SerializationError(fmt.Sprintf("Cannot encode %T into oid %v - %T must implement Encoder or be converted to a string", arg, oid, arg))
 }
 
 // chooseParameterFormatCode determines the correct format code for an
 // argument to a prepared statement. It defaults to TextFormatCode if no
 // determination can be made.
-func chooseParameterFormatCode(ci *pgtype.ConnInfo, oid pgtype.Oid, arg interface{}) int16 {
+func chooseParameterFormatCode(ci *pgtype.ConnInfo, oid pgtype.OID, arg interface{}) int16 {
 	switch arg.(type) {
 	case pgtype.BinaryEncoder:
 		return BinaryFormatCode
@@ -192,7 +187,7 @@ func chooseParameterFormatCode(ci *pgtype.ConnInfo, oid pgtype.Oid, arg interfac
 		return TextFormatCode
 	}
 
-	if dt, ok := ci.DataTypeForOid(oid); ok {
+	if dt, ok := ci.DataTypeForOID(oid); ok {
 		if _, ok := dt.Value.(pgtype.BinaryEncoder); ok {
 			if arg, ok := arg.(driver.Valuer); ok {
 				if err := dt.Value.Set(arg); err != nil {

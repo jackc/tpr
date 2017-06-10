@@ -3,11 +3,10 @@ package pgtype
 import (
 	"database/sql/driver"
 	"encoding/binary"
-	"fmt"
-	"io"
 	"time"
 
 	"github.com/jackc/pgx/pgio"
+	"github.com/pkg/errors"
 )
 
 type Date struct {
@@ -34,7 +33,7 @@ func (dst *Date) Set(src interface{}) error {
 		if originalSrc, ok := underlyingTimeType(src); ok {
 			return dst.Set(originalSrc)
 		}
-		return fmt.Errorf("cannot convert %v to Date", value)
+		return errors.Errorf("cannot convert %v to Date", value)
 	}
 
 	return nil
@@ -60,7 +59,7 @@ func (src *Date) AssignTo(dst interface{}) error {
 		switch v := dst.(type) {
 		case *time.Time:
 			if src.InfinityModifier != None {
-				return fmt.Errorf("cannot assign %v to %T", src, dst)
+				return errors.Errorf("cannot assign %v to %T", src, dst)
 			}
 			*v = src.Time
 			return nil
@@ -70,10 +69,10 @@ func (src *Date) AssignTo(dst interface{}) error {
 			}
 		}
 	case Null:
-		return nullAssignTo(dst)
+		return NullAssignTo(dst)
 	}
 
-	return fmt.Errorf("cannot decode %v into %T", src, dst)
+	return errors.Errorf("cannot decode %v into %T", src, dst)
 }
 
 func (dst *Date) DecodeText(ci *ConnInfo, src []byte) error {
@@ -107,7 +106,7 @@ func (dst *Date) DecodeBinary(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) != 4 {
-		return fmt.Errorf("invalid length for date: %v", len(src))
+		return errors.Errorf("invalid length for date: %v", len(src))
 	}
 
 	dayOffset := int32(binary.BigEndian.Uint32(src))
@@ -125,12 +124,12 @@ func (dst *Date) DecodeBinary(ci *ConnInfo, src []byte) error {
 	return nil
 }
 
-func (src Date) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Date) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
 	var s string
@@ -144,16 +143,15 @@ func (src Date) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
 		s = "-infinity"
 	}
 
-	_, err := io.WriteString(w, s)
-	return false, err
+	return append(buf, s...), nil
 }
 
-func (src Date) EncodeBinary(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Date) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
 	var daysSinceDateEpoch int32
@@ -170,8 +168,7 @@ func (src Date) EncodeBinary(ci *ConnInfo, w io.Writer) (bool, error) {
 		daysSinceDateEpoch = negativeInfinityDayOffset
 	}
 
-	_, err := pgio.WriteInt32(w, daysSinceDateEpoch)
-	return false, err
+	return pgio.AppendInt32(buf, daysSinceDateEpoch), nil
 }
 
 // Scan implements the database/sql Scanner interface.
@@ -185,17 +182,19 @@ func (dst *Date) Scan(src interface{}) error {
 	case string:
 		return dst.DecodeText(nil, []byte(src))
 	case []byte:
-		return dst.DecodeText(nil, src)
+		srcCopy := make([]byte, len(src))
+		copy(srcCopy, src)
+		return dst.DecodeText(nil, srcCopy)
 	case time.Time:
 		*dst = Date{Time: src, Status: Present}
 		return nil
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
-func (src Date) Value() (driver.Value, error) {
+func (src *Date) Value() (driver.Value, error) {
 	switch src.Status {
 	case Present:
 		if src.InfinityModifier != None {

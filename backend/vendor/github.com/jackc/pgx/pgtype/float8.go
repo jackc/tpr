@@ -3,12 +3,11 @@ package pgtype
 import (
 	"database/sql/driver"
 	"encoding/binary"
-	"fmt"
-	"io"
 	"math"
 	"strconv"
 
 	"github.com/jackc/pgx/pgio"
+	"github.com/pkg/errors"
 )
 
 type Float8 struct {
@@ -44,28 +43,28 @@ func (dst *Float8) Set(src interface{}) error {
 		if int64(f64) == value {
 			*dst = Float8{Float: f64, Status: Present}
 		} else {
-			return fmt.Errorf("%v cannot be exactly represented as float64", value)
+			return errors.Errorf("%v cannot be exactly represented as float64", value)
 		}
 	case uint64:
 		f64 := float64(value)
 		if uint64(f64) == value {
 			*dst = Float8{Float: f64, Status: Present}
 		} else {
-			return fmt.Errorf("%v cannot be exactly represented as float64", value)
+			return errors.Errorf("%v cannot be exactly represented as float64", value)
 		}
 	case int:
 		f64 := float64(value)
 		if int(f64) == value {
 			*dst = Float8{Float: f64, Status: Present}
 		} else {
-			return fmt.Errorf("%v cannot be exactly represented as float64", value)
+			return errors.Errorf("%v cannot be exactly represented as float64", value)
 		}
 	case uint:
 		f64 := float64(value)
 		if uint(f64) == value {
 			*dst = Float8{Float: f64, Status: Present}
 		} else {
-			return fmt.Errorf("%v cannot be exactly represented as float64", value)
+			return errors.Errorf("%v cannot be exactly represented as float64", value)
 		}
 	case string:
 		num, err := strconv.ParseFloat(value, 64)
@@ -77,7 +76,7 @@ func (dst *Float8) Set(src interface{}) error {
 		if originalSrc, ok := underlyingNumberType(src); ok {
 			return dst.Set(originalSrc)
 		}
-		return fmt.Errorf("cannot convert %v to Float8", value)
+		return errors.Errorf("cannot convert %v to Float8", value)
 	}
 
 	return nil
@@ -120,7 +119,7 @@ func (dst *Float8) DecodeBinary(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) != 8 {
-		return fmt.Errorf("invalid length for float4: %v", len(src))
+		return errors.Errorf("invalid length for float4: %v", len(src))
 	}
 
 	n := int64(binary.BigEndian.Uint64(src))
@@ -129,28 +128,28 @@ func (dst *Float8) DecodeBinary(ci *ConnInfo, src []byte) error {
 	return nil
 }
 
-func (src Float8) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Float8) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	_, err := io.WriteString(w, strconv.FormatFloat(float64(src.Float), 'f', -1, 64))
-	return false, err
+	buf = append(buf, strconv.FormatFloat(float64(src.Float), 'f', -1, 64)...)
+	return buf, nil
 }
 
-func (src Float8) EncodeBinary(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Float8) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	_, err := pgio.WriteInt64(w, int64(math.Float64bits(src.Float)))
-	return false, err
+	buf = pgio.AppendUint64(buf, math.Float64bits(src.Float))
+	return buf, nil
 }
 
 // Scan implements the database/sql Scanner interface.
@@ -167,14 +166,16 @@ func (dst *Float8) Scan(src interface{}) error {
 	case string:
 		return dst.DecodeText(nil, []byte(src))
 	case []byte:
-		return dst.DecodeText(nil, src)
+		srcCopy := make([]byte, len(src))
+		copy(srcCopy, src)
+		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
-func (src Float8) Value() (driver.Value, error) {
+func (src *Float8) Value() (driver.Value, error) {
 	switch src.Status {
 	case Present:
 		return src.Float, nil

@@ -2,9 +2,10 @@ package pgx
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/jackc/pgx/pgtype"
 )
@@ -31,8 +32,6 @@ type ConnPool struct {
 	preparedStatements   map[string]*PreparedStatement
 	acquireTimeout       time.Duration
 	connInfo             *pgtype.ConnInfo
-	txAfterClose         func(tx *Tx)
-	rowsAfterClose       func(rows *Rows)
 }
 
 type ConnPoolStat struct {
@@ -73,14 +72,6 @@ func NewConnPool(config ConnPoolConfig) (p *ConnPool, err error) {
 	p.logger = config.Logger
 	if p.logger == nil {
 		p.logLevel = LogLevelNone
-	}
-
-	p.txAfterClose = func(tx *Tx) {
-		p.Release(tx.Conn())
-	}
-
-	p.rowsAfterClose = func(rows *Rows) {
-		p.Release(rows.Conn())
 	}
 
 	p.allConnections = make([]*Conn, 0, p.maxConnections)
@@ -164,7 +155,7 @@ func (p *ConnPool) acquire(deadline *time.Time) (*Conn, error) {
 	}
 	// All connections are in use and we cannot create more
 	if p.logLevel >= LogLevelWarn {
-		p.logger.Log(LogLevelWarn, "All connections in pool are busy - waiting...")
+		p.logger.Log(LogLevelWarn, "waiting for available connection", nil)
 	}
 
 	// Wait until there is an available connection OR room to create a new connection
@@ -230,25 +221,21 @@ func (p *ConnPool) removeFromAllConnections(conn *Conn) bool {
 	return false
 }
 
-// Close ends the use of a connection pool. It prevents any new connections
-// from being acquired, waits until all acquired connections are released,
-// then closes all underlying connections.
+// Close ends the use of a connection pool. It prevents any new connections from
+// being acquired and closes available underlying connections. Any acquired
+// connections will be closed when they are released.
 func (p *ConnPool) Close() {
 	p.cond.L.Lock()
 	defer p.cond.L.Unlock()
 
 	p.closed = true
 
-	// Wait until all connections are released
-	if len(p.availableConnections) != len(p.allConnections) {
-		for len(p.availableConnections) != len(p.allConnections) {
-			p.cond.Wait()
-		}
-	}
-
-	for _, c := range p.allConnections {
+	for _, c := range p.availableConnections {
 		_ = c.Close()
 	}
+
+	// This will cause any checked out connections to be closed on release
+	p.resetCount++
 }
 
 // Reset closes all open connections, but leaves the pool open. It is intended
@@ -385,7 +372,7 @@ func (p *ConnPool) Query(sql string, args ...interface{}) (*Rows, error) {
 		return rows, err
 	}
 
-	rows.AfterClose(p.rowsAfterClose)
+	rows.connPool = p
 
 	return rows, nil
 }
@@ -403,7 +390,7 @@ func (p *ConnPool) QueryEx(ctx context.Context, sql string, options *QueryExOpti
 		return rows, err
 	}
 
-	rows.AfterClose(p.rowsAfterClose)
+	rows.connPool = p
 
 	return rows, nil
 }
@@ -424,7 +411,7 @@ func (p *ConnPool) QueryRowEx(ctx context.Context, sql string, options *QueryExO
 // Begin acquires a connection and begins a transaction on it. When the
 // transaction is closed the connection will be automatically released.
 func (p *ConnPool) Begin() (*Tx, error) {
-	return p.BeginEx(nil)
+	return p.BeginEx(context.Background(), nil)
 }
 
 // Prepare creates a prepared statement on a connection in the pool to test the
@@ -439,7 +426,7 @@ func (p *ConnPool) Begin() (*Tx, error) {
 // the same name and sql arguments. This allows a code path to Prepare and
 // Query/Exec/PrepareEx without concern for if the statement has already been prepared.
 func (p *ConnPool) Prepare(name, sql string) (*PreparedStatement, error) {
-	return p.PrepareEx(name, sql, nil)
+	return p.PrepareEx(context.Background(), name, sql, nil)
 }
 
 // PrepareEx creates a prepared statement on a connection in the pool to test the
@@ -448,12 +435,12 @@ func (p *ConnPool) Prepare(name, sql string) (*PreparedStatement, error) {
 //
 // PrepareEx creates a prepared statement with name and sql. sql can contain placeholders
 // for bound parameters. These placeholders are referenced positional as $1, $2, etc.
-// It defers from Prepare as it allows additional options (such as parameter Oids) to be passed via struct
+// It defers from Prepare as it allows additional options (such as parameter OIDs) to be passed via struct
 //
 // PrepareEx is idempotent; i.e. it is safe to call PrepareEx multiple times with the same
 // name and sql arguments. This allows a code path to PrepareEx and Query/Exec/Prepare without
 // concern for if the statement has already been prepared.
-func (p *ConnPool) PrepareEx(name, sql string, opts *PrepareExOptions) (*PreparedStatement, error) {
+func (p *ConnPool) PrepareEx(ctx context.Context, name, sql string, opts *PrepareExOptions) (*PreparedStatement, error) {
 	p.cond.L.Lock()
 	defer p.cond.L.Unlock()
 
@@ -475,13 +462,13 @@ func (p *ConnPool) PrepareEx(name, sql string, opts *PrepareExOptions) (*Prepare
 		return ps, nil
 	}
 
-	ps, err := c.PrepareEx(name, sql, opts)
+	ps, err := c.PrepareEx(ctx, name, sql, opts)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, c := range p.availableConnections {
-		_, err := c.PrepareEx(name, sql, opts)
+		_, err := c.PrepareEx(ctx, name, sql, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -513,14 +500,14 @@ func (p *ConnPool) Deallocate(name string) (err error) {
 // BeginEx acquires a connection and starts a transaction with txOptions
 // determining the transaction mode. When the transaction is closed the
 // connection will be automatically released.
-func (p *ConnPool) BeginEx(txOptions *TxOptions) (*Tx, error) {
+func (p *ConnPool) BeginEx(ctx context.Context, txOptions *TxOptions) (*Tx, error) {
 	for {
 		c, err := p.Acquire()
 		if err != nil {
 			return nil, err
 		}
 
-		tx, err := c.BeginEx(txOptions)
+		tx, err := c.BeginEx(ctx, txOptions)
 		if err != nil {
 			alive := c.IsAlive()
 			p.Release(c)
@@ -535,7 +522,7 @@ func (p *ConnPool) BeginEx(txOptions *TxOptions) (*Tx, error) {
 			continue
 		}
 
-		tx.AfterClose(p.txAfterClose)
+		tx.connPool = p
 		return tx, nil
 	}
 }
@@ -549,4 +536,11 @@ func (p *ConnPool) CopyFrom(tableName Identifier, columnNames []string, rowSrc C
 	defer p.Release(c)
 
 	return c.CopyFrom(tableName, columnNames, rowSrc)
+}
+
+// BeginBatch acquires a connection and begins a batch on that connection. When
+// *Batch is finished, the connection is released automatically.
+func (p *ConnPool) BeginBatch() *Batch {
+	c, err := p.Acquire()
+	return &Batch{conn: c, connPool: p, err: err}
 }

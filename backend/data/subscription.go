@@ -1,6 +1,8 @@
 package data
 
 import (
+	"context"
+
 	"github.com/jackc/pgx"
 	"github.com/jackc/pgx/pgtype"
 )
@@ -65,7 +67,7 @@ func DeleteSubscription(db *pgx.ConnPool, userID, feedID int32) error {
 		return err
 	}
 
-	tx, err := db.BeginEx(&pgx.TxOptions{IsoLevel: pgx.Serializable})
+	tx, err := db.BeginEx(context.Background(), &pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
 		return err
 	}

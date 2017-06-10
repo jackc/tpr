@@ -2,11 +2,9 @@ package pgtype
 
 import (
 	"database/sql/driver"
-	"fmt"
-	"io"
 	"net"
 
-	"github.com/jackc/pgx/pgio"
+	"github.com/pkg/errors"
 )
 
 // Network address family is dependent on server socket.h value for AF_INET.
@@ -48,7 +46,7 @@ func (dst *Inet) Set(src interface{}) error {
 		if originalSrc, ok := underlyingPtrType(src); ok {
 			return dst.Set(originalSrc)
 		}
-		return fmt.Errorf("cannot convert %v to Inet", value)
+		return errors.Errorf("cannot convert %v to Inet", value)
 	}
 
 	return nil
@@ -79,7 +77,7 @@ func (src *Inet) AssignTo(dst interface{}) error {
 			return nil
 		case *net.IP:
 			if oneCount, bitCount := src.IPNet.Mask.Size(); oneCount != bitCount {
-				return fmt.Errorf("cannot assign %v to %T", src, dst)
+				return errors.Errorf("cannot assign %v to %T", src, dst)
 			}
 			*v = make(net.IP, len(src.IPNet.IP))
 			copy(*v, src.IPNet.IP)
@@ -90,10 +88,10 @@ func (src *Inet) AssignTo(dst interface{}) error {
 			}
 		}
 	case Null:
-		return nullAssignTo(dst)
+		return NullAssignTo(dst)
 	}
 
-	return fmt.Errorf("cannot decode %v into %T", src, dst)
+	return errors.Errorf("cannot decode %v into %T", src, dst)
 }
 
 func (dst *Inet) DecodeText(ci *ConnInfo, src []byte) error {
@@ -131,7 +129,7 @@ func (dst *Inet) DecodeBinary(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) != 8 && len(src) != 20 {
-		return fmt.Errorf("Received an invalid size for a inet: %d", len(src))
+		return errors.Errorf("Received an invalid size for a inet: %d", len(src))
 	}
 
 	// ignore family
@@ -149,25 +147,24 @@ func (dst *Inet) DecodeBinary(ci *ConnInfo, src []byte) error {
 	return nil
 }
 
-func (src Inet) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Inet) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	_, err := io.WriteString(w, src.IPNet.String())
-	return false, err
+	return append(buf, src.IPNet.String()...), nil
 }
 
 // EncodeBinary encodes src into w.
-func (src Inet) EncodeBinary(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Inet) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
 	var family byte
@@ -177,29 +174,20 @@ func (src Inet) EncodeBinary(ci *ConnInfo, w io.Writer) (bool, error) {
 	case net.IPv6len:
 		family = defaultAFInet6
 	default:
-		return false, fmt.Errorf("Unexpected IP length: %v", len(src.IPNet.IP))
+		return nil, errors.Errorf("Unexpected IP length: %v", len(src.IPNet.IP))
 	}
 
-	if err := pgio.WriteByte(w, family); err != nil {
-		return false, err
-	}
+	buf = append(buf, family)
 
 	ones, _ := src.IPNet.Mask.Size()
-	if err := pgio.WriteByte(w, byte(ones)); err != nil {
-		return false, err
-	}
+	buf = append(buf, byte(ones))
 
 	// is_cidr is ignored on server
-	if err := pgio.WriteByte(w, 0); err != nil {
-		return false, err
-	}
+	buf = append(buf, 0)
 
-	if err := pgio.WriteByte(w, byte(len(src.IPNet.IP))); err != nil {
-		return false, err
-	}
+	buf = append(buf, byte(len(src.IPNet.IP)))
 
-	_, err := w.Write(src.IPNet.IP)
-	return false, err
+	return append(buf, src.IPNet.IP...), nil
 }
 
 // Scan implements the database/sql Scanner interface.
@@ -213,13 +201,15 @@ func (dst *Inet) Scan(src interface{}) error {
 	case string:
 		return dst.DecodeText(nil, []byte(src))
 	case []byte:
-		return dst.DecodeText(nil, src)
+		srcCopy := make([]byte, len(src))
+		copy(srcCopy, src)
+		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
-func (src Inet) Value() (driver.Value, error) {
-	return encodeValueText(src)
+func (src *Inet) Value() (driver.Value, error) {
+	return EncodeValueText(src)
 }

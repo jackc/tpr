@@ -3,10 +3,9 @@ package pgtype
 import (
 	"database/sql/driver"
 	"encoding/binary"
-	"fmt"
-	"io"
 
 	"github.com/jackc/pgx/pgio"
+	"github.com/pkg/errors"
 )
 
 type Varbit struct {
@@ -16,7 +15,7 @@ type Varbit struct {
 }
 
 func (dst *Varbit) Set(src interface{}) error {
-	return fmt.Errorf("cannot convert %v to Varbit", src)
+	return errors.Errorf("cannot convert %v to Varbit", src)
 }
 
 func (dst *Varbit) Get() interface{} {
@@ -31,7 +30,7 @@ func (dst *Varbit) Get() interface{} {
 }
 
 func (src *Varbit) AssignTo(dst interface{}) error {
-	return fmt.Errorf("cannot assign %v to %T", src, dst)
+	return errors.Errorf("cannot assign %v to %T", src, dst)
 }
 
 func (dst *Varbit) DecodeText(ci *ConnInfo, src []byte) error {
@@ -66,56 +65,47 @@ func (dst *Varbit) DecodeBinary(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) < 4 {
-		return fmt.Errorf("invalid length for varbit: %v", len(src))
+		return errors.Errorf("invalid length for varbit: %v", len(src))
 	}
 
 	bitLen := int32(binary.BigEndian.Uint32(src))
 	rp := 4
 
-	buf := make([]byte, len(src[rp:]))
-	copy(buf, src[rp:])
-
-	*dst = Varbit{Bytes: buf, Len: bitLen, Status: Present}
+	*dst = Varbit{Bytes: src[rp:], Len: bitLen, Status: Present}
 	return nil
 }
 
-func (src *Varbit) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Varbit) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	buf := make([]byte, int(src.Len))
-	for i, _ := range buf {
+	for i := int32(0); i < src.Len; i++ {
 		byteIdx := i / 8
 		bitMask := byte(128 >> byte(i%8))
 		char := byte('0')
 		if src.Bytes[byteIdx]&bitMask > 0 {
 			char = '1'
 		}
-		buf[i] = char
+		buf = append(buf, char)
 	}
 
-	_, err := w.Write(buf)
-	return false, err
+	return buf, nil
 }
 
-func (src *Varbit) EncodeBinary(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Varbit) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	if _, err := pgio.WriteInt32(w, src.Len); err != nil {
-		return false, err
-	}
-
-	_, err := w.Write(src.Bytes)
-	return false, err
+	buf = pgio.AppendInt32(buf, src.Len)
+	return append(buf, src.Bytes...), nil
 }
 
 // Scan implements the database/sql Scanner interface.
@@ -129,13 +119,15 @@ func (dst *Varbit) Scan(src interface{}) error {
 	case string:
 		return dst.DecodeText(nil, []byte(src))
 	case []byte:
-		return dst.DecodeText(nil, src)
+		srcCopy := make([]byte, len(src))
+		copy(srcCopy, src)
+		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
 func (src *Varbit) Value() (driver.Value, error) {
-	return encodeValueText(src)
+	return EncodeValueText(src)
 }

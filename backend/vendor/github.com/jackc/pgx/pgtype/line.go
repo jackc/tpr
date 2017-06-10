@@ -4,12 +4,12 @@ import (
 	"database/sql/driver"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"math"
 	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/pgio"
+	"github.com/pkg/errors"
 )
 
 type Line struct {
@@ -18,7 +18,7 @@ type Line struct {
 }
 
 func (dst *Line) Set(src interface{}) error {
-	return fmt.Errorf("cannot convert %v to Line", src)
+	return errors.Errorf("cannot convert %v to Line", src)
 }
 
 func (dst *Line) Get() interface{} {
@@ -33,7 +33,7 @@ func (dst *Line) Get() interface{} {
 }
 
 func (src *Line) AssignTo(dst interface{}) error {
-	return fmt.Errorf("cannot assign %v to %T", src, dst)
+	return errors.Errorf("cannot assign %v to %T", src, dst)
 }
 
 func (dst *Line) DecodeText(ci *ConnInfo, src []byte) error {
@@ -43,12 +43,12 @@ func (dst *Line) DecodeText(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) < 7 {
-		return fmt.Errorf("invalid length for Line: %v", len(src))
+		return errors.Errorf("invalid length for Line: %v", len(src))
 	}
 
 	parts := strings.SplitN(string(src[1:len(src)-1]), ",", 3)
 	if len(parts) < 3 {
-		return fmt.Errorf("invalid format for line")
+		return errors.Errorf("invalid format for line")
 	}
 
 	a, err := strconv.ParseFloat(parts[0], 64)
@@ -77,7 +77,7 @@ func (dst *Line) DecodeBinary(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) != 24 {
-		return fmt.Errorf("invalid length for Line: %v", len(src))
+		return errors.Errorf("invalid length for Line: %v", len(src))
 	}
 
 	a := binary.BigEndian.Uint64(src)
@@ -93,36 +93,29 @@ func (dst *Line) DecodeBinary(ci *ConnInfo, src []byte) error {
 	return nil
 }
 
-func (src *Line) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Line) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	_, err := io.WriteString(w, fmt.Sprintf(`{%f,%f,%f}`, src.A, src.B, src.C))
-	return false, err
+	return append(buf, fmt.Sprintf(`{%f,%f,%f}`, src.A, src.B, src.C)...), nil
 }
 
-func (src *Line) EncodeBinary(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Line) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	if _, err := pgio.WriteUint64(w, math.Float64bits(src.A)); err != nil {
-		return false, err
-	}
-
-	if _, err := pgio.WriteUint64(w, math.Float64bits(src.B)); err != nil {
-		return false, err
-	}
-
-	_, err := pgio.WriteUint64(w, math.Float64bits(src.C))
-	return false, err
+	buf = pgio.AppendUint64(buf, math.Float64bits(src.A))
+	buf = pgio.AppendUint64(buf, math.Float64bits(src.B))
+	buf = pgio.AppendUint64(buf, math.Float64bits(src.C))
+	return buf, nil
 }
 
 // Scan implements the database/sql Scanner interface.
@@ -136,13 +129,15 @@ func (dst *Line) Scan(src interface{}) error {
 	case string:
 		return dst.DecodeText(nil, []byte(src))
 	case []byte:
-		return dst.DecodeText(nil, src)
+		srcCopy := make([]byte, len(src))
+		copy(srcCopy, src)
+		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
 func (src *Line) Value() (driver.Value, error) {
-	return encodeValueText(src)
+	return EncodeValueText(src)
 }

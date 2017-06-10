@@ -1,17 +1,15 @@
 package pgtype
 
 import (
-	"bytes"
 	"database/sql/driver"
 	"encoding/binary"
-	"fmt"
-	"io"
 	"math"
 	"math/big"
 	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/pgio"
+	"github.com/pkg/errors"
 )
 
 // PostgreSQL internal numeric storage uses 16-bit "digits" with base of 10,000
@@ -99,7 +97,7 @@ func (dst *Numeric) Set(src interface{}) error {
 		if originalSrc, ok := underlyingNumberType(src); ok {
 			return dst.Set(originalSrc)
 		}
-		return fmt.Errorf("cannot convert %v to Numeric", value)
+		return errors.Errorf("cannot convert %v to Numeric", value)
 	}
 
 	return nil
@@ -138,10 +136,10 @@ func (src *Numeric) AssignTo(dst interface{}) error {
 				return err
 			}
 			if normalizedInt.Cmp(bigMaxInt) > 0 {
-				return fmt.Errorf("%v is greater than maximum value for %T", normalizedInt, *v)
+				return errors.Errorf("%v is greater than maximum value for %T", normalizedInt, *v)
 			}
 			if normalizedInt.Cmp(bigMinInt) < 0 {
-				return fmt.Errorf("%v is less than minimum value for %T", normalizedInt, *v)
+				return errors.Errorf("%v is less than minimum value for %T", normalizedInt, *v)
 			}
 			*v = int(normalizedInt.Int64())
 		case *int8:
@@ -150,10 +148,10 @@ func (src *Numeric) AssignTo(dst interface{}) error {
 				return err
 			}
 			if normalizedInt.Cmp(bigMaxInt8) > 0 {
-				return fmt.Errorf("%v is greater than maximum value for %T", normalizedInt, *v)
+				return errors.Errorf("%v is greater than maximum value for %T", normalizedInt, *v)
 			}
 			if normalizedInt.Cmp(bigMinInt8) < 0 {
-				return fmt.Errorf("%v is less than minimum value for %T", normalizedInt, *v)
+				return errors.Errorf("%v is less than minimum value for %T", normalizedInt, *v)
 			}
 			*v = int8(normalizedInt.Int64())
 		case *int16:
@@ -162,10 +160,10 @@ func (src *Numeric) AssignTo(dst interface{}) error {
 				return err
 			}
 			if normalizedInt.Cmp(bigMaxInt16) > 0 {
-				return fmt.Errorf("%v is greater than maximum value for %T", normalizedInt, *v)
+				return errors.Errorf("%v is greater than maximum value for %T", normalizedInt, *v)
 			}
 			if normalizedInt.Cmp(bigMinInt16) < 0 {
-				return fmt.Errorf("%v is less than minimum value for %T", normalizedInt, *v)
+				return errors.Errorf("%v is less than minimum value for %T", normalizedInt, *v)
 			}
 			*v = int16(normalizedInt.Int64())
 		case *int32:
@@ -174,10 +172,10 @@ func (src *Numeric) AssignTo(dst interface{}) error {
 				return err
 			}
 			if normalizedInt.Cmp(bigMaxInt32) > 0 {
-				return fmt.Errorf("%v is greater than maximum value for %T", normalizedInt, *v)
+				return errors.Errorf("%v is greater than maximum value for %T", normalizedInt, *v)
 			}
 			if normalizedInt.Cmp(bigMinInt32) < 0 {
-				return fmt.Errorf("%v is less than minimum value for %T", normalizedInt, *v)
+				return errors.Errorf("%v is less than minimum value for %T", normalizedInt, *v)
 			}
 			*v = int32(normalizedInt.Int64())
 		case *int64:
@@ -186,10 +184,10 @@ func (src *Numeric) AssignTo(dst interface{}) error {
 				return err
 			}
 			if normalizedInt.Cmp(bigMaxInt64) > 0 {
-				return fmt.Errorf("%v is greater than maximum value for %T", normalizedInt, *v)
+				return errors.Errorf("%v is greater than maximum value for %T", normalizedInt, *v)
 			}
 			if normalizedInt.Cmp(bigMinInt64) < 0 {
-				return fmt.Errorf("%v is less than minimum value for %T", normalizedInt, *v)
+				return errors.Errorf("%v is less than minimum value for %T", normalizedInt, *v)
 			}
 			*v = normalizedInt.Int64()
 		case *uint:
@@ -198,9 +196,9 @@ func (src *Numeric) AssignTo(dst interface{}) error {
 				return err
 			}
 			if normalizedInt.Cmp(big0) < 0 {
-				return fmt.Errorf("%d is less than zero for %T", normalizedInt, *v)
+				return errors.Errorf("%d is less than zero for %T", normalizedInt, *v)
 			} else if normalizedInt.Cmp(bigMaxUint) > 0 {
-				return fmt.Errorf("%d is greater than maximum value for %T", normalizedInt, *v)
+				return errors.Errorf("%d is greater than maximum value for %T", normalizedInt, *v)
 			}
 			*v = uint(normalizedInt.Uint64())
 		case *uint8:
@@ -209,9 +207,9 @@ func (src *Numeric) AssignTo(dst interface{}) error {
 				return err
 			}
 			if normalizedInt.Cmp(big0) < 0 {
-				return fmt.Errorf("%d is less than zero for %T", normalizedInt, *v)
+				return errors.Errorf("%d is less than zero for %T", normalizedInt, *v)
 			} else if normalizedInt.Cmp(bigMaxUint8) > 0 {
-				return fmt.Errorf("%d is greater than maximum value for %T", normalizedInt, *v)
+				return errors.Errorf("%d is greater than maximum value for %T", normalizedInt, *v)
 			}
 			*v = uint8(normalizedInt.Uint64())
 		case *uint16:
@@ -220,9 +218,9 @@ func (src *Numeric) AssignTo(dst interface{}) error {
 				return err
 			}
 			if normalizedInt.Cmp(big0) < 0 {
-				return fmt.Errorf("%d is less than zero for %T", normalizedInt, *v)
+				return errors.Errorf("%d is less than zero for %T", normalizedInt, *v)
 			} else if normalizedInt.Cmp(bigMaxUint16) > 0 {
-				return fmt.Errorf("%d is greater than maximum value for %T", normalizedInt, *v)
+				return errors.Errorf("%d is greater than maximum value for %T", normalizedInt, *v)
 			}
 			*v = uint16(normalizedInt.Uint64())
 		case *uint32:
@@ -231,9 +229,9 @@ func (src *Numeric) AssignTo(dst interface{}) error {
 				return err
 			}
 			if normalizedInt.Cmp(big0) < 0 {
-				return fmt.Errorf("%d is less than zero for %T", normalizedInt, *v)
+				return errors.Errorf("%d is less than zero for %T", normalizedInt, *v)
 			} else if normalizedInt.Cmp(bigMaxUint32) > 0 {
-				return fmt.Errorf("%d is greater than maximum value for %T", normalizedInt, *v)
+				return errors.Errorf("%d is greater than maximum value for %T", normalizedInt, *v)
 			}
 			*v = uint32(normalizedInt.Uint64())
 		case *uint64:
@@ -242,9 +240,9 @@ func (src *Numeric) AssignTo(dst interface{}) error {
 				return err
 			}
 			if normalizedInt.Cmp(big0) < 0 {
-				return fmt.Errorf("%d is less than zero for %T", normalizedInt, *v)
+				return errors.Errorf("%d is less than zero for %T", normalizedInt, *v)
 			} else if normalizedInt.Cmp(bigMaxUint64) > 0 {
-				return fmt.Errorf("%d is greater than maximum value for %T", normalizedInt, *v)
+				return errors.Errorf("%d is greater than maximum value for %T", normalizedInt, *v)
 			}
 			*v = normalizedInt.Uint64()
 		default:
@@ -253,7 +251,7 @@ func (src *Numeric) AssignTo(dst interface{}) error {
 			}
 		}
 	case Null:
-		return nullAssignTo(dst)
+		return NullAssignTo(dst)
 	}
 
 	return nil
@@ -278,7 +276,7 @@ func (dst *Numeric) toBigInt() (*big.Int, error) {
 	remainder := &big.Int{}
 	num.DivMod(num, div, remainder)
 	if remainder.Cmp(big0) != 0 {
-		return nil, fmt.Errorf("cannot convert %v to integer", dst)
+		return nil, errors.Errorf("cannot convert %v to integer", dst)
 	}
 	return num, nil
 }
@@ -330,7 +328,7 @@ func parseNumericString(str string) (n *big.Int, exp int32, err error) {
 
 	accum := &big.Int{}
 	if _, ok := accum.SetString(digits, 10); !ok {
-		return nil, 0, fmt.Errorf("%s is not a number", str)
+		return nil, 0, errors.Errorf("%s is not a number", str)
 	}
 
 	return accum, exp, nil
@@ -343,7 +341,7 @@ func (dst *Numeric) DecodeBinary(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) < 8 {
-		return fmt.Errorf("numeric incomplete %v", src)
+		return errors.Errorf("numeric incomplete %v", src)
 	}
 
 	rp := 0
@@ -363,7 +361,7 @@ func (dst *Numeric) DecodeBinary(ci *ConnInfo, src []byte) error {
 	rp += 2
 
 	if len(src[rp:]) < int(ndigits)*2 {
-		return fmt.Errorf("numeric incomplete %v", src)
+		return errors.Errorf("numeric incomplete %v", src)
 	}
 
 	accum := &big.Int{}
@@ -384,7 +382,7 @@ func (dst *Numeric) DecodeBinary(ci *ConnInfo, src []byte) error {
 			case 4:
 				mul = bigNBaseX4
 			default:
-				return fmt.Errorf("invalid digitsRead: %d (this can't happen)", digitsRead)
+				return errors.Errorf("invalid digitsRead: %d (this can't happen)", digitsRead)
 			}
 			accum.Mul(accum, mul)
 		}
@@ -455,36 +453,26 @@ func nbaseDigitsToInt64(src []byte) (accum int64, bytesRead, digitsRead int) {
 	return accum, rp, digits
 }
 
-func (src *Numeric) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Numeric) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	if _, err := io.WriteString(w, src.Int.String()); err != nil {
-		return false, err
-	}
-
-	if err := pgio.WriteByte(w, 'e'); err != nil {
-		return false, err
-	}
-
-	if _, err := io.WriteString(w, strconv.FormatInt(int64(src.Exp), 10)); err != nil {
-		return false, err
-	}
-
-	return false, nil
-
+	buf = append(buf, src.Int.String()...)
+	buf = append(buf, 'e')
+	buf = append(buf, strconv.FormatInt(int64(src.Exp), 10)...)
+	return buf, nil
 }
 
-func (src *Numeric) EncodeBinary(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Numeric) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
 	var sign int16
@@ -535,9 +523,7 @@ func (src *Numeric) EncodeBinary(ci *ConnInfo, w io.Writer) (bool, error) {
 		fracDigits = append(fracDigits, int16(remainder.Int64()))
 	}
 
-	if _, err := pgio.WriteInt16(w, int16(len(wholeDigits)+len(fracDigits))); err != nil {
-		return false, err
-	}
+	buf = pgio.AppendInt16(buf, int16(len(wholeDigits)+len(fracDigits)))
 
 	var weight int16
 	if len(wholeDigits) > 0 {
@@ -548,35 +534,25 @@ func (src *Numeric) EncodeBinary(ci *ConnInfo, w io.Writer) (bool, error) {
 	} else {
 		weight = int16(exp/4) - 1 + int16(len(fracDigits))
 	}
-	if _, err := pgio.WriteInt16(w, weight); err != nil {
-		return false, err
-	}
+	buf = pgio.AppendInt16(buf, weight)
 
-	if _, err := pgio.WriteInt16(w, sign); err != nil {
-		return false, err
-	}
+	buf = pgio.AppendInt16(buf, sign)
 
 	var dscale int16
 	if src.Exp < 0 {
 		dscale = int16(-src.Exp)
 	}
-	if _, err := pgio.WriteInt16(w, dscale); err != nil {
-		return false, err
-	}
+	buf = pgio.AppendInt16(buf, dscale)
 
 	for i := len(wholeDigits) - 1; i >= 0; i-- {
-		if _, err := pgio.WriteInt16(w, wholeDigits[i]); err != nil {
-			return false, err
-		}
+		buf = pgio.AppendInt16(buf, wholeDigits[i])
 	}
 
 	for i := len(fracDigits) - 1; i >= 0; i-- {
-		if _, err := pgio.WriteInt16(w, fracDigits[i]); err != nil {
-			return false, err
-		}
+		buf = pgio.AppendInt16(buf, fracDigits[i])
 	}
 
-	return false, nil
+	return buf, nil
 }
 
 // Scan implements the database/sql Scanner interface.
@@ -594,23 +570,24 @@ func (dst *Numeric) Scan(src interface{}) error {
 	case string:
 		return dst.DecodeText(nil, []byte(src))
 	case []byte:
-		return dst.DecodeText(nil, src)
+		srcCopy := make([]byte, len(src))
+		copy(srcCopy, src)
+		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
 func (src *Numeric) Value() (driver.Value, error) {
 	switch src.Status {
 	case Present:
-		buf := &bytes.Buffer{}
-		_, err := src.EncodeText(nil, buf)
+		buf, err := src.EncodeText(nil, nil)
 		if err != nil {
 			return nil, err
 		}
 
-		return buf.String(), nil
+		return string(buf), nil
 	case Null:
 		return nil, nil
 	default:

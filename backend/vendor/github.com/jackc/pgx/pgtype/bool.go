@@ -2,9 +2,9 @@ package pgtype
 
 import (
 	"database/sql/driver"
-	"fmt"
-	"io"
 	"strconv"
+
+	"github.com/pkg/errors"
 )
 
 type Bool struct {
@@ -26,7 +26,7 @@ func (dst *Bool) Set(src interface{}) error {
 		if originalSrc, ok := underlyingBoolType(src); ok {
 			return dst.Set(originalSrc)
 		}
-		return fmt.Errorf("cannot convert %v to Bool", value)
+		return errors.Errorf("cannot convert %v to Bool", value)
 	}
 
 	return nil
@@ -56,10 +56,10 @@ func (src *Bool) AssignTo(dst interface{}) error {
 			}
 		}
 	case Null:
-		return nullAssignTo(dst)
+		return NullAssignTo(dst)
 	}
 
-	return fmt.Errorf("cannot decode %v into %T", src, dst)
+	return errors.Errorf("cannot decode %v into %T", src, dst)
 }
 
 func (dst *Bool) DecodeText(ci *ConnInfo, src []byte) error {
@@ -69,7 +69,7 @@ func (dst *Bool) DecodeText(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) != 1 {
-		return fmt.Errorf("invalid length for bool: %v", len(src))
+		return errors.Errorf("invalid length for bool: %v", len(src))
 	}
 
 	*dst = Bool{Bool: src[0] == 't', Status: Present}
@@ -83,49 +83,45 @@ func (dst *Bool) DecodeBinary(ci *ConnInfo, src []byte) error {
 	}
 
 	if len(src) != 1 {
-		return fmt.Errorf("invalid length for bool: %v", len(src))
+		return errors.Errorf("invalid length for bool: %v", len(src))
 	}
 
 	*dst = Bool{Bool: src[0] == 1, Status: Present}
 	return nil
 }
 
-func (src Bool) EncodeText(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Bool) EncodeText(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	var buf []byte
 	if src.Bool {
-		buf = []byte{'t'}
+		buf = append(buf, 't')
 	} else {
-		buf = []byte{'f'}
+		buf = append(buf, 'f')
 	}
 
-	_, err := w.Write(buf)
-	return false, err
+	return buf, nil
 }
 
-func (src Bool) EncodeBinary(ci *ConnInfo, w io.Writer) (bool, error) {
+func (src *Bool) EncodeBinary(ci *ConnInfo, buf []byte) ([]byte, error) {
 	switch src.Status {
 	case Null:
-		return true, nil
+		return nil, nil
 	case Undefined:
-		return false, errUndefined
+		return nil, errUndefined
 	}
 
-	var buf []byte
 	if src.Bool {
-		buf = []byte{1}
+		buf = append(buf, 1)
 	} else {
-		buf = []byte{0}
+		buf = append(buf, 0)
 	}
 
-	_, err := w.Write(buf)
-	return false, err
+	return buf, nil
 }
 
 // Scan implements the database/sql Scanner interface.
@@ -142,14 +138,16 @@ func (dst *Bool) Scan(src interface{}) error {
 	case string:
 		return dst.DecodeText(nil, []byte(src))
 	case []byte:
-		return dst.DecodeText(nil, src)
+		srcCopy := make([]byte, len(src))
+		copy(srcCopy, src)
+		return dst.DecodeText(nil, srcCopy)
 	}
 
-	return fmt.Errorf("cannot scan %T", src)
+	return errors.Errorf("cannot scan %T", src)
 }
 
 // Value implements the database/sql/driver Valuer interface.
-func (src Bool) Value() (driver.Value, error) {
+func (src *Bool) Value() (driver.Value, error) {
 	switch src.Status {
 	case Present:
 		return src.Bool, nil
