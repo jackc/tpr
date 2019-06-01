@@ -19,7 +19,7 @@ namespace :build do
 
   desc "Build assets"
   task assets: :directory do
-    sh "cd frontend; NODE_ENV=production yarn run build"
+    sh "cd frontend; NODE_ENV=production npm run build"
     js_file_name = Dir.glob("build/assets/js/bundle.*.js").first.sub(/^build\/assets/, "")
     index_html = File.read "frontend/html/index.html"
     index_html.gsub!("./bundle.js", js_file_name)
@@ -31,15 +31,19 @@ namespace :build do
   end
 
   desc "Build tpr binary"
-  task binary: "build/tpr"
+  task binary: ["build/tpr"]
 end
 
 file "build/tpr" => ["build:directory", *FileList["backend/*.go"]] do |t|
   sh "cd backend; go build -o ../build/tpr github.com/jackc/tpr/backend"
 end
 
+file "build/tpr-linux" => ["build:directory", *FileList["backend/*.go"]] do |t|
+  sh "cd backend; GOOS=linux GOARCH=amd64 go build -o ../build/tpr-linux github.com/jackc/tpr/backend"
+end
+
 desc "Build all"
-task build: ["build:assets", "build:binary"]
+task build: ["build:assets", "build:binary", "build/tpr-linux"]
 
 desc "Run tpr"
 task run: "build:binary" do

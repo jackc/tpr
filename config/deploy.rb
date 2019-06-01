@@ -19,7 +19,7 @@ desc "Deploys the current version to the server."
 task :deploy do
   to :before_hook do
     `rake clobber build`
-    scp_upload("build/tpr", "#{deploy_to}/tmp/uploads/tpr")
+    scp_upload("build/tpr-linux", "#{deploy_to}/tmp/uploads/tpr")
     scp_upload("build/assets", "#{deploy_to}/tmp/uploads/assets", recursively: true)
   end
 
@@ -29,8 +29,8 @@ task :deploy do
     invoke :'deploy:cleanup'
 
     to :launch do
-      queue %[stop tpr; true]
-      queue %[start tpr]
+      queue %[systemctl stop tpr; true]
+      queue %[systemctl start tpr]
     end
   end
 end
