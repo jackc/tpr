@@ -385,7 +385,7 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 		}
 
 		if sentMails[0].to != tt.sentMailTo {
-			t.Errorf("%s: Expected to send reset mail to %s, instead sent it to %d", tt.descr, tt.sentMailTo, sentMails[0].to)
+			t.Errorf("%s: Expected to send reset mail to %s, instead sent it to %s", tt.descr, tt.sentMailTo, sentMails[0].to)
 		}
 		if sentMails[0].token != pwr.Token.String {
 			t.Errorf("%s: Reset mail (%v) and password reset (%v) do not have the same token", tt.descr, sentMails[0].token, pwr.Token)

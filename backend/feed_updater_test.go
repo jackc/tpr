@@ -311,7 +311,7 @@ func TestParseTime(t *testing.T) {
 			continue
 		}
 		if !tt.expected.Equal(actual.Time) {
-			t.Errorf("%d. %s: expected to parse to %s, but instead was %s", i, tt.unparsed, tt.expected, actual)
+			t.Errorf("%d. %s: expected to parse to %v, but instead was %v", i, tt.unparsed, tt.expected, actual)
 		}
 	}
 }
