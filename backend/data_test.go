@@ -4,11 +4,12 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/pgtype"
+	"github.com/jackc/pgtype"
 	"github.com/jackc/tpr/backend/data"
 )
 
@@ -29,32 +30,12 @@ func TestDataUsersLifeCycle(t *testing.T) {
 		PasswordDigest: pgtype.Bytea{Bytes: []byte("digest"), Status: pgtype.Present},
 		PasswordSalt:   pgtype.Bytea{Bytes: []byte("salt"), Status: pgtype.Present},
 	}
-	userID, err := data.CreateUser(pool, input)
+	userID, err := data.CreateUser(context.Background(), pool, input)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	user, err := data.SelectUserByName(pool, input.Name.String)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if user.ID.Int != userID {
-		t.Errorf("Expected %v, got %v", userID, user.ID)
-	}
-	if user.Name != input.Name {
-		t.Errorf("Expected %v, got %v", input.Name, user.Name)
-	}
-	if user.Email != input.Email {
-		t.Errorf("Expected %v, got %v", input.Email, user.Email)
-	}
-	if bytes.Compare(user.PasswordDigest.Bytes, input.PasswordDigest.Bytes) != 0 {
-		t.Errorf("Expected user (%v) and input (%v) PasswordDigest to match, but they did not", user.PasswordDigest, input.PasswordDigest)
-	}
-	if bytes.Compare(user.PasswordSalt.Bytes, input.PasswordSalt.Bytes) != 0 {
-		t.Errorf("Expected user (%v), and input (%v) PasswordSalt to match, but they did not", user.PasswordSalt, input.PasswordSalt)
-	}
-
-	user, err = data.SelectUserByEmail(pool, input.Email.String)
+	user, err := data.SelectUserByName(context.Background(), pool, input.Name.String)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +55,27 @@ func TestDataUsersLifeCycle(t *testing.T) {
 		t.Errorf("Expected user (%v), and input (%v) PasswordSalt to match, but they did not", user.PasswordSalt, input.PasswordSalt)
 	}
 
-	user, err = data.SelectUserByPK(pool, userID)
+	user, err = data.SelectUserByEmail(context.Background(), pool, input.Email.String)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if user.ID.Int != userID {
+		t.Errorf("Expected %v, got %v", userID, user.ID)
+	}
+	if user.Name != input.Name {
+		t.Errorf("Expected %v, got %v", input.Name, user.Name)
+	}
+	if user.Email != input.Email {
+		t.Errorf("Expected %v, got %v", input.Email, user.Email)
+	}
+	if bytes.Compare(user.PasswordDigest.Bytes, input.PasswordDigest.Bytes) != 0 {
+		t.Errorf("Expected user (%v) and input (%v) PasswordDigest to match, but they did not", user.PasswordDigest, input.PasswordDigest)
+	}
+	if bytes.Compare(user.PasswordSalt.Bytes, input.PasswordSalt.Bytes) != 0 {
+		t.Errorf("Expected user (%v), and input (%v) PasswordSalt to match, but they did not", user.PasswordSalt, input.PasswordSalt)
+	}
+
+	user, err = data.SelectUserByPK(context.Background(), pool, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,13 +100,13 @@ func TestDataCreateUserHandlesNameUniqueness(t *testing.T) {
 	pool := newConnPool(t)
 
 	u := newUser()
-	_, err := data.CreateUser(pool, u)
+	_, err := data.CreateUser(context.Background(), pool, u)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	u = newUser()
-	_, err = data.CreateUser(pool, u)
+	_, err = data.CreateUser(context.Background(), pool, u)
 	if err != (data.DuplicationError{Field: "name"}) {
 		t.Fatalf("Expected %v, got %v", data.DuplicationError{Field: "name"}, err)
 	}
@@ -116,14 +117,14 @@ func TestDataCreateUserHandlesEmailUniqueness(t *testing.T) {
 
 	u := newUser()
 	u.Email = pgtype.Varchar{String: "test@example.com", Status: pgtype.Present}
-	_, err := data.CreateUser(pool, u)
+	_, err := data.CreateUser(context.Background(), pool, u)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	u.ID = pgtype.Int4{}
 	u.Name = pgtype.Varchar{String: "othername", Status: pgtype.Present}
-	_, err = data.CreateUser(pool, u)
+	_, err = data.CreateUser(context.Background(), pool, u)
 	if err != (data.DuplicationError{Field: "email"}) {
 		t.Fatalf("Expected %v, got %v", data.DuplicationError{Field: "email"}, err)
 	}
@@ -132,14 +133,14 @@ func TestDataCreateUserHandlesEmailUniqueness(t *testing.T) {
 func BenchmarkDataGetUser(b *testing.B) {
 	pool := newConnPool(b)
 
-	userID, err := data.CreateUser(pool, newUser())
+	userID, err := data.CreateUser(context.Background(), pool, newUser())
 	if err != nil {
 		b.Fatal(err)
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := data.SelectUserByPK(pool, userID)
+		_, err := data.SelectUserByPK(context.Background(), pool, userID)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -150,14 +151,14 @@ func BenchmarkDataGetUserByName(b *testing.B) {
 	pool := newConnPool(b)
 
 	user := newUser()
-	_, err := data.CreateUser(pool, user)
+	_, err := data.CreateUser(context.Background(), pool, user)
 	if err != nil {
 		b.Fatal(err)
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := data.SelectUserByName(pool, user.Name.String)
+		_, err := data.SelectUserByName(context.Background(), pool, user.Name.String)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -167,7 +168,7 @@ func BenchmarkDataGetUserByName(b *testing.B) {
 func TestDataFeeds(t *testing.T) {
 	pool := newConnPool(t)
 
-	userID, err := data.CreateUser(pool, newUser())
+	userID, err := data.CreateUser(context.Background(), pool, newUser())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,13 +181,13 @@ func TestDataFeeds(t *testing.T) {
 
 	// Create a feed
 	url := "http://bar"
-	err = data.InsertSubscription(pool, userID, url)
+	err = data.InsertSubscription(context.Background(), pool, userID, url)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// A new feed has never been fetched -- it should need fetching
-	staleFeeds, err := data.GetFeedsUncheckedSince(pool, tenMinutesAgo)
+	staleFeeds, err := data.GetFeedsUncheckedSince(context.Background(), pool, tenMinutesAgo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,13 +204,13 @@ func TestDataFeeds(t *testing.T) {
 	nullString := pgtype.Varchar{Status: pgtype.Null}
 
 	// Update feed as of now
-	err = data.UpdateFeedWithFetchSuccess(pool, feedID, update, nullString, now)
+	err = data.UpdateFeedWithFetchSuccess(context.Background(), pool, feedID, update, nullString, now)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// feed should no longer be stale
-	staleFeeds, err = data.GetFeedsUncheckedSince(pool, tenMinutesAgo)
+	staleFeeds, err = data.GetFeedsUncheckedSince(context.Background(), pool, tenMinutesAgo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,13 +219,13 @@ func TestDataFeeds(t *testing.T) {
 	}
 
 	// Update feed to be old enough to need refresh
-	err = data.UpdateFeedWithFetchSuccess(pool, feedID, update, nullString, fifteenMinutesAgo)
+	err = data.UpdateFeedWithFetchSuccess(context.Background(), pool, feedID, update, nullString, fifteenMinutesAgo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// It should now need fetching
-	staleFeeds, err = data.GetFeedsUncheckedSince(pool, tenMinutesAgo)
+	staleFeeds, err = data.GetFeedsUncheckedSince(context.Background(), pool, tenMinutesAgo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,13 +237,13 @@ func TestDataFeeds(t *testing.T) {
 	}
 
 	// But update feed with a recent failed fetch
-	err = data.UpdateFeedWithFetchFailure(pool, feedID, "something went wrong", fiveMinutesAgo)
+	err = data.UpdateFeedWithFetchFailure(context.Background(), pool, feedID, "something went wrong", fiveMinutesAgo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// feed should no longer be stale
-	staleFeeds, err = data.GetFeedsUncheckedSince(pool, tenMinutesAgo)
+	staleFeeds, err = data.GetFeedsUncheckedSince(context.Background(), pool, tenMinutesAgo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +255,7 @@ func TestDataFeeds(t *testing.T) {
 func TestDataUpdateFeedWithFetchSuccess(t *testing.T) {
 	pool := newConnPool(t)
 
-	userID, err := data.CreateUser(pool, newUser())
+	userID, err := data.CreateUser(context.Background(), pool, newUser())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,12 +263,12 @@ func TestDataUpdateFeedWithFetchSuccess(t *testing.T) {
 	now := time.Now()
 
 	url := "http://bar"
-	err = data.InsertSubscription(pool, userID, url)
+	err = data.InsertSubscription(context.Background(), pool, userID, url)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	subscriptions, err := data.SelectSubscriptions(pool, userID)
+	subscriptions, err := data.SelectSubscriptions(context.Background(), pool, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -286,13 +287,13 @@ func TestDataUpdateFeedWithFetchSuccess(t *testing.T) {
 
 	nullString := pgtype.Varchar{Status: pgtype.Null}
 
-	err = data.UpdateFeedWithFetchSuccess(pool, feedID, update, nullString, now)
+	err = data.UpdateFeedWithFetchSuccess(context.Background(), pool, feedID, update, nullString, now)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	buffer := &bytes.Buffer{}
-	err = data.CopyUnreadItemsAsJSONByUserID(pool, buffer, userID)
+	err = data.CopyUnreadItemsAsJSONByUserID(context.Background(), pool, buffer, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -311,13 +312,13 @@ func TestDataUpdateFeedWithFetchSuccess(t *testing.T) {
 	}
 
 	// Update again and ensure item does not get created again
-	err = data.UpdateFeedWithFetchSuccess(pool, feedID, update, nullString, now)
+	err = data.UpdateFeedWithFetchSuccess(context.Background(), pool, feedID, update, nullString, now)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	buffer.Reset()
-	err = data.CopyUnreadItemsAsJSONByUserID(pool, buffer, userID)
+	err = data.CopyUnreadItemsAsJSONByUserID(context.Background(), pool, buffer, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -336,7 +337,7 @@ func TestDataUpdateFeedWithFetchSuccess(t *testing.T) {
 func TestDataUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testing.T) {
 	pool := newConnPool(t)
 
-	userID, err := data.CreateUser(pool, newUser())
+	userID, err := data.CreateUser(context.Background(), pool, newUser())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -344,12 +345,12 @@ func TestDataUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testing.T) {
 	now := time.Now()
 
 	url := "http://bar"
-	err = data.InsertSubscription(pool, userID, url)
+	err = data.InsertSubscription(context.Background(), pool, userID, url)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	subscriptions, err := data.SelectSubscriptions(pool, userID)
+	subscriptions, err := data.SelectSubscriptions(context.Background(), pool, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -364,13 +365,13 @@ func TestDataUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testing.T) {
 
 	nullString := pgtype.Varchar{Status: pgtype.Null}
 
-	err = data.UpdateFeedWithFetchSuccess(pool, feedID, update, nullString, now)
+	err = data.UpdateFeedWithFetchSuccess(context.Background(), pool, feedID, update, nullString, now)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	buffer := &bytes.Buffer{}
-	err = data.CopyUnreadItemsAsJSONByUserID(pool, buffer, userID)
+	err = data.CopyUnreadItemsAsJSONByUserID(context.Background(), pool, buffer, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -389,13 +390,13 @@ func TestDataUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testing.T) {
 	}
 
 	// Update again and ensure item does not get created again
-	err = data.UpdateFeedWithFetchSuccess(pool, feedID, update, nullString, now)
+	err = data.UpdateFeedWithFetchSuccess(context.Background(), pool, feedID, update, nullString, now)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	buffer.Reset()
-	err = data.CopyUnreadItemsAsJSONByUserID(pool, buffer, userID)
+	err = data.CopyUnreadItemsAsJSONByUserID(context.Background(), pool, buffer, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -412,18 +413,18 @@ func TestDataUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testing.T) {
 func TestDataSubscriptions(t *testing.T) {
 	pool := newConnPool(t)
 
-	userID, err := data.CreateUser(pool, newUser())
+	userID, err := data.CreateUser(context.Background(), pool, newUser())
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	url := "http://foo"
-	err = data.InsertSubscription(pool, userID, url)
+	err = data.InsertSubscription(context.Background(), pool, userID, url)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	subscriptions, err := data.SelectSubscriptions(pool, userID)
+	subscriptions, err := data.SelectSubscriptions(context.Background(), pool, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -438,17 +439,17 @@ func TestDataSubscriptions(t *testing.T) {
 func TestDataDeleteSubscription(t *testing.T) {
 	pool := newConnPool(t)
 
-	userID, err := data.CreateUser(pool, newUser())
+	userID, err := data.CreateUser(context.Background(), pool, newUser())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = data.InsertSubscription(pool, userID, "http://foo")
+	err = data.InsertSubscription(context.Background(), pool, userID, "http://foo")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	subscriptions, err := data.SelectSubscriptions(pool, userID)
+	subscriptions, err := data.SelectSubscriptions(context.Background(), pool, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -466,17 +467,17 @@ func TestDataDeleteSubscription(t *testing.T) {
 
 	nullString := pgtype.Varchar{Status: pgtype.Null}
 
-	err = data.UpdateFeedWithFetchSuccess(pool, feedID, update, nullString, time.Now().Add(-20*time.Minute))
+	err = data.UpdateFeedWithFetchSuccess(context.Background(), pool, feedID, update, nullString, time.Now().Add(-20*time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = data.DeleteSubscription(pool, userID, feedID)
+	err = data.DeleteSubscription(context.Background(), pool, userID, feedID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	subscriptions, err = data.SelectSubscriptions(pool, userID)
+	subscriptions, err = data.SelectSubscriptions(context.Background(), pool, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -485,7 +486,7 @@ func TestDataDeleteSubscription(t *testing.T) {
 	}
 
 	// feed should have been deleted as it was the last user
-	staleFeeds, err := data.GetFeedsUncheckedSince(pool, time.Now())
+	staleFeeds, err := data.GetFeedsUncheckedSince(context.Background(), pool, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -497,24 +498,24 @@ func TestDataDeleteSubscription(t *testing.T) {
 func TestDataCopySubscriptionsForUserAsJSON(t *testing.T) {
 	pool := newConnPool(t)
 
-	userID, err := data.CreateUser(pool, newUser())
+	userID, err := data.CreateUser(context.Background(), pool, newUser())
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	buffer := &bytes.Buffer{}
-	err = data.CopySubscriptionsForUserAsJSON(pool, buffer, userID)
+	err = data.CopySubscriptionsForUserAsJSON(context.Background(), pool, buffer, userID)
 	if err != nil {
 		t.Fatalf("Failed when no subscriptions: %v", err)
 	}
 
-	err = data.InsertSubscription(pool, userID, "http://foo")
+	err = data.InsertSubscription(context.Background(), pool, userID, "http://foo")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	buffer.Reset()
-	err = data.CopySubscriptionsForUserAsJSON(pool, buffer, userID)
+	err = data.CopySubscriptionsForUserAsJSON(context.Background(), pool, buffer, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -526,14 +527,14 @@ func TestDataCopySubscriptionsForUserAsJSON(t *testing.T) {
 func TestDataSessions(t *testing.T) {
 	pool := newConnPool(t)
 
-	userID, err := data.CreateUser(pool, newUser())
+	userID, err := data.CreateUser(context.Background(), pool, newUser())
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	sessionID := []byte("deadbeef")
 
-	err = data.InsertSession(pool,
+	err = data.InsertSession(context.Background(), pool,
 		&data.Session{
 			ID:     pgtype.Bytea{Bytes: sessionID, Status: pgtype.Present},
 			UserID: pgtype.Int4{Int: userID, Status: pgtype.Present},
@@ -543,7 +544,7 @@ func TestDataSessions(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	user, err := data.SelectUserBySessionID(pool, sessionID)
+	user, err := data.SelectUserBySessionID(context.Background(), pool, sessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -551,17 +552,17 @@ func TestDataSessions(t *testing.T) {
 		t.Errorf("Expected %v, got %v", userID, user.ID)
 	}
 
-	err = data.DeleteSession(pool, sessionID)
+	err = data.DeleteSession(context.Background(), pool, sessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = data.SelectUserBySessionID(pool, sessionID)
+	_, err = data.SelectUserBySessionID(context.Background(), pool, sessionID)
 	if err != data.ErrNotFound {
 		t.Fatalf("Expected %v, got %v", data.ErrNotFound, err)
 	}
 
-	err = data.DeleteSession(pool, sessionID)
+	err = data.DeleteSession(context.Background(), pool, sessionID)
 	if err != data.ErrNotFound {
 		t.Fatalf("Expected %v, got %v", notFound, err)
 	}

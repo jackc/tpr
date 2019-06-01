@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -10,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx"
-	"github.com/jackc/pgx/pgtype"
+	"github.com/jackc/pgtype"
+	pgxpool "github.com/jackc/pgx/v4/pool"
 	"github.com/jackc/tpr/backend/data"
 	"github.com/vaughan0/go-ini"
 	log "gopkg.in/inconshreveable/log15.v2"
@@ -32,9 +33,9 @@ func getLogger(t *testing.T) log.Logger {
 	return logger
 }
 
-var sharedPool *pgx.ConnPool
+var sharedPool *pgxpool.Pool
 
-func newConnPool(t testing.TB) *pgx.ConnPool {
+func newConnPool(t testing.TB) *pgxpool.Pool {
 	var err error
 
 	if sharedPool == nil {
@@ -66,10 +67,10 @@ func newConnPool(t testing.TB) *pgx.ConnPool {
 }
 
 // Empty all data in the entire database
-func empty(pool *pgx.ConnPool) error {
+func empty(pool *pgxpool.Pool) error {
 	tables := []string{"feeds", "items", "password_resets", "sessions", "subscriptions", "unread_items", "users"}
 	for _, table := range tables {
-		_, err := pool.Exec(fmt.Sprintf("delete from %s", table))
+		_, err := pool.Exec(context.Background(), fmt.Sprintf("delete from %s", table))
 		if err != nil {
 			return err
 		}
@@ -80,7 +81,7 @@ func empty(pool *pgx.ConnPool) error {
 func TestExportOPML(t *testing.T) {
 	pool := newConnPool(t)
 
-	userID, err := data.CreateUser(pool, &data.User{
+	userID, err := data.CreateUser(context.Background(), pool, &data.User{
 		Name:           pgtype.Varchar{String: "test", Status: pgtype.Present},
 		Email:          pgtype.Varchar{String: "test@example.com", Status: pgtype.Present},
 		PasswordDigest: pgtype.Bytea{Bytes: []byte("digest"), Status: pgtype.Present},
@@ -90,7 +91,7 @@ func TestExportOPML(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = data.InsertSubscription(pool, userID, "http://example.com/feed.rss")
+	err = data.InsertSubscription(context.Background(), pool, userID, "http://example.com/feed.rss")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,12 +128,12 @@ func TestGetAccountHandler(t *testing.T) {
 	}
 	SetPassword(user, "password")
 
-	userID, err := data.CreateUser(pool, user)
+	userID, err := data.CreateUser(context.Background(), pool, user)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	user, err = data.SelectUserByPK(pool, userID)
+	user, err = data.SelectUserByPK(context.Background(), pool, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,13 +234,13 @@ func TestUpdateAccountHandler(t *testing.T) {
 		}
 		SetPassword(user, origPassword)
 
-		userID, err := data.CreateUser(pool, user)
+		userID, err := data.CreateUser(context.Background(), pool, user)
 		if err != nil {
 			t.Errorf("%s: repo.CreateUser returned error: %v", tt.descr, err)
 			continue
 		}
 
-		user, err = data.SelectUserByPK(pool, userID)
+		user, err = data.SelectUserByPK(context.Background(), pool, userID)
 		if err != nil {
 			t.Errorf("%s: repo.GetUser returned error: %v", tt.descr, err)
 			continue
@@ -266,7 +267,7 @@ func TestUpdateAccountHandler(t *testing.T) {
 			continue
 		}
 
-		user, err = data.SelectUserByPK(pool, userID)
+		user, err = data.SelectUserByPK(context.Background(), pool, userID)
 		if err != nil {
 			t.Errorf("%s: repo.GetUser returned error: %v", tt.descr, err)
 			continue
@@ -320,7 +321,7 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 		}
 		SetPassword(user, "password")
 
-		userID, err := data.CreateUser(pool, user)
+		userID, err := data.CreateUser(context.Background(), pool, user)
 		if err != nil {
 			t.Errorf("%s: repo.CreateUser returned error: %v", tt.descr, err)
 			continue
@@ -347,12 +348,12 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 		// Need to reach down pgx because repo interface doesn't need any get
 		// interface besides by token, but for this test we need to know the token
 		var token string
-		err = pool.QueryRow("select token from password_resets").Scan(&token)
+		err = pool.QueryRow(context.Background(), "select token from password_resets").Scan(&token)
 		if err != nil {
 			t.Errorf("%s: pool.QueryRow Scan returned error: %v", tt.descr, err)
 			continue
 		}
-		pwr, err := data.SelectPasswordResetByPK(env.pool, token)
+		pwr, err := data.SelectPasswordResetByPK(context.Background(), env.pool, token)
 		if err != nil {
 			t.Errorf("%s: repo.GetPasswordReset returned error: %v", tt.descr, err)
 			continue
@@ -401,7 +402,7 @@ func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
 	}
 	SetPassword(user, "password")
 
-	userID, err := data.CreateUser(pool, user)
+	userID, err := data.CreateUser(context.Background(), pool, user)
 	if err != nil {
 		t.Fatalf("repo.CreateUser returned error: %v", err)
 	}
@@ -415,7 +416,7 @@ func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
 		RequestIP:   pgtype.Inet{IPNet: requestIP, Status: pgtype.Present},
 	}
 
-	err = data.InsertPasswordReset(pool, pwr)
+	err = data.InsertPasswordReset(context.Background(), pool, pwr)
 	if err != nil {
 		t.Fatalf("repo.CreatePasswordReset returned error: %v", err)
 	}
@@ -435,7 +436,7 @@ func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
 		t.Errorf("Expected HTTP status %d, instead received %d", 200, w.Code)
 	}
 
-	user, err = data.SelectUserByPK(pool, userID)
+	user, err = data.SelectUserByPK(context.Background(), pool, userID)
 	if err != nil {
 		t.Fatalf("repo.GetUser returned error: %v", err)
 	}
@@ -463,7 +464,7 @@ func TestResetPasswordHandlerTokenMatchestUsedPasswordReset(t *testing.T) {
 	}
 	SetPassword(user, "password")
 
-	userID, err := data.CreateUser(pool, user)
+	userID, err := data.CreateUser(context.Background(), pool, user)
 	if err != nil {
 		t.Fatalf("repo.CreateUser returned error: %v", err)
 	}
@@ -479,7 +480,7 @@ func TestResetPasswordHandlerTokenMatchestUsedPasswordReset(t *testing.T) {
 		CompletionIP:   pgtype.Inet{IPNet: localhost, Status: pgtype.Present},
 	}
 
-	err = data.InsertPasswordReset(pool, pwr)
+	err = data.InsertPasswordReset(context.Background(), pool, pwr)
 	if err != nil {
 		t.Fatalf("repo.CreatePasswordReset returned error: %v", err)
 	}
@@ -499,7 +500,7 @@ func TestResetPasswordHandlerTokenMatchestUsedPasswordReset(t *testing.T) {
 		t.Errorf("Expected HTTP status %d, instead received %d", 404, w.Code)
 	}
 
-	user, err = data.SelectUserByPK(pool, userID)
+	user, err = data.SelectUserByPK(context.Background(), pool, userID)
 	if err != nil {
 		t.Fatalf("repo.GetUser returned error: %v", err)
 	}
@@ -520,7 +521,7 @@ func TestResetPasswordHandlerTokenMatchestInvalidPasswordReset(t *testing.T) {
 		RequestIP:   pgtype.Inet{IPNet: localhost, Status: pgtype.Present},
 	}
 
-	err := data.InsertPasswordReset(pool, pwr)
+	err := data.InsertPasswordReset(context.Background(), pool, pwr)
 	if err != nil {
 		t.Fatalf("repo.CreatePasswordReset returned error: %v", err)
 	}

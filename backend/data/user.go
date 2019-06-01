@@ -1,10 +1,12 @@
 package data
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
-	"github.com/jackc/pgx"
+	"github.com/jackc/pgx/v4"
+	errors "golang.org/x/xerrors"
 )
 
 type DuplicationError struct {
@@ -15,11 +17,11 @@ func (e DuplicationError) Error() string {
 	return fmt.Sprintf("%s is already taken", e.Field)
 }
 
-func selectUser(db Queryer, name, sql string, arg interface{}) (*User, error) {
+func selectUser(ctx context.Context, db Queryer, name, sql string, arg interface{}) (*User, error) {
 	user := User{}
 
-	err := prepareQueryRow(db, name, sql, arg).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordDigest, &user.PasswordSalt)
-	if err == pgx.ErrNoRows {
+	err := prepareQueryRow(ctx, db, name, sql, arg).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordDigest, &user.PasswordSalt)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
@@ -31,14 +33,14 @@ func selectUser(db Queryer, name, sql string, arg interface{}) (*User, error) {
 
 const getUserByNameSQL = `select id, name, email, password_digest, password_salt from users where name=$1`
 
-func SelectUserByName(db Queryer, name string) (*User, error) {
-	return selectUser(db, "getUserByName", getUserByNameSQL, name)
+func SelectUserByName(ctx context.Context, db Queryer, name string) (*User, error) {
+	return selectUser(ctx, db, "getUserByName", getUserByNameSQL, name)
 }
 
 const getUserByEmailSQL = `select id, name, email, password_digest, password_salt from users where email=$1`
 
-func SelectUserByEmail(db Queryer, email string) (*User, error) {
-	return selectUser(db, "getUserByEmail", getUserByEmailSQL, email)
+func SelectUserByEmail(ctx context.Context, db Queryer, email string) (*User, error) {
+	return selectUser(ctx, db, "getUserByEmail", getUserByEmailSQL, email)
 }
 
 const getUserBySessionIDSQL = `select users.id, name, email, password_digest, password_salt
@@ -46,12 +48,12 @@ from sessions
   join users on sessions.user_id=users.id
 where sessions.id=$1`
 
-func SelectUserBySessionID(db Queryer, id []byte) (*User, error) {
-	return selectUser(db, "getUserBySessionID", getUserBySessionIDSQL, id)
+func SelectUserBySessionID(ctx context.Context, db Queryer, id []byte) (*User, error) {
+	return selectUser(ctx, db, "getUserBySessionID", getUserBySessionIDSQL, id)
 }
 
-func CreateUser(db Queryer, user *User) (int32, error) {
-	err := InsertUser(db, user)
+func CreateUser(ctx context.Context, db Queryer, user *User) (int32, error) {
+	err := InsertUser(ctx, db, user)
 	if err != nil {
 		if strings.Contains(err.Error(), "users_name_unq") {
 			return 0, DuplicationError{Field: "name"}

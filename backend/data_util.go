@@ -5,7 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 
-	"github.com/jackc/pgx/pgtype"
+	"github.com/jackc/pgtype"
 	"github.com/jackc/tpr/backend/data"
 	"golang.org/x/crypto/scrypt"
 )

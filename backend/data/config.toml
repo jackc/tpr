@@ -3,9 +3,9 @@ package = "data"
 # Database connection information can be specified here or in PG* environment variables
 #
 [database]
-# host = "/private/tmp"
+host = "/private/tmp"
 # port = 5432
-database = "tpr_development"
+database = "tpr_dev"
 # user = "myuser"
 # password = "secret"
 

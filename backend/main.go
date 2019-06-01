@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -12,8 +13,8 @@ import (
 	"strconv"
 
 	"github.com/jackc/cli"
-	"github.com/jackc/pgx"
-	"github.com/jackc/pgx/log/log15adapter"
+	"github.com/jackc/pgx/v4/log/log15adapter"
+	pgxpool "github.com/jackc/pgx/v4/pool"
 	"github.com/jackc/tpr/backend/data"
 	"github.com/vaughan0/go-ini"
 	log "gopkg.in/inconshreveable/log15.v2"
@@ -108,22 +109,26 @@ func setFilterHandler(level string, logger log.Logger, handler log.Handler) erro
 	return nil
 }
 
-func newPool(conf ini.File, logger log.Logger) (*pgx.ConnPool, error) {
+func newPool(conf ini.File, logger log.Logger) (*pgxpool.Pool, error) {
 	logger = logger.New("module", "pgx")
 	if level, ok := conf.Get("log", "pgx_level"); ok {
 		setFilterHandler(level, logger, log.StdoutHandler)
 	}
 
-	connConfig := pgx.ConnConfig{Logger: log15adapter.NewLogger(logger)}
+	config, err := pgxpool.ParseConfig("")
+	if err != nil {
+		return nil, err
+	}
+	config.ConnConfig.Logger = log15adapter.NewLogger(logger)
 
-	connConfig.Host, _ = conf.Get("database", "host")
-	if connConfig.Host == "" {
+	config.ConnConfig.Host, _ = conf.Get("database", "host")
+	if config.ConnConfig.Host == "" {
 		return nil, errors.New("Config must contain database.host but it does not")
 	}
 
 	if p, ok := conf.Get("database", "port"); ok {
 		n, err := strconv.ParseUint(p, 10, 16)
-		connConfig.Port = uint16(n)
+		config.ConnConfig.Port = uint16(n)
 		if err != nil {
 			return nil, err
 		}
@@ -131,18 +136,15 @@ func newPool(conf ini.File, logger log.Logger) (*pgx.ConnPool, error) {
 
 	var ok bool
 
-	if connConfig.Database, ok = conf.Get("database", "database"); !ok {
+	if config.ConnConfig.Database, ok = conf.Get("database", "database"); !ok {
 		return nil, errors.New("Config must contain database.database but it does not")
 	}
-	connConfig.User, _ = conf.Get("database", "user")
-	connConfig.Password, _ = conf.Get("database", "password")
+	config.ConnConfig.User, _ = conf.Get("database", "user")
+	config.ConnConfig.Password, _ = conf.Get("database", "password")
 
-	poolConfig := pgx.ConnPoolConfig{
-		ConnConfig:     connConfig,
-		MaxConnections: 10,
-	}
+	config.MaxConns = 10
 
-	return pgx.NewConnPool(poolConfig)
+	return pgxpool.ConnectConfig(context.Background(), config)
 }
 
 func loadHTTPConfig(c *cli.Context, conf ini.File) (httpConfig, error) {
@@ -291,7 +293,7 @@ func ResetPassword(c *cli.Context) {
 		os.Exit(1)
 	}
 
-	user, err := data.SelectUserByName(pool, name)
+	user, err := data.SelectUserByName(context.Background(), pool, name)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -306,7 +308,7 @@ func ResetPassword(c *cli.Context) {
 	update := &data.User{}
 	SetPassword(update, password)
 
-	err = data.UpdateUser(pool, user.ID.Int, update)
+	err = data.UpdateUser(context.Background(), pool, user.ID.Int, update)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

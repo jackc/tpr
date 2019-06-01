@@ -3,8 +3,9 @@ package data
 import (
 	"context"
 
-	"github.com/jackc/pgx"
-	"github.com/jackc/pgx/pgtype"
+	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v4"
+	pgxpool "github.com/jackc/pgx/v4/pool"
 )
 
 type Subscription struct {
@@ -21,8 +22,8 @@ type Subscription struct {
 
 const createSubscriptionSQL = `select create_subscription($1::integer, $2::varchar)`
 
-func InsertSubscription(db Queryer, userID int32, feedURL string) error {
-	_, err := prepareExec(db, "createSubscription", createSubscriptionSQL, userID, feedURL)
+func InsertSubscription(ctx context.Context, db Queryer, userID int32, feedURL string) error {
+	_, err := prepareExec(ctx, db, "createSubscription", createSubscriptionSQL, userID, feedURL)
 	return err
 }
 
@@ -42,9 +43,9 @@ where user_id=$1
 group by feeds.id
 order by name`
 
-func SelectSubscriptions(db Queryer, userID int32) ([]Subscription, error) {
+func SelectSubscriptions(ctx context.Context, db Queryer, userID int32) ([]Subscription, error) {
 	subs := make([]Subscription, 0, 16)
-	rows, _ := prepareQuery(db, "getSubscriptions", getSubscriptionsSQL, userID)
+	rows, _ := prepareQuery(ctx, db, "getSubscriptions", getSubscriptionsSQL, userID)
 	for rows.Next() {
 		var s Subscription
 		rows.Scan(&s.FeedID, &s.Name, &s.URL, &s.LastFetchTime, &s.LastFailure, &s.LastFailureTime, &s.FailureCount, &s.ItemCount, &s.LastPublicationTime)
@@ -59,29 +60,22 @@ const deleteFeedIfOrphanedSQL = `delete from feeds
 where id=$1
   and not exists(select 1 from subscriptions where feed_id=id)`
 
-func DeleteSubscription(db *pgx.ConnPool, userID, feedID int32) error {
-	if _, err := db.Prepare("deleteSubscription", deleteSubscriptionSQL); err != nil {
-		return err
-	}
-	if _, err := db.Prepare("deleteFeedIfOrphaned", deleteFeedIfOrphanedSQL); err != nil {
-		return err
-	}
-
-	tx, err := db.BeginEx(context.Background(), &pgx.TxOptions{IsoLevel: pgx.Serializable})
+func DeleteSubscription(ctx context.Context, db *pgxpool.Pool, userID, feedID int32) error {
+	tx, err := db.Begin(ctx, &pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer tx.Rollback(ctx)
 
-	_, err = tx.Exec("deleteSubscription", userID, feedID)
+	_, err = tx.Exec(ctx, deleteSubscriptionSQL, userID, feedID)
 	if err != nil {
 		return err
 	}
 
-	_, err = tx.Exec("deleteFeedIfOrphaned", feedID)
+	_, err = tx.Exec(ctx, deleteFeedIfOrphanedSQL, feedID)
 	if err != nil {
 		return err
 	}
 
-	return tx.Commit()
+	return tx.Commit(ctx)
 }

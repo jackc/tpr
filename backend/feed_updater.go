@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -9,8 +10,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/jackc/pgx"
-	"github.com/jackc/pgx/pgtype"
+	"github.com/jackc/pgtype"
+	pgxpool "github.com/jackc/pgx/v4/pool"
 	"github.com/jackc/tpr/backend/data"
 	"golang.org/x/net/html/charset"
 	log "gopkg.in/inconshreveable/log15.v2"
@@ -19,11 +20,11 @@ import (
 type FeedUpdater struct {
 	client                   *http.Client
 	maxConcurrentFeedFetches int
-	pool                     *pgx.ConnPool
+	pool                     *pgxpool.Pool
 	logger                   log.Logger
 }
 
-func NewFeedUpdater(pool *pgx.ConnPool, logger log.Logger) *FeedUpdater {
+func NewFeedUpdater(pool *pgxpool.Pool, logger log.Logger) *FeedUpdater {
 	feedUpdater := &FeedUpdater{}
 	feedUpdater.pool = pool
 	feedUpdater.logger = logger
@@ -37,7 +38,7 @@ func (u *FeedUpdater) KeepFeedsFresh() {
 	for {
 		startTime := time.Now()
 
-		if staleFeeds, err := data.GetFeedsUncheckedSince(u.pool, startTime.Add(-10*time.Minute)); err == nil {
+		if staleFeeds, err := data.GetFeedsUncheckedSince(context.Background(), u.pool, startTime.Add(-10*time.Minute)); err == nil {
 			u.logger.Info("GetFeedsUncheckedSince succeeded", "n", len(staleFeeds))
 
 			staleFeedChan := make(chan data.Feed)
@@ -117,25 +118,25 @@ func (u *FeedUpdater) RefreshFeed(staleFeed data.Feed) {
 	rawFeed, err := u.fetchFeed(staleFeed.URL.String, staleFeed.ETag)
 	if err != nil {
 		u.logger.Error("fetchFeed failed", "url", staleFeed.URL.String, "error", err)
-		data.UpdateFeedWithFetchFailure(u.pool, staleFeed.ID.Int, err.Error(), time.Now())
+		data.UpdateFeedWithFetchFailure(context.Background(), u.pool, staleFeed.ID.Int, err.Error(), time.Now())
 		return
 	}
 	// 304 unchanged
 	if rawFeed == nil {
 		u.logger.Info("fetchFeed 304 unchanged", "url", staleFeed.URL.Value)
-		data.UpdateFeedWithFetchUnchanged(u.pool, staleFeed.ID.Int, time.Now())
+		data.UpdateFeedWithFetchUnchanged(context.Background(), u.pool, staleFeed.ID.Int, time.Now())
 		return
 	}
 
 	feed, err := parseFeed(rawFeed.body)
 	if err != nil {
 		u.logger.Error("parseFeed failed", "url", staleFeed.URL.Value, "error", err)
-		data.UpdateFeedWithFetchFailure(u.pool, staleFeed.ID.Int, fmt.Sprintf("Unable to parse feed: %v", err), time.Now())
+		data.UpdateFeedWithFetchFailure(context.Background(), u.pool, staleFeed.ID.Int, fmt.Sprintf("Unable to parse feed: %v", err), time.Now())
 		return
 	}
 
 	u.logger.Info("refreshFeed succeeded", "url", staleFeed.URL.Value, "id", staleFeed.ID.Int)
-	data.UpdateFeedWithFetchSuccess(u.pool, staleFeed.ID.Int, feed, rawFeed.etag, time.Now())
+	data.UpdateFeedWithFetchSuccess(context.Background(), u.pool, staleFeed.ID.Int, feed, rawFeed.etag, time.Now())
 }
 
 func parseFeed(body []byte) (f *data.ParsedFeed, err error) {
