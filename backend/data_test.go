@@ -121,6 +121,7 @@ func TestDataCreateUserHandlesEmailUniqueness(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	u.ID = pgtype.Int4{}
 	u.Name = pgtype.Varchar{String: "othername", Status: pgtype.Present}
 	_, err = data.CreateUser(pool, u)
 	if err != (data.DuplicationError{Field: "email"}) {
