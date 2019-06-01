@@ -6,7 +6,7 @@ create table password_resets(
   user_id integer references users,
   completion_ip inet,
   completion_time timestamptz,
-  check(completion_ip is null = completion_time is null)
+  check((completion_ip is null) = (completion_time is null))
 );
 
 comment on column password_resets.user_id is 'user_id associated with the email at the reset request time';
