@@ -34,7 +34,7 @@ All source code and required libraries for The Pithy Reader should now be instal
 
 The Pithy Reader requires a PostgreSQL database. Create one for testing and one for development.
 
-    createdb tpr_development
+    createdb tpr_dev
     createdb tpr_test
 
 For security reasons, The Pithy Reader is designed to run with a limited database user. Create this user (remember the password - you will need it later).
