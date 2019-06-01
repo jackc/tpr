@@ -82,4 +82,4 @@ There is a rake task that will automatically recompile and restart the backend s
 In another terminal start the webpack development server.
 
     cd frontend
-    yarn run start
+    npm run start
