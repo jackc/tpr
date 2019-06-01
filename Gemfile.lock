@@ -15,7 +15,7 @@ GEM
     coderay (1.1.1)
     diff-lcs (1.2.5)
     ffaker (2.4.0)
-    ffi (1.9.14)
+    ffi (1.11.1)
     ffi-compiler (1.0.1)
       ffi (>= 1.0.0)
       rake
@@ -43,7 +43,7 @@ GEM
     rack (2.0.1)
     rack-test (0.6.3)
       rack (>= 1.0)
-    rake (12.0.0)
+    rake (12.3.2)
     rspec (3.5.0)
       rspec-core (~> 3.5.0)
       rspec-expectations (~> 3.5.0)
@@ -58,9 +58,8 @@ GEM
       rspec-support (~> 3.5.0)
     rspec-support (3.5.0)
     rubyzip (1.2.0)
-    scrypt (3.0.3)
-      ffi-compiler (>= 1.0.0)
-      rake
+    scrypt (3.0.6)
+      ffi-compiler (>= 1.0, < 2.0)
     selenium-webdriver (3.0.5)
       childprocess (~> 0.5)
       rubyzip (~> 1.0)
@@ -90,4 +89,4 @@ DEPENDENCIES
   sequel
 
 BUNDLED WITH
-   1.13.7
+   1.17.2
