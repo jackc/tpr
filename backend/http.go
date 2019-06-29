@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgtype"
-	pgxpool "github.com/jackc/pgx/v4/pool"
+	"github.com/jackc/pgx/v4/pgxpool"
 	qv "github.com/jackc/quo_vadis"
 	"github.com/jackc/tpr/backend/data"
 	log "gopkg.in/inconshreveable/log15.v2"

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgtype"
-	pgxpool "github.com/jackc/pgx/v4/pool"
+	"github.com/jackc/pgx/v4/pgxpool"
 )
 
 const markItemReadSQL = `delete from unread_items

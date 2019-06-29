@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgtype"
-	pgxpool "github.com/jackc/pgx/v4/pool"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jackc/tpr/backend/data"
 	"golang.org/x/net/html/charset"
 	log "gopkg.in/inconshreveable/log15.v2"
