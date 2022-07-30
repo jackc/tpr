@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"errors"
+
 	"github.com/jackc/pgx/v4"
-	errors "golang.org/x/xerrors"
 )
 
 type DuplicationError struct {
@@ -20,7 +21,7 @@ func (e DuplicationError) Error() string {
 func selectUser(ctx context.Context, db Queryer, name, sql string, arg interface{}) (*User, error) {
 	user := User{}
 
-	err := prepareQueryRow(ctx, db, name, sql, arg).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordDigest, &user.PasswordSalt)
+	err := db.QueryRow(ctx, sql, arg).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordDigest, &user.PasswordSalt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}

@@ -16,7 +16,7 @@ where user_id=$1
   and item_id=$2`
 
 func MarkItemRead(ctx context.Context, db Queryer, userID, itemID int32) error {
-	commandTag, err := prepareExec(ctx, db, "markItemRead", markItemReadSQL, userID, itemID)
+	commandTag, err := db.Exec(ctx, markItemReadSQL, userID, itemID)
 	if err != nil {
 		return err
 	}
@@ -48,7 +48,7 @@ from (
 
 func CopySubscriptionsForUserAsJSON(ctx context.Context, db Queryer, w io.Writer, userID int32) error {
 	var b []byte
-	err := prepareQueryRow(ctx, db, "getFeedsForUser", getFeedsForUserSQL, userID).Scan(&b)
+	err := db.QueryRow(ctx, getFeedsForUserSQL, userID).Scan(&b)
 	if err != nil {
 		return err
 	}
@@ -75,7 +75,7 @@ from (
 
 func CopyUnreadItemsAsJSONByUserID(ctx context.Context, db Queryer, w io.Writer, userID int32) error {
 	var b []byte
-	err := prepareQueryRow(ctx, db, "getUnreadItems", getUnreadItemsSQL, userID).Scan(&b)
+	err := db.QueryRow(ctx, getUnreadItemsSQL, userID).Scan(&b)
 	if err != nil {
 		return err
 	}
@@ -103,7 +103,7 @@ from (
 
 func CopyArchivedItemsAsJSONByUserID(ctx context.Context, db Queryer, w io.Writer, userID int32) error {
 	var b []byte
-	err := prepareQueryRow(ctx, db, "getArchivedItems", getArchivedItemsSQL, userID, 250).Scan(&b)
+	err := db.QueryRow(ctx, getArchivedItemsSQL, userID, 250).Scan(&b)
 	if err != nil {
 		return err
 	}
@@ -152,7 +152,7 @@ const updateFeedWithFetchSuccessSQL = `
       where id=$4`
 
 func UpdateFeedWithFetchSuccess(ctx context.Context, db *pgxpool.Pool, feedID int32, update *ParsedFeed, etag pgtype.Varchar, fetchTime time.Time) error {
-	tx, err := db.Begin(ctx, nil)
+	tx, err := db.Begin(ctx)
 	if err != nil {
 		return err
 	}
@@ -187,7 +187,7 @@ set last_fetch_time=$1,
 where id=$2`
 
 func UpdateFeedWithFetchUnchanged(ctx context.Context, db Queryer, feedID int32, fetchTime time.Time) (err error) {
-	_, err = prepareExec(ctx, db, "updateFeedWithFetchUnchanged", updateFeedWithFetchUnchangedSQL, fetchTime, feedID)
+	_, err = db.Exec(ctx, updateFeedWithFetchUnchangedSQL, fetchTime, feedID)
 	return
 }
 
@@ -198,7 +198,7 @@ set last_failure=$1,
 where id=$3`
 
 func UpdateFeedWithFetchFailure(ctx context.Context, db Queryer, feedID int32, failure string, fetchTime time.Time) (err error) {
-	_, err = prepareExec(ctx, db, "updateFeedWithFetchFailure", updateFeedWithFetchFailureSQL, failure, fetchTime, feedID)
+	_, err = db.Exec(ctx, updateFeedWithFetchFailureSQL, failure, fetchTime, feedID)
 	return err
 }
 
@@ -262,7 +262,7 @@ where greatest(last_fetch_time, last_failure_time, '-Infinity'::timestamptz) < $
 
 func GetFeedsUncheckedSince(ctx context.Context, db Queryer, since time.Time) ([]Feed, error) {
 	feeds := make([]Feed, 0, 8)
-	rows, _ := prepareQuery(ctx, db, "getFeedsUncheckedSince", getFeedsUncheckedSinceSQL, since)
+	rows, _ := db.Query(ctx, getFeedsUncheckedSinceSQL, since)
 
 	for rows.Next() {
 		var feed Feed

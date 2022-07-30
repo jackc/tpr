@@ -12,10 +12,10 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/jackc/cli"
 	"github.com/jackc/pgx/v4/log/log15adapter"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jackc/tpr/backend/data"
+	"github.com/urfave/cli"
 	"github.com/vaughan0/go-ini"
 	log "gopkg.in/inconshreveable/log15.v2"
 )
@@ -41,24 +41,22 @@ func main() {
 			Name:        "server",
 			ShortName:   "s",
 			Usage:       "run the server",
-			Synopsis:    "[command options]",
 			Description: "run the tpr server",
 			Flags: []cli.Flag{
-				cli.StringFlag{"address, a", "127.0.0.1", "address to listen on"},
-				cli.StringFlag{"port, p", "8080", "port to listen on"},
-				cli.StringFlag{"config, c", "tpr.conf", "path to config file"},
-				cli.StringFlag{"static-url", "", "reverse proxy static asset requests to URL"},
+				cli.StringFlag{Name: "address, a", Value: "127.0.0.1", Usage: "address to listen on"},
+				cli.StringFlag{Name: "port, p", Value: "8080", Usage: "port to listen on"},
+				cli.StringFlag{Name: "config, c", Value: "tpr.conf", Usage: "path to config file"},
+				cli.StringFlag{Name: "static-url", Value: "", Usage: "reverse proxy static asset requests to URL"},
 			},
 			Action: Serve,
 		},
 		{
 			Name:        "reset-password",
 			Usage:       "reset a user's password",
-			Synopsis:    "[command options] username",
 			Description: "reset a user's password",
 			Flags: []cli.Flag{
-				cli.StringFlag{"config, c", "tpr.conf", "path to config file"},
-				cli.StringFlag{"password, p", "", "password to set"},
+				cli.StringFlag{Name: "config, c", Value: "tpr.conf", Usage: "path to config file"},
+				cli.StringFlag{Name: "password, p", Value: "", Usage: "password to set"},
 			},
 			Action: ResetPassword,
 		},

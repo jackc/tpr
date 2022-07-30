@@ -300,7 +300,7 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 			userEmail:  "test@example.com",
 			reqEmail:   "other@example.com",
 			remoteAddr: "192.168.0.1:54678",
-			remoteHost: "192.168.0.1/32",
+			remoteHost: "192.168.0.1",
 		},
 		{
 			descr:      "Email matches user",
@@ -308,7 +308,7 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 			userEmail:  "test@example.com",
 			reqEmail:   "test@example.com",
 			remoteAddr: "192.168.0.1:54678",
-			remoteHost: "192.168.0.1/32",
+			remoteHost: "192.168.0.1",
 			sentMailTo: "test@example.com",
 		},
 	}
@@ -362,8 +362,8 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 		if pwr.Email.String != tt.reqEmail {
 			t.Errorf("%s: PasswordReset.Email should be %s, but instead is %v", tt.descr, tt.reqEmail, pwr.Email)
 		}
-		if pwr.RequestIP.IPNet.String() != tt.remoteHost {
-			t.Errorf("%s: PasswordReset.RequestIP should be %s, but instead is %v", tt.descr, tt.remoteHost, pwr.RequestIP)
+		if pwr.RequestIP.IPNet.IP.String() != tt.remoteHost {
+			t.Errorf("%s: PasswordReset.RequestIP should be %s, but instead is %v", tt.descr, tt.remoteHost, pwr.RequestIP.IPNet.IP.String())
 		}
 		if tt.reqEmail == tt.userEmail && userID != pwr.UserID.Int {
 			t.Errorf("%s: PasswordReset.UserID should be %d, but instead is %v", tt.descr, userID, pwr.UserID)

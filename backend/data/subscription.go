@@ -23,7 +23,7 @@ type Subscription struct {
 const createSubscriptionSQL = `select create_subscription($1::integer, $2::varchar)`
 
 func InsertSubscription(ctx context.Context, db Queryer, userID int32, feedURL string) error {
-	_, err := prepareExec(ctx, db, "createSubscription", createSubscriptionSQL, userID, feedURL)
+	_, err := db.Exec(ctx, createSubscriptionSQL, userID, feedURL)
 	return err
 }
 
@@ -45,7 +45,7 @@ order by name`
 
 func SelectSubscriptions(ctx context.Context, db Queryer, userID int32) ([]Subscription, error) {
 	subs := make([]Subscription, 0, 16)
-	rows, _ := prepareQuery(ctx, db, "getSubscriptions", getSubscriptionsSQL, userID)
+	rows, _ := db.Query(ctx, getSubscriptionsSQL, userID)
 	for rows.Next() {
 		var s Subscription
 		rows.Scan(&s.FeedID, &s.Name, &s.URL, &s.LastFetchTime, &s.LastFailure, &s.LastFailureTime, &s.FailureCount, &s.ItemCount, &s.LastPublicationTime)
@@ -61,7 +61,7 @@ where id=$1
   and not exists(select 1 from subscriptions where feed_id=id)`
 
 func DeleteSubscription(ctx context.Context, db *pgxpool.Pool, userID, feedID int32) error {
-	tx, err := db.Begin(ctx, &pgx.TxOptions{IsoLevel: pgx.Serializable})
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
 		return err
 	}
