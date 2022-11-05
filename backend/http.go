@@ -8,11 +8,12 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"time"
 
-	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 	qv "github.com/jackc/quo_vadis"
 	"github.com/jackc/tpr/backend/data"
 	log "gopkg.in/inconshreveable/log15.v2"
@@ -90,11 +91,11 @@ func getUserFromSession(req *http.Request, pool *pgxpool.Pool) *data.User {
 	return user
 }
 
-func newStringFallback(value string, status pgtype.Status) pgtype.Varchar {
+func newStringFallback(value string) pgtype.Text {
 	if value == "" {
-		return pgtype.Varchar{Status: status}
+		return pgtype.Text{}
 	} else {
-		return pgtype.Varchar{String: value, Status: pgtype.Present}
+		return pgtype.Text{String: value, Valid: true}
 	}
 }
 
@@ -132,8 +133,8 @@ func RegisterHandler(w http.ResponseWriter, req *http.Request, env *environment)
 	}
 
 	user := &data.User{}
-	user.Name = pgtype.Varchar{String: registration.Name, Status: pgtype.Present}
-	user.Email = newStringFallback(registration.Email, pgtype.Undefined)
+	user.Name = pgtype.Text{String: registration.Name, Valid: true}
+	user.Email = newStringFallback(registration.Email)
 	SetPassword(user, registration.Password)
 
 	userID, err := data.CreateUser(context.Background(), env.pool, user)
@@ -157,8 +158,8 @@ func RegisterHandler(w http.ResponseWriter, req *http.Request, env *environment)
 	err = data.InsertSession(context.Background(),
 		env.pool,
 		&data.Session{
-			ID:     pgtype.Bytea{Bytes: sessionID, Status: pgtype.Present},
-			UserID: pgtype.Int4{Int: userID, Status: pgtype.Present},
+			ID:     sessionID,
+			UserID: pgtype.Int4{Int32: userID, Valid: true},
 		},
 	)
 	if err != nil {
@@ -199,7 +200,7 @@ func CreateSubscriptionHandler(w http.ResponseWriter, req *http.Request, env *en
 		return
 	}
 
-	if err := data.InsertSubscription(context.Background(), env.pool, env.user.ID.Int, subscription.URL); err != nil {
+	if err := data.InsertSubscription(context.Background(), env.pool, env.user.ID.Int32, subscription.URL); err != nil {
 		w.WriteHeader(422)
 		fmt.Fprintln(w, `Bad user name or password`)
 		return
@@ -216,7 +217,7 @@ func DeleteSubscriptionHandler(w http.ResponseWriter, req *http.Request, env *en
 		return
 	}
 
-	if err := data.DeleteSubscription(context.Background(), env.pool, env.user.ID.Int, int32(feedID)); err != nil {
+	if err := data.DeleteSubscription(context.Background(), env.pool, env.user.ID.Int32, int32(feedID)); err != nil {
 		w.WriteHeader(422)
 		fmt.Fprintf(w, "Error deleting subscription: %v", err)
 		return
@@ -272,7 +273,7 @@ func CreateSessionHandler(w http.ResponseWriter, req *http.Request, env *environ
 	err = data.InsertSession(context.Background(),
 		env.pool,
 		&data.Session{
-			ID:     pgtype.Bytea{Bytes: sessionID, Status: pgtype.Present},
+			ID:     sessionID,
 			UserID: user.ID,
 		},
 	)
@@ -315,7 +316,7 @@ func DeleteSessionHandler(w http.ResponseWriter, req *http.Request, env *environ
 
 func GetUnreadItemsHandler(w http.ResponseWriter, req *http.Request, env *environment) {
 	w.Header().Set("Content-Type", "application/json")
-	if err := data.CopyUnreadItemsAsJSONByUserID(context.Background(), env.pool, w, env.user.ID.Int); err != nil {
+	if err := data.CopyUnreadItemsAsJSONByUserID(context.Background(), env.pool, w, env.user.ID.Int32); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
@@ -328,7 +329,7 @@ func MarkItemReadHandler(w http.ResponseWriter, req *http.Request, env *environm
 		return
 	}
 
-	err = data.MarkItemRead(context.Background(), env.pool, env.user.ID.Int, int32(itemID))
+	err = data.MarkItemRead(context.Background(), env.pool, env.user.ID.Int32, int32(itemID))
 	if err == data.ErrNotFound {
 		http.NotFound(w, req)
 		return
@@ -351,7 +352,7 @@ func MarkMultipleItemsReadHandler(w http.ResponseWriter, req *http.Request, env 
 	}
 
 	for _, itemID := range request.ItemIDs {
-		err := data.MarkItemRead(context.Background(), env.pool, env.user.ID.Int, itemID)
+		err := data.MarkItemRead(context.Background(), env.pool, env.user.ID.Int32, itemID)
 		if err != nil && err != data.ErrNotFound {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 		}
@@ -360,7 +361,7 @@ func MarkMultipleItemsReadHandler(w http.ResponseWriter, req *http.Request, env 
 
 func GetArchivedItemsHandler(w http.ResponseWriter, req *http.Request, env *environment) {
 	w.Header().Set("Content-Type", "application/json")
-	if err := data.CopyArchivedItemsAsJSONByUserID(context.Background(), env.pool, w, env.user.ID.Int); err != nil {
+	if err := data.CopyArchivedItemsAsJSONByUserID(context.Background(), env.pool, w, env.user.ID.Int32); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
@@ -394,7 +395,7 @@ func ImportFeedsHandler(w http.ResponseWriter, req *http.Request, env *environme
 	for _, outline := range doc.Body.Outlines {
 		go func(outline OpmlOutline) {
 			r := subscriptionResult{Title: outline.Title, URL: outline.URL}
-			err := data.InsertSubscription(context.Background(), env.pool, env.user.ID.Int, outline.URL)
+			err := data.InsertSubscription(context.Background(), env.pool, env.user.ID.Int32, outline.URL)
 			r.Success = err == nil
 			resultsChan <- r
 		}(outline)
@@ -410,7 +411,7 @@ func ImportFeedsHandler(w http.ResponseWriter, req *http.Request, env *environme
 }
 
 func ExportFeedsHandler(w http.ResponseWriter, req *http.Request, env *environment) {
-	subs, err := data.SelectSubscriptions(context.Background(), env.pool, env.user.ID.Int)
+	subs, err := data.SelectSubscriptions(context.Background(), env.pool, env.user.ID.Int32)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -436,7 +437,7 @@ func ExportFeedsHandler(w http.ResponseWriter, req *http.Request, env *environme
 
 func GetFeedsHandler(w http.ResponseWriter, req *http.Request, env *environment) {
 	w.Header().Set("Content-Type", "application/json")
-	if err := data.CopySubscriptionsForUserAsJSON(context.Background(), env.pool, w, env.user.ID.Int); err != nil {
+	if err := data.CopySubscriptionsForUserAsJSON(context.Background(), env.pool, w, env.user.ID.Int32); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
@@ -448,7 +449,7 @@ func GetAccountHandler(w http.ResponseWriter, req *http.Request, env *environmen
 		Email string `json:"email"`
 	}
 
-	user.ID = env.user.ID.Int
+	user.ID = env.user.ID.Int32
 	user.Name = env.user.Name.String
 	user.Email = env.user.Email.String
 
@@ -477,7 +478,7 @@ func UpdateAccountHandler(w http.ResponseWriter, req *http.Request, env *environ
 	}
 
 	user := &data.User{}
-	user.Email = newStringFallback(update.Email, pgtype.Null)
+	user.Email = newStringFallback(update.Email)
 
 	if update.NewPassword != "" {
 		err := SetPassword(user, update.NewPassword)
@@ -488,7 +489,7 @@ func UpdateAccountHandler(w http.ResponseWriter, req *http.Request, env *environ
 		}
 	}
 
-	err := data.UpdateUser(context.Background(), env.pool, env.user.ID.Int, user)
+	err := data.UpdateUser(context.Background(), env.pool, env.user.ID.Int32, user)
 	if err != nil {
 		w.WriteHeader(500)
 		fmt.Fprintln(w, `Internal server error`)
@@ -498,12 +499,11 @@ func UpdateAccountHandler(w http.ResponseWriter, req *http.Request, env *environ
 
 func RequestPasswordResetHandler(w http.ResponseWriter, req *http.Request, env *environment) {
 	pwr := &data.PasswordReset{}
-	pwr.RequestTime = pgtype.Timestamptz{Time: time.Now(), Status: pgtype.Present}
+	pwr.RequestTime = pgtype.Timestamptz{Time: time.Now(), Valid: true}
 
 	if host, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
-		if ip := net.ParseIP(host); ip != nil {
-			mask := net.CIDRMask(len(ip)*8, len(ip)*8)
-			pwr.RequestIP = pgtype.Inet{IPNet: &net.IPNet{IP: ip, Mask: mask}, Status: pgtype.Present}
+		if addr, err := netip.ParseAddr(host); err == nil {
+			pwr.RequestIP = addr
 		}
 	}
 
@@ -514,7 +514,7 @@ func RequestPasswordResetHandler(w http.ResponseWriter, req *http.Request, env *
 		env.logger.Error("getLostPasswordToken failed", "error", err)
 		return
 	}
-	pwr.Token = pgtype.Varchar{String: token, Status: pgtype.Present}
+	pwr.Token = pgtype.Text{String: token, Valid: true}
 
 	var reset struct {
 		Email string `json:"email"`
@@ -532,7 +532,7 @@ func RequestPasswordResetHandler(w http.ResponseWriter, req *http.Request, env *
 		return
 	}
 
-	pwr.Email = pgtype.Varchar{String: reset.Email, Status: pgtype.Present}
+	pwr.Email = pgtype.Text{String: reset.Email, Valid: true}
 
 	user, err := data.SelectUserByEmail(context.Background(), env.pool, reset.Email)
 	switch err {
@@ -597,12 +597,12 @@ func ResetPasswordHandler(w http.ResponseWriter, req *http.Request, env *environ
 		return
 	}
 
-	if pwr.UserID.Status != pgtype.Present {
+	if !pwr.UserID.Valid {
 		w.WriteHeader(404)
 		return
 	}
 
-	if pwr.CompletionTime.Status == pgtype.Present {
+	if pwr.CompletionTime.Valid {
 		w.WriteHeader(404)
 		return
 	}
@@ -610,13 +610,13 @@ func ResetPasswordHandler(w http.ResponseWriter, req *http.Request, env *environ
 	attrs := &data.User{}
 	SetPassword(attrs, resetPassword.Password)
 
-	err = data.UpdateUser(context.Background(), env.pool, pwr.UserID.Int, attrs)
+	err = data.UpdateUser(context.Background(), env.pool, pwr.UserID.Int32, attrs)
 	if err != nil {
 		w.WriteHeader(500)
 		return
 	}
 
-	user, err := data.SelectUserByPK(context.Background(), env.pool, pwr.UserID.Int)
+	user, err := data.SelectUserByPK(context.Background(), env.pool, pwr.UserID.Int32)
 	if err != nil {
 		w.WriteHeader(500)
 		return
@@ -631,7 +631,7 @@ func ResetPasswordHandler(w http.ResponseWriter, req *http.Request, env *environ
 	err = data.InsertSession(context.Background(),
 		env.pool,
 		&data.Session{
-			ID:     pgtype.Bytea{Bytes: sessionID, Status: pgtype.Present},
+			ID:     sessionID,
 			UserID: user.ID,
 		},
 	)

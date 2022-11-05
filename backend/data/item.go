@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const markItemReadSQL = `delete from unread_items
@@ -151,7 +151,7 @@ const updateFeedWithFetchSuccessSQL = `
         failure_count=0
       where id=$4`
 
-func UpdateFeedWithFetchSuccess(ctx context.Context, db *pgxpool.Pool, feedID int32, update *ParsedFeed, etag pgtype.Varchar, fetchTime time.Time) error {
+func UpdateFeedWithFetchSuccess(ctx context.Context, db *pgxpool.Pool, feedID int32, update *ParsedFeed, etag pgtype.Text, fetchTime time.Time) error {
 	tx, err := db.Begin(ctx)
 	if err != nil {
 		return err
@@ -227,7 +227,7 @@ func buildNewItemsSQL(feedID int32, items []ParsedItem) (sql string, args []inte
 		buf.WriteString(strconv.FormatInt(int64(len(args)), 10))
 
 		buf.WriteString(",$")
-		if item.PublicationTime.Status == pgtype.Present {
+		if item.PublicationTime.Valid {
 			args = append(args, item.PublicationTime.Time)
 		} else {
 			args = append(args, nil)

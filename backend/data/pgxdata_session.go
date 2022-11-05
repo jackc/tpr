@@ -9,12 +9,12 @@ import (
 	"errors"
 
 	"github.com/jackc/pgsql"
-	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Session struct {
-	ID        pgtype.Bytea
+	ID        []byte
 	UserID    pgtype.Int4
 	StartTime pgtype.Timestamptz
 }
@@ -90,18 +90,10 @@ func InsertSession(ctx context.Context, db Queryer, row *Session) error {
 
 	var columns, values []string
 
-	if row.ID.Status != pgtype.Undefined {
-		columns = append(columns, `id`)
-		values = append(values, args.Use(&row.ID).String())
-	}
-	if row.UserID.Status != pgtype.Undefined {
-		columns = append(columns, `user_id`)
-		values = append(values, args.Use(&row.UserID).String())
-	}
-	if row.StartTime.Status != pgtype.Undefined {
-		columns = append(columns, `start_time`)
-		values = append(values, args.Use(&row.StartTime).String())
-	}
+	columns = append(columns, `id`)
+	values = append(values, args.Use(&row.ID).String())
+	columns = append(columns, `user_id`)
+	values = append(values, args.Use(&row.UserID).String())
 
 	sql := `insert into "sessions"(` + strings.Join(columns, ", ") + `)
 values(` + strings.Join(values, ",") + `)
@@ -118,15 +110,9 @@ func UpdateSession(ctx context.Context, db Queryer,
 	sets := make([]string, 0, 3)
 	args := pgsql.Args{}
 
-	if row.ID.Status != pgtype.Undefined {
-		sets = append(sets, `id`+"="+args.Use(&row.ID).String())
-	}
-	if row.UserID.Status != pgtype.Undefined {
-		sets = append(sets, `user_id`+"="+args.Use(&row.UserID).String())
-	}
-	if row.StartTime.Status != pgtype.Undefined {
-		sets = append(sets, `start_time`+"="+args.Use(&row.StartTime).String())
-	}
+	sets = append(sets, `id`+"="+args.Use(&row.ID).String())
+	sets = append(sets, `user_id`+"="+args.Use(&row.UserID).String())
+	sets = append(sets, `start_time`+"="+args.Use(&row.StartTime).String())
 
 	if len(sets) == 0 {
 		return nil

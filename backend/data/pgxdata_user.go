@@ -9,16 +9,16 @@ import (
 	"errors"
 
 	"github.com/jackc/pgsql"
-	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type User struct {
 	ID             pgtype.Int4
-	Name           pgtype.Varchar
-	PasswordDigest pgtype.Bytea
-	PasswordSalt   pgtype.Bytea
-	Email          pgtype.Varchar
+	Name           pgtype.Text
+	PasswordDigest []byte
+	PasswordSalt   []byte
+	Email          pgtype.Text
 }
 
 const countUserSQL = `select count(*) from "users"`
@@ -100,26 +100,14 @@ func InsertUser(ctx context.Context, db Queryer, row *User) error {
 
 	var columns, values []string
 
-	if row.ID.Status != pgtype.Undefined {
-		columns = append(columns, `id`)
-		values = append(values, args.Use(&row.ID).String())
-	}
-	if row.Name.Status != pgtype.Undefined {
-		columns = append(columns, `name`)
-		values = append(values, args.Use(&row.Name).String())
-	}
-	if row.PasswordDigest.Status != pgtype.Undefined {
-		columns = append(columns, `password_digest`)
-		values = append(values, args.Use(&row.PasswordDigest).String())
-	}
-	if row.PasswordSalt.Status != pgtype.Undefined {
-		columns = append(columns, `password_salt`)
-		values = append(values, args.Use(&row.PasswordSalt).String())
-	}
-	if row.Email.Status != pgtype.Undefined {
-		columns = append(columns, `email`)
-		values = append(values, args.Use(&row.Email).String())
-	}
+	columns = append(columns, `name`)
+	values = append(values, args.Use(&row.Name).String())
+	columns = append(columns, `password_digest`)
+	values = append(values, args.Use(&row.PasswordDigest).String())
+	columns = append(columns, `password_salt`)
+	values = append(values, args.Use(&row.PasswordSalt).String())
+	columns = append(columns, `email`)
+	values = append(values, args.Use(&row.Email).String())
 
 	sql := `insert into "users"(` + strings.Join(columns, ", ") + `)
 values(` + strings.Join(values, ",") + `)
@@ -136,21 +124,11 @@ func UpdateUser(ctx context.Context, db Queryer,
 	sets := make([]string, 0, 5)
 	args := pgsql.Args{}
 
-	if row.ID.Status != pgtype.Undefined {
-		sets = append(sets, `id`+"="+args.Use(&row.ID).String())
-	}
-	if row.Name.Status != pgtype.Undefined {
-		sets = append(sets, `name`+"="+args.Use(&row.Name).String())
-	}
-	if row.PasswordDigest.Status != pgtype.Undefined {
-		sets = append(sets, `password_digest`+"="+args.Use(&row.PasswordDigest).String())
-	}
-	if row.PasswordSalt.Status != pgtype.Undefined {
-		sets = append(sets, `password_salt`+"="+args.Use(&row.PasswordSalt).String())
-	}
-	if row.Email.Status != pgtype.Undefined {
-		sets = append(sets, `email`+"="+args.Use(&row.Email).String())
-	}
+	sets = append(sets, `id`+"="+args.Use(&row.ID).String())
+	sets = append(sets, `name`+"="+args.Use(&row.Name).String())
+	sets = append(sets, `password_digest`+"="+args.Use(&row.PasswordDigest).String())
+	sets = append(sets, `password_salt`+"="+args.Use(&row.PasswordSalt).String())
+	sets = append(sets, `email`+"="+args.Use(&row.Email).String())
 
 	if len(sets) == 0 {
 		return nil

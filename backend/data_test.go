@@ -9,15 +9,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/tpr/backend/data"
 )
 
 func newUser() *data.User {
 	return &data.User{
-		Name:           pgtype.Varchar{String: "test", Status: pgtype.Present},
-		PasswordDigest: pgtype.Bytea{Bytes: []byte("digest"), Status: pgtype.Present},
-		PasswordSalt:   pgtype.Bytea{Bytes: []byte("salt"), Status: pgtype.Present},
+		Name:           pgtype.Text{String: "test", Valid: true},
+		PasswordDigest: []byte("digest"),
+		PasswordSalt:   []byte("salt"),
 	}
 }
 
@@ -25,10 +25,10 @@ func TestDataUsersLifeCycle(t *testing.T) {
 	pool := newConnPool(t)
 
 	input := &data.User{
-		Name:           pgtype.Varchar{String: "test", Status: pgtype.Present},
-		Email:          pgtype.Varchar{String: "test@example.com", Status: pgtype.Present},
-		PasswordDigest: pgtype.Bytea{Bytes: []byte("digest"), Status: pgtype.Present},
-		PasswordSalt:   pgtype.Bytea{Bytes: []byte("salt"), Status: pgtype.Present},
+		Name:           pgtype.Text{String: "test", Valid: true},
+		Email:          pgtype.Text{String: "test@example.com", Valid: true},
+		PasswordDigest: []byte("digest"),
+		PasswordSalt:   []byte("salt"),
 	}
 	userID, err := data.CreateUser(context.Background(), pool, input)
 	if err != nil {
@@ -39,7 +39,7 @@ func TestDataUsersLifeCycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if user.ID.Int != userID {
+	if user.ID.Int32 != userID {
 		t.Errorf("Expected %v, got %v", userID, user.ID)
 	}
 	if user.Name != input.Name {
@@ -48,10 +48,10 @@ func TestDataUsersLifeCycle(t *testing.T) {
 	if user.Email != input.Email {
 		t.Errorf("Expected %v, got %v", input.Email, user.Email)
 	}
-	if bytes.Compare(user.PasswordDigest.Bytes, input.PasswordDigest.Bytes) != 0 {
+	if bytes.Compare(user.PasswordDigest, input.PasswordDigest) != 0 {
 		t.Errorf("Expected user (%v) and input (%v) PasswordDigest to match, but they did not", user.PasswordDigest, input.PasswordDigest)
 	}
-	if bytes.Compare(user.PasswordSalt.Bytes, input.PasswordSalt.Bytes) != 0 {
+	if bytes.Compare(user.PasswordSalt, input.PasswordSalt) != 0 {
 		t.Errorf("Expected user (%v), and input (%v) PasswordSalt to match, but they did not", user.PasswordSalt, input.PasswordSalt)
 	}
 
@@ -59,7 +59,7 @@ func TestDataUsersLifeCycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if user.ID.Int != userID {
+	if user.ID.Int32 != userID {
 		t.Errorf("Expected %v, got %v", userID, user.ID)
 	}
 	if user.Name != input.Name {
@@ -68,10 +68,10 @@ func TestDataUsersLifeCycle(t *testing.T) {
 	if user.Email != input.Email {
 		t.Errorf("Expected %v, got %v", input.Email, user.Email)
 	}
-	if bytes.Compare(user.PasswordDigest.Bytes, input.PasswordDigest.Bytes) != 0 {
+	if bytes.Compare(user.PasswordDigest, input.PasswordDigest) != 0 {
 		t.Errorf("Expected user (%v) and input (%v) PasswordDigest to match, but they did not", user.PasswordDigest, input.PasswordDigest)
 	}
-	if bytes.Compare(user.PasswordSalt.Bytes, input.PasswordSalt.Bytes) != 0 {
+	if bytes.Compare(user.PasswordSalt, input.PasswordSalt) != 0 {
 		t.Errorf("Expected user (%v), and input (%v) PasswordSalt to match, but they did not", user.PasswordSalt, input.PasswordSalt)
 	}
 
@@ -79,7 +79,7 @@ func TestDataUsersLifeCycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if user.ID.Int != userID {
+	if user.ID.Int32 != userID {
 		t.Errorf("Expected %v, got %v", userID, user.ID)
 	}
 	if user.Name != input.Name {
@@ -88,10 +88,10 @@ func TestDataUsersLifeCycle(t *testing.T) {
 	if user.Email != input.Email {
 		t.Errorf("Expected %v, got %v", input.Email, user.Email)
 	}
-	if bytes.Compare(user.PasswordDigest.Bytes, input.PasswordDigest.Bytes) != 0 {
+	if bytes.Compare(user.PasswordDigest, input.PasswordDigest) != 0 {
 		t.Errorf("Expected user (%v) and input (%v) PasswordDigest to match, but they did not", user.PasswordDigest, input.PasswordDigest)
 	}
-	if bytes.Compare(user.PasswordSalt.Bytes, input.PasswordSalt.Bytes) != 0 {
+	if bytes.Compare(user.PasswordSalt, input.PasswordSalt) != 0 {
 		t.Errorf("Expected user (%v), and input (%v) PasswordSalt to match, but they did not", user.PasswordSalt, input.PasswordSalt)
 	}
 }
@@ -116,14 +116,14 @@ func TestDataCreateUserHandlesEmailUniqueness(t *testing.T) {
 	pool := newConnPool(t)
 
 	u := newUser()
-	u.Email = pgtype.Varchar{String: "test@example.com", Status: pgtype.Present}
+	u.Email = pgtype.Text{String: "test@example.com", Valid: true}
 	_, err := data.CreateUser(context.Background(), pool, u)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	u.ID = pgtype.Int4{}
-	u.Name = pgtype.Varchar{String: "othername", Status: pgtype.Present}
+	u.Name = pgtype.Text{String: "othername", Valid: true}
 	_, err = data.CreateUser(context.Background(), pool, u)
 	if err != (data.DuplicationError{Field: "email"}) {
 		t.Fatalf("Expected %v, got %v", data.DuplicationError{Field: "email"}, err)
@@ -199,9 +199,9 @@ func TestDataFeeds(t *testing.T) {
 		t.Errorf("Expected %v, got %v", url, staleFeeds[0].URL)
 	}
 
-	feedID := staleFeeds[0].ID.Int
+	feedID := staleFeeds[0].ID.Int32
 
-	nullString := pgtype.Varchar{Status: pgtype.Null}
+	nullString := pgtype.Text{}
 
 	// Update feed as of now
 	err = data.UpdateFeedWithFetchSuccess(context.Background(), pool, feedID, update, nullString, now)
@@ -232,7 +232,7 @@ func TestDataFeeds(t *testing.T) {
 	if len(staleFeeds) != 1 {
 		t.Fatalf("Found %d stale feed, expected 1", len(staleFeeds))
 	}
-	if staleFeeds[0].ID.Int != feedID {
+	if staleFeeds[0].ID.Int32 != feedID {
 		t.Errorf("Expected %v, got %v", feedID, staleFeeds[0].ID)
 	}
 
@@ -275,17 +275,17 @@ func TestDataUpdateFeedWithFetchSuccess(t *testing.T) {
 	if len(subscriptions) != 1 {
 		t.Fatalf("Found %d subscriptions, expected 1", len(subscriptions))
 	}
-	feedID := subscriptions[0].FeedID.Int
+	feedID := subscriptions[0].FeedID.Int32
 
 	update := &data.ParsedFeed{Name: "baz", Items: []data.ParsedItem{
 		{
 			URL:             "http://baz/bar",
 			Title:           "Baz",
-			PublicationTime: pgtype.Timestamptz{Time: now, Status: pgtype.Present},
+			PublicationTime: pgtype.Timestamptz{Time: now, Valid: true},
 		},
 	}}
 
-	nullString := pgtype.Varchar{Status: pgtype.Null}
+	nullString := pgtype.Text{}
 
 	err = data.UpdateFeedWithFetchSuccess(context.Background(), pool, feedID, update, nullString, now)
 	if err != nil {
@@ -357,13 +357,13 @@ func TestDataUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testing.T) {
 	if len(subscriptions) != 1 {
 		t.Fatalf("Found %d subscriptions, expected 1", len(subscriptions))
 	}
-	feedID := subscriptions[0].FeedID.Int
+	feedID := subscriptions[0].FeedID.Int32
 
 	update := &data.ParsedFeed{Name: "baz", Items: []data.ParsedItem{
 		{URL: "http://baz/bar", Title: "Baz"},
 	}}
 
-	nullString := pgtype.Varchar{Status: pgtype.Null}
+	nullString := pgtype.Text{}
 
 	err = data.UpdateFeedWithFetchSuccess(context.Background(), pool, feedID, update, nullString, now)
 	if err != nil {
@@ -456,16 +456,16 @@ func TestDataDeleteSubscription(t *testing.T) {
 	if len(subscriptions) != 1 {
 		t.Fatalf("Found %d subscriptions, expected 1", len(subscriptions))
 	}
-	feedID := subscriptions[0].FeedID.Int
+	feedID := subscriptions[0].FeedID.Int32
 
 	update := &data.ParsedFeed{Name: "baz", Items: []data.ParsedItem{
 		{URL: "http://baz/bar",
 			Title:           "Baz",
-			PublicationTime: pgtype.Timestamptz{Time: time.Now(), Status: pgtype.Present},
+			PublicationTime: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 		},
 	}}
 
-	nullString := pgtype.Varchar{Status: pgtype.Null}
+	nullString := pgtype.Text{}
 
 	err = data.UpdateFeedWithFetchSuccess(context.Background(), pool, feedID, update, nullString, time.Now().Add(-20*time.Minute))
 	if err != nil {
@@ -536,8 +536,8 @@ func TestDataSessions(t *testing.T) {
 
 	err = data.InsertSession(context.Background(), pool,
 		&data.Session{
-			ID:     pgtype.Bytea{Bytes: sessionID, Status: pgtype.Present},
-			UserID: pgtype.Int4{Int: userID, Status: pgtype.Present},
+			ID:     sessionID,
+			UserID: pgtype.Int4{Int32: userID, Valid: true},
 		},
 	)
 	if err != nil {
@@ -548,7 +548,7 @@ func TestDataSessions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if user.ID.Int != userID {
+	if user.ID.Int32 != userID {
 		t.Errorf("Expected %v, got %v", userID, user.ID)
 	}
 
