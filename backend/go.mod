@@ -2,8 +2,6 @@ module github.com/jackc/tpr/backend
 
 go 1.19
 
-replace github.com/jackc/pgx-log15 => ../../pgx-log15
-
 require (
 	github.com/jackc/pgsql v0.0.0-20220720200728-bf8deec3ac70
 	github.com/jackc/pgx-log15 v0.0.0-20221105153733-200b3add954a

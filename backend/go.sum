@@ -12,8 +12,8 @@ github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b h1:C8S2+VttkHF
 github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b/go.mod h1:vsD4gTJCa9TptPL8sPkXrLZ+hDuNrZCnj29CQpr4X1E=
 github.com/jackc/pgsql v0.0.0-20220720200728-bf8deec3ac70 h1:oa4pZX0SorMQC+KZ4zWMKjRUVlNuo1LY3ReuNp7ZoOk=
 github.com/jackc/pgsql v0.0.0-20220720200728-bf8deec3ac70/go.mod h1:aG42qG8aLCLwHBxMeW70TEGN5AXqMu4EScjtwAOIz04=
-github.com/jackc/pgx-log15 v0.0.0-20211211211502-601f559d8b7b h1:Ey3P9ETEUPdDrp8NApGYzg6o3lLIax0xuqG/1pDHii4=
-github.com/jackc/pgx-log15 v0.0.0-20211211211502-601f559d8b7b/go.mod h1:8p6mIHQ/+3vh3fZyi6FDTtcYtl9XaEg2gL9kqi6zOzU=
+github.com/jackc/pgx-log15 v0.0.0-20221105153733-200b3add954a h1:oz2MefLaDwd/4LWsHZFz2+NqQ+v4e0GWFqnoUXjsL6A=
+github.com/jackc/pgx-log15 v0.0.0-20221105153733-200b3add954a/go.mod h1:aON62j9MBi0Nh6BmBwBprmlNnuk9bZGXQg/kcmfkxv8=
 github.com/jackc/pgx/v5 v5.0.0-alpha.5/go.mod h1:9166s9MdYYheYgI0ySjd/tbPF4wbq4vjgVzkZSt2UDE=
 github.com/jackc/pgx/v5 v5.0.4 h1:r5O6y84qHX/z/HZV40JBdx2obsHz7/uRj5b+CcYEdeY=
 github.com/jackc/pgx/v5 v5.0.4/go.mod h1:U0ynklHtgg43fue9Ly30w3OCSTDPlXjig9ghrNGaguQ=
