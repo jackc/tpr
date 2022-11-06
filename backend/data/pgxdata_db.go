@@ -7,8 +7,8 @@ import (
 
 	"errors"
 
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 const PGXDATA_VERSION = "0.1.0"

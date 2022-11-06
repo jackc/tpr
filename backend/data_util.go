@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"errors"
 
-	"github.com/jackc/pgtype"
 	"github.com/jackc/tpr/backend/data"
 	"golang.org/x/crypto/scrypt"
 )
@@ -24,19 +23,19 @@ func SetPassword(u *data.User, password string) error {
 		return err
 	}
 
-	u.PasswordDigest = pgtype.Bytea{Bytes: digest, Status: pgtype.Present}
-	u.PasswordSalt = pgtype.Bytea{Bytes: salt, Status: pgtype.Present}
+	u.PasswordDigest = digest
+	u.PasswordSalt = salt
 
 	return nil
 }
 
 func IsPassword(u *data.User, password string) bool {
-	digest, err := scrypt.Key([]byte(password), u.PasswordSalt.Bytes, 16384, 8, 1, 32)
+	digest, err := scrypt.Key([]byte(password), u.PasswordSalt, 16384, 8, 1, 32)
 	if err != nil {
 		return false
 	}
 
-	return bytes.Equal(digest, u.PasswordDigest.Bytes)
+	return bytes.Equal(digest, u.PasswordDigest)
 }
 
 type staleFeed struct {

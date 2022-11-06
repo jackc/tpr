@@ -3,17 +3,17 @@ package data
 import (
 	"context"
 
-	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Subscription struct {
 	FeedID              pgtype.Int4
-	Name                pgtype.Varchar
-	URL                 pgtype.Varchar
+	Name                pgtype.Text
+	URL                 pgtype.Text
 	LastFetchTime       pgtype.Timestamptz
-	LastFailure         pgtype.Varchar
+	LastFailure         pgtype.Text
 	LastFailureTime     pgtype.Timestamptz
 	FailureCount        pgtype.Int4
 	ItemCount           pgtype.Int8

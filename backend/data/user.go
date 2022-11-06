@@ -7,7 +7,7 @@ import (
 
 	"errors"
 
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 )
 
 type DuplicationError struct {
@@ -65,5 +65,5 @@ func CreateUser(ctx context.Context, db Queryer, user *User) (int32, error) {
 		return 0, err
 	}
 
-	return user.ID.Int, nil
+	return user.ID.Int32, nil
 }

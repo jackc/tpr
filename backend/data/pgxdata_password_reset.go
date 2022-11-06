@@ -4,22 +4,23 @@ package data
 
 import (
 	"context"
+	"net/netip"
 	"strings"
 
 	"errors"
 
 	"github.com/jackc/pgsql"
-	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type PasswordReset struct {
-	Token          pgtype.Varchar
-	Email          pgtype.Varchar
-	RequestIP      pgtype.Inet
+	Token          pgtype.Text
+	Email          pgtype.Text
+	RequestIP      netip.Addr
 	RequestTime    pgtype.Timestamptz
 	UserID         pgtype.Int4
-	CompletionIP   pgtype.Inet
+	CompletionIP   netip.Addr
 	CompletionTime pgtype.Timestamptz
 }
 
@@ -110,34 +111,20 @@ func InsertPasswordReset(ctx context.Context, db Queryer, row *PasswordReset) er
 
 	var columns, values []string
 
-	if row.Token.Status != pgtype.Undefined {
-		columns = append(columns, `token`)
-		values = append(values, args.Use(&row.Token).String())
-	}
-	if row.Email.Status != pgtype.Undefined {
-		columns = append(columns, `email`)
-		values = append(values, args.Use(&row.Email).String())
-	}
-	if row.RequestIP.Status != pgtype.Undefined {
-		columns = append(columns, `request_ip`)
-		values = append(values, args.Use(&row.RequestIP).String())
-	}
-	if row.RequestTime.Status != pgtype.Undefined {
-		columns = append(columns, `request_time`)
-		values = append(values, args.Use(&row.RequestTime).String())
-	}
-	if row.UserID.Status != pgtype.Undefined {
-		columns = append(columns, `user_id`)
-		values = append(values, args.Use(&row.UserID).String())
-	}
-	if row.CompletionIP.Status != pgtype.Undefined {
-		columns = append(columns, `completion_ip`)
-		values = append(values, args.Use(&row.CompletionIP).String())
-	}
-	if row.CompletionTime.Status != pgtype.Undefined {
-		columns = append(columns, `completion_time`)
-		values = append(values, args.Use(&row.CompletionTime).String())
-	}
+	columns = append(columns, `token`)
+	values = append(values, args.Use(&row.Token).String())
+	columns = append(columns, `email`)
+	values = append(values, args.Use(&row.Email).String())
+	columns = append(columns, `request_ip`)
+	values = append(values, args.Use(&row.RequestIP).String())
+	columns = append(columns, `request_time`)
+	values = append(values, args.Use(&row.RequestTime).String())
+	columns = append(columns, `user_id`)
+	values = append(values, args.Use(&row.UserID).String())
+	columns = append(columns, `completion_ip`)
+	values = append(values, args.Use(&row.CompletionIP).String())
+	columns = append(columns, `completion_time`)
+	values = append(values, args.Use(&row.CompletionTime).String())
 
 	sql := `insert into "password_resets"(` + strings.Join(columns, ", ") + `)
 values(` + strings.Join(values, ",") + `)
@@ -154,27 +141,13 @@ func UpdatePasswordReset(ctx context.Context, db Queryer,
 	sets := make([]string, 0, 7)
 	args := pgsql.Args{}
 
-	if row.Token.Status != pgtype.Undefined {
-		sets = append(sets, `token`+"="+args.Use(&row.Token).String())
-	}
-	if row.Email.Status != pgtype.Undefined {
-		sets = append(sets, `email`+"="+args.Use(&row.Email).String())
-	}
-	if row.RequestIP.Status != pgtype.Undefined {
-		sets = append(sets, `request_ip`+"="+args.Use(&row.RequestIP).String())
-	}
-	if row.RequestTime.Status != pgtype.Undefined {
-		sets = append(sets, `request_time`+"="+args.Use(&row.RequestTime).String())
-	}
-	if row.UserID.Status != pgtype.Undefined {
-		sets = append(sets, `user_id`+"="+args.Use(&row.UserID).String())
-	}
-	if row.CompletionIP.Status != pgtype.Undefined {
-		sets = append(sets, `completion_ip`+"="+args.Use(&row.CompletionIP).String())
-	}
-	if row.CompletionTime.Status != pgtype.Undefined {
-		sets = append(sets, `completion_time`+"="+args.Use(&row.CompletionTime).String())
-	}
+	sets = append(sets, `token`+"="+args.Use(&row.Token).String())
+	sets = append(sets, `email`+"="+args.Use(&row.Email).String())
+	sets = append(sets, `request_ip`+"="+args.Use(&row.RequestIP).String())
+	sets = append(sets, `request_time`+"="+args.Use(&row.RequestTime).String())
+	sets = append(sets, `user_id`+"="+args.Use(&row.UserID).String())
+	sets = append(sets, `completion_ip`+"="+args.Use(&row.CompletionIP).String())
+	sets = append(sets, `completion_time`+"="+args.Use(&row.CompletionTime).String())
 
 	if len(sets) == 0 {
 		return nil

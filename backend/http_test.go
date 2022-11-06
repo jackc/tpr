@@ -5,14 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/tpr/backend/data"
 	"github.com/vaughan0/go-ini"
 	log "gopkg.in/inconshreveable/log15.v2"
@@ -82,10 +82,10 @@ func TestExportOPML(t *testing.T) {
 	pool := newConnPool(t)
 
 	userID, err := data.CreateUser(context.Background(), pool, &data.User{
-		Name:           pgtype.Varchar{String: "test", Status: pgtype.Present},
-		Email:          pgtype.Varchar{String: "test@example.com", Status: pgtype.Present},
-		PasswordDigest: pgtype.Bytea{Bytes: []byte("digest"), Status: pgtype.Present},
-		PasswordSalt:   pgtype.Bytea{Bytes: []byte("salt"), Status: pgtype.Present},
+		Name:           pgtype.Text{String: "test", Valid: true},
+		Email:          pgtype.Text{String: "test@example.com", Valid: true},
+		PasswordDigest: []byte("digest"),
+		PasswordSalt:   []byte("salt"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -102,7 +102,7 @@ func TestExportOPML(t *testing.T) {
 	}
 
 	env := &environment{pool: pool}
-	env.user = &data.User{ID: pgtype.Int4{Int: userID, Status: pgtype.Present}, Name: pgtype.Varchar{String: "test", Status: pgtype.Present}}
+	env.user = &data.User{ID: pgtype.Int4{Int32: userID, Valid: true}, Name: pgtype.Text{String: "test", Valid: true}}
 
 	w := httptest.NewRecorder()
 
@@ -123,8 +123,8 @@ func TestExportOPML(t *testing.T) {
 func TestGetAccountHandler(t *testing.T) {
 	pool := newConnPool(t)
 	user := &data.User{
-		Name:  pgtype.Varchar{String: "test", Status: pgtype.Present},
-		Email: pgtype.Varchar{String: "test@example.com", Status: pgtype.Present},
+		Name:  pgtype.Text{String: "test", Valid: true},
+		Email: pgtype.Text{String: "test@example.com", Valid: true},
 	}
 	SetPassword(user, "password")
 
@@ -162,8 +162,8 @@ func TestGetAccountHandler(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if user.ID.Int != resp.ID {
-		t.Errorf("Expected id %d, instead received %d", user.ID.Int, resp.ID)
+	if user.ID.Int32 != resp.ID {
+		t.Errorf("Expected id %d, instead received %d", user.ID.Int32, resp.ID)
 	}
 
 	if user.Name.String != resp.Name {
@@ -229,8 +229,8 @@ func TestUpdateAccountHandler(t *testing.T) {
 	for _, tt := range tests {
 		pool := newConnPool(t)
 		user := &data.User{
-			Name:  pgtype.Varchar{String: "test", Status: pgtype.Present},
-			Email: pgtype.Varchar{String: origEmail, Status: pgtype.Present},
+			Name:  pgtype.Text{String: "test", Valid: true},
+			Email: pgtype.Text{String: origEmail, Valid: true},
 		}
 		SetPassword(user, origPassword)
 
@@ -258,7 +258,7 @@ func TestUpdateAccountHandler(t *testing.T) {
 			continue
 		}
 
-		env := &environment{user: user, pool: pool}
+		env := &environment{user: user, pool: pool, logger: getLogger(t)}
 		w := httptest.NewRecorder()
 		UpdateAccountHandler(w, req, env)
 
@@ -316,8 +316,8 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 	for _, tt := range tests {
 		pool := newConnPool(t)
 		user := &data.User{
-			Name:  pgtype.Varchar{String: "test", Status: pgtype.Present},
-			Email: pgtype.Varchar{String: tt.userEmail, Status: pgtype.Present},
+			Name:  pgtype.Text{String: "test", Valid: true},
+			Email: pgtype.Text{String: tt.userEmail, Valid: true},
 		}
 		SetPassword(user, "password")
 
@@ -362,13 +362,13 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 		if pwr.Email.String != tt.reqEmail {
 			t.Errorf("%s: PasswordReset.Email should be %s, but instead is %v", tt.descr, tt.reqEmail, pwr.Email)
 		}
-		if pwr.RequestIP.IPNet.IP.String() != tt.remoteHost {
-			t.Errorf("%s: PasswordReset.RequestIP should be %s, but instead is %v", tt.descr, tt.remoteHost, pwr.RequestIP.IPNet.IP.String())
+		if pwr.RequestIP.String() != tt.remoteHost {
+			t.Errorf("%s: PasswordReset.RequestIP should be %s, but instead is %v", tt.descr, tt.remoteHost, pwr.RequestIP.String())
 		}
-		if tt.reqEmail == tt.userEmail && userID != pwr.UserID.Int {
+		if tt.reqEmail == tt.userEmail && userID != pwr.UserID.Int32 {
 			t.Errorf("%s: PasswordReset.UserID should be %d, but instead is %v", tt.descr, userID, pwr.UserID)
 		}
-		if tt.reqEmail != tt.userEmail && pwr.UserID.Status != pgtype.Null {
+		if tt.reqEmail != tt.userEmail && pwr.UserID.Valid {
 			t.Errorf("%s: PasswordReset.UserID should be nil, but instead is %v", tt.descr, pwr.UserID)
 		}
 
@@ -397,8 +397,8 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
 	pool := newConnPool(t)
 	user := &data.User{
-		Name:  pgtype.Varchar{String: "test", Status: pgtype.Present},
-		Email: pgtype.Varchar{String: "test@example.com", Status: pgtype.Present},
+		Name:  pgtype.Text{String: "test", Valid: true},
+		Email: pgtype.Text{String: "test@example.com", Valid: true},
 	}
 	SetPassword(user, "password")
 
@@ -407,13 +407,13 @@ func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
 		t.Fatalf("repo.CreateUser returned error: %v", err)
 	}
 
-	_, requestIP, _ := net.ParseCIDR("127.0.0.1/32")
+	requestIP := netip.MustParseAddr("127.0.0.1")
 	pwr := &data.PasswordReset{
-		Token:       pgtype.Varchar{String: "0123456789abcdef", Status: pgtype.Present},
-		Email:       pgtype.Varchar{String: "test@example.com", Status: pgtype.Present},
-		UserID:      pgtype.Int4{Int: userID, Status: pgtype.Present},
-		RequestTime: pgtype.Timestamptz{Time: time.Now(), Status: pgtype.Present},
-		RequestIP:   pgtype.Inet{IPNet: requestIP, Status: pgtype.Present},
+		Token:       pgtype.Text{String: "0123456789abcdef", Valid: true},
+		Email:       pgtype.Text{String: "test@example.com", Valid: true},
+		UserID:      pgtype.Int4{Int32: userID, Valid: true},
+		RequestTime: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		RequestIP:   requestIP,
 	}
 
 	err = data.InsertPasswordReset(context.Background(), pool, pwr)
@@ -459,8 +459,8 @@ func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
 func TestResetPasswordHandlerTokenMatchestUsedPasswordReset(t *testing.T) {
 	pool := newConnPool(t)
 	user := &data.User{
-		Name:  pgtype.Varchar{String: "test", Status: pgtype.Present},
-		Email: pgtype.Varchar{String: "test@example.com", Status: pgtype.Present},
+		Name:  pgtype.Text{String: "test", Valid: true},
+		Email: pgtype.Text{String: "test@example.com", Valid: true},
 	}
 	SetPassword(user, "password")
 
@@ -469,15 +469,15 @@ func TestResetPasswordHandlerTokenMatchestUsedPasswordReset(t *testing.T) {
 		t.Fatalf("repo.CreateUser returned error: %v", err)
 	}
 
-	_, localhost, _ := net.ParseCIDR("127.0.0.1/32")
+	localhost := netip.MustParseAddr("127.0.0.1")
 	pwr := &data.PasswordReset{
-		Token:          pgtype.Varchar{String: "0123456789abcdef", Status: pgtype.Present},
-		Email:          pgtype.Varchar{String: "test@example.com", Status: pgtype.Present},
-		UserID:         pgtype.Int4{Int: userID, Status: pgtype.Present},
-		RequestTime:    pgtype.Timestamptz{Time: time.Now(), Status: pgtype.Present},
-		RequestIP:      pgtype.Inet{IPNet: localhost, Status: pgtype.Present},
-		CompletionTime: pgtype.Timestamptz{Time: time.Now(), Status: pgtype.Present},
-		CompletionIP:   pgtype.Inet{IPNet: localhost, Status: pgtype.Present},
+		Token:          pgtype.Text{String: "0123456789abcdef", Valid: true},
+		Email:          pgtype.Text{String: "test@example.com", Valid: true},
+		UserID:         pgtype.Int4{Int32: userID, Valid: true},
+		RequestTime:    pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		RequestIP:      localhost,
+		CompletionTime: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		CompletionIP:   localhost,
 	}
 
 	err = data.InsertPasswordReset(context.Background(), pool, pwr)
@@ -513,12 +513,12 @@ func TestResetPasswordHandlerTokenMatchestUsedPasswordReset(t *testing.T) {
 func TestResetPasswordHandlerTokenMatchestInvalidPasswordReset(t *testing.T) {
 	pool := newConnPool(t)
 
-	_, localhost, _ := net.ParseCIDR("127.0.0.1/32")
+	localhost := netip.MustParseAddr("127.0.0.1")
 	pwr := &data.PasswordReset{
-		Token:       pgtype.Varchar{String: "0123456789abcdef", Status: pgtype.Present},
-		Email:       pgtype.Varchar{String: "test@example.com", Status: pgtype.Present},
-		RequestTime: pgtype.Timestamptz{Time: time.Now(), Status: pgtype.Present},
-		RequestIP:   pgtype.Inet{IPNet: localhost, Status: pgtype.Present},
+		Token:       pgtype.Text{String: "0123456789abcdef", Valid: true},
+		Email:       pgtype.Text{String: "test@example.com", Valid: true},
+		RequestTime: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		RequestIP:   localhost,
 	}
 
 	err := data.InsertPasswordReset(context.Background(), pool, pwr)

@@ -38,9 +38,9 @@ feature 'Reader' do
     user_id = create_user name: 'john', password: 'secret'
     feed_id = create_feed
     DB[:subscriptions].insert user_id: user_id, feed_id: feed_id
-    item_id = create_item feed_id: feed_id, title: 'First Post'
+    item_id = create_item feed_id: feed_id, title: 'First Post', publication_time: Time.now - 5
     DB[:unread_items].insert user_id: user_id, feed_id: feed_id, item_id: item_id
-    item_id = create_item feed_id: feed_id, title: 'Second Post'
+    item_id = create_item feed_id: feed_id, title: 'Second Post', publication_time: Time.now
     DB[:unread_items].insert user_id: user_id, feed_id: feed_id, item_id: item_id
 
     login name: 'john', password: 'secret'

@@ -12,8 +12,9 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/jackc/pgx/v4/log/log15adapter"
-	"github.com/jackc/pgx/v4/pgxpool"
+	log15adapter "github.com/jackc/pgx-log15"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/tracelog"
 	"github.com/jackc/tpr/backend/data"
 	"github.com/urfave/cli"
 	"github.com/vaughan0/go-ini"
@@ -117,7 +118,7 @@ func newPool(conf ini.File, logger log.Logger) (*pgxpool.Pool, error) {
 	if err != nil {
 		return nil, err
 	}
-	config.ConnConfig.Logger = log15adapter.NewLogger(logger)
+	config.ConnConfig.Tracer = &tracelog.TraceLog{Logger: log15adapter.NewLogger(logger), LogLevel: tracelog.LogLevelInfo}
 
 	config.ConnConfig.Host, _ = conf.Get("database", "host")
 	if config.ConnConfig.Host == "" {
@@ -142,7 +143,7 @@ func newPool(conf ini.File, logger log.Logger) (*pgxpool.Pool, error) {
 
 	config.MaxConns = 10
 
-	return pgxpool.ConnectConfig(context.Background(), config)
+	return pgxpool.NewWithConfig(context.Background(), config)
 }
 
 func loadHTTPConfig(c *cli.Context, conf ini.File) (httpConfig, error) {
@@ -306,7 +307,7 @@ func ResetPassword(c *cli.Context) {
 	update := &data.User{}
 	SetPassword(update, password)
 
-	err = data.UpdateUser(context.Background(), pool, user.ID.Int, update)
+	err = data.UpdateUser(context.Background(), pool, user.ID.Int32, update)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
