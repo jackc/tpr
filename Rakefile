@@ -71,7 +71,7 @@ task spec: :spec_server
 
 desc "Run go tests"
 task :test do
-  sh "cd backend; go test"
+  sh "go test ./..."
 end
 
 task :default => [:test, :spec]

@@ -1,4 +1,4 @@
-module github.com/jackc/tpr/backend
+module github.com/jackc/tpr
 
 go 1.19
 
