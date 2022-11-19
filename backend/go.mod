@@ -3,10 +3,10 @@ module github.com/jackc/tpr/backend
 go 1.19
 
 require (
+	github.com/go-chi/chi/v5 v5.0.7
 	github.com/jackc/pgsql v0.0.0-20220720200728-bf8deec3ac70
 	github.com/jackc/pgx-log15 v0.0.0-20221105153733-200b3add954a
 	github.com/jackc/pgx/v5 v5.1.1
-	github.com/jackc/quo_vadis v0.0.0-20140201003328-d1031e8ac738
 	github.com/urfave/cli v1.22.9
 	github.com/vaughan0/go-ini v0.0.0-20130923145212-a98ad7ee00ec
 	golang.org/x/crypto v0.3.0

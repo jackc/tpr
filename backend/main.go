@@ -4,10 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
-	"net/http/httputil"
 	"net/smtp"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -242,25 +239,17 @@ func Serve(c *cli.Context) {
 		os.Exit(1)
 	}
 
-	apiHandler := NewAPIHandler(pool, mailer, logger.New("module", "http"))
-	http.Handle("/api/", http.StripPrefix("/api", apiHandler))
-
-	if httpConfig.staticURL != "" {
-		staticURL, err := url.Parse(httpConfig.staticURL)
-		if err != nil {
-			logger.Crit(fmt.Sprintf("Bad static-url: %v", err))
-			os.Exit(1)
-		}
-		http.Handle("/", httputil.NewSingleHostReverseProxy(staticURL))
-	}
-
-	listenAt := fmt.Sprintf("%s:%s", httpConfig.listenAddress, httpConfig.listenPort)
-	fmt.Printf("Starting to listen on: %s\n", listenAt)
-
 	feedUpdater := NewFeedUpdater(pool, logger.New("module", "feedUpdater"))
 	go feedUpdater.KeepFeedsFresh()
 
-	if err := http.ListenAndServe(listenAt, nil); err != nil {
+	server, err := NewAppServer(httpConfig, pool, mailer, logger)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Could not create web server: %v\n", err)
+		os.Exit(1)
+	}
+
+	err = server.Serve()
+	if err != nil {
 		os.Stderr.WriteString("Could not start web server!\n")
 		os.Exit(1)
 	}

@@ -8,13 +8,15 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/httputil"
 	"net/netip"
+	"net/url"
 	"strconv"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	qv "github.com/jackc/quo_vadis"
 	"github.com/jackc/tpr/backend/data"
 	log "gopkg.in/inconshreveable/log15.v2"
 )
@@ -40,6 +42,59 @@ func AuthenticatedHandler(f EnvHandlerFunc) EnvHandlerFunc {
 	})
 }
 
+type AppServer struct {
+	handler    http.Handler
+	httpConfig httpConfig
+	server     *http.Server
+}
+
+func NewAppServer(httpConfig httpConfig, pool *pgxpool.Pool, mailer Mailer, logger log.Logger) (*AppServer, error) {
+	r := chi.NewRouter()
+
+	if httpConfig.staticURL != "" {
+		staticURL, err := url.Parse(httpConfig.staticURL)
+		if err != nil {
+			return nil, fmt.Errorf("bad static-url: %v", err)
+		}
+		r.Handle("/*", httputil.NewSingleHostReverseProxy(staticURL))
+	}
+
+	apiHandler := NewAPIHandler(pool, mailer, logger.New("module", "http"))
+	r.Mount("/api", apiHandler)
+
+	return &AppServer{
+		handler:    r,
+		httpConfig: httpConfig,
+	}, nil
+}
+
+func (s *AppServer) Serve() error {
+	listenAt := fmt.Sprintf("%s:%s", s.httpConfig.listenAddress, s.httpConfig.listenPort)
+	s.server = &http.Server{
+		Addr:    listenAt,
+		Handler: s.handler,
+	}
+
+	fmt.Printf("Starting to listen on: %s\n", listenAt)
+
+	err := s.server.ListenAndServe()
+	if err != http.ErrServerClosed {
+		return err
+	}
+
+	return nil
+}
+
+func (s *AppServer) Shutdown(ctx context.Context) error {
+	s.server.SetKeepAlivesEnabled(false)
+	err := s.server.Shutdown(ctx)
+	if err != nil {
+		return fmt.Errorf("graceful HTTP server shutdown failed: %w", err)
+	}
+
+	return nil
+}
+
 type environment struct {
 	user   *data.User
 	pool   *pgxpool.Pool
@@ -47,25 +102,25 @@ type environment struct {
 	mailer Mailer
 }
 
-func NewAPIHandler(pool *pgxpool.Pool, mailer Mailer, logger log.Logger) http.Handler {
-	router := qv.NewRouter()
+func NewAPIHandler(pool *pgxpool.Pool, mailer Mailer, logger log.Logger) chi.Router {
+	router := chi.NewRouter()
 
-	router.Post("/register", EnvHandler(pool, mailer, logger, RegisterHandler))
-	router.Post("/sessions", EnvHandler(pool, mailer, logger, CreateSessionHandler))
-	router.Delete("/sessions/:id", EnvHandler(pool, mailer, logger, AuthenticatedHandler(DeleteSessionHandler)))
-	router.Post("/subscriptions", EnvHandler(pool, mailer, logger, AuthenticatedHandler(CreateSubscriptionHandler)))
-	router.Delete("/subscriptions/:id", EnvHandler(pool, mailer, logger, AuthenticatedHandler(DeleteSubscriptionHandler)))
-	router.Post("/request_password_reset", EnvHandler(pool, mailer, logger, RequestPasswordResetHandler))
-	router.Post("/reset_password", EnvHandler(pool, mailer, logger, ResetPasswordHandler))
-	router.Get("/feeds", EnvHandler(pool, mailer, logger, AuthenticatedHandler(GetFeedsHandler)))
-	router.Post("/feeds/import", EnvHandler(pool, mailer, logger, AuthenticatedHandler(ImportFeedsHandler)))
-	router.Get("/feeds.xml", EnvHandler(pool, mailer, logger, AuthenticatedHandler(ExportFeedsHandler)))
-	router.Get("/items/unread", EnvHandler(pool, mailer, logger, AuthenticatedHandler(GetUnreadItemsHandler)))
-	router.Post("/items/unread/mark_multiple_read", EnvHandler(pool, mailer, logger, AuthenticatedHandler(MarkMultipleItemsReadHandler)))
-	router.Delete("/items/unread/:id", EnvHandler(pool, mailer, logger, AuthenticatedHandler(MarkItemReadHandler)))
-	router.Get("/items/archived", EnvHandler(pool, mailer, logger, AuthenticatedHandler(GetArchivedItemsHandler)))
-	router.Get("/account", EnvHandler(pool, mailer, logger, AuthenticatedHandler(GetAccountHandler)))
-	router.Patch("/account", EnvHandler(pool, mailer, logger, AuthenticatedHandler(UpdateAccountHandler)))
+	router.Method("POST", "/register", EnvHandler(pool, mailer, logger, RegisterHandler))
+	router.Method("POST", "/sessions", EnvHandler(pool, mailer, logger, CreateSessionHandler))
+	router.Method("DELETE", "/sessions/{id}", EnvHandler(pool, mailer, logger, AuthenticatedHandler(DeleteSessionHandler)))
+	router.Method("POST", "/subscriptions", EnvHandler(pool, mailer, logger, AuthenticatedHandler(CreateSubscriptionHandler)))
+	router.Method("DELETE", "/subscriptions/{id}", EnvHandler(pool, mailer, logger, AuthenticatedHandler(DeleteSubscriptionHandler)))
+	router.Method("POST", "/request_password_reset", EnvHandler(pool, mailer, logger, RequestPasswordResetHandler))
+	router.Method("POST", "/reset_password", EnvHandler(pool, mailer, logger, ResetPasswordHandler))
+	router.Method("GET", "/feeds", EnvHandler(pool, mailer, logger, AuthenticatedHandler(GetFeedsHandler)))
+	router.Method("POST", "/feeds/import", EnvHandler(pool, mailer, logger, AuthenticatedHandler(ImportFeedsHandler)))
+	router.Method("GET", "/feeds.xml", EnvHandler(pool, mailer, logger, AuthenticatedHandler(ExportFeedsHandler)))
+	router.Method("GET", "/items/unread", EnvHandler(pool, mailer, logger, AuthenticatedHandler(GetUnreadItemsHandler)))
+	router.Method("POST", "/items/unread/mark_multiple_read", EnvHandler(pool, mailer, logger, AuthenticatedHandler(MarkMultipleItemsReadHandler)))
+	router.Method("DELETE", "/items/unread/{id}", EnvHandler(pool, mailer, logger, AuthenticatedHandler(MarkItemReadHandler)))
+	router.Method("GET", "/items/archived", EnvHandler(pool, mailer, logger, AuthenticatedHandler(GetArchivedItemsHandler)))
+	router.Method("GET", "/account", EnvHandler(pool, mailer, logger, AuthenticatedHandler(GetAccountHandler)))
+	router.Method("PATCH", "/account", EnvHandler(pool, mailer, logger, AuthenticatedHandler(UpdateAccountHandler)))
 
 	return router
 }
@@ -210,7 +265,7 @@ func CreateSubscriptionHandler(w http.ResponseWriter, req *http.Request, env *en
 }
 
 func DeleteSubscriptionHandler(w http.ResponseWriter, req *http.Request, env *environment) {
-	feedID, err := strconv.ParseInt(req.FormValue("id"), 10, 32)
+	feedID, err := strconv.ParseInt(chi.URLParam(req, "id"), 10, 32)
 	if err != nil {
 		// If not an integer it clearly can't be found
 		http.NotFound(w, req)
@@ -299,7 +354,7 @@ func CreateSessionHandler(w http.ResponseWriter, req *http.Request, env *environ
 }
 
 func DeleteSessionHandler(w http.ResponseWriter, req *http.Request, env *environment) {
-	sessionID, err := hex.DecodeString(req.FormValue("id"))
+	sessionID, err := hex.DecodeString(chi.URLParam(req, "id"))
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -322,7 +377,7 @@ func GetUnreadItemsHandler(w http.ResponseWriter, req *http.Request, env *enviro
 }
 
 func MarkItemReadHandler(w http.ResponseWriter, req *http.Request, env *environment) {
-	itemID, err := strconv.ParseInt(req.FormValue("id"), 10, 32)
+	itemID, err := strconv.ParseInt(chi.URLParam(req, "id"), 10, 32)
 	if err != nil {
 		// If not an integer it clearly can't be found
 		http.NotFound(w, req)
