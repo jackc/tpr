@@ -1,3 +1,5 @@
+PATH_add bin
+
 export PGDATABASE=tpr_dev
 
 export TEST_DATABASE=tpr_test
