@@ -1,0 +1,4 @@
+export PGDATABASE=tpr_dev
+
+export TERN_CONFIG=postgresql/tern.conf
+export TERN_MIGRATIONS=postgresql/migrations

@@ -5,8 +5,7 @@
 /config/secrets.rb
 /frontend/.cache
 /public
-/tern.conf
-/tern.test.conf
+/postgresql/tern.conf
 /tpr.conf
 /tpr.test.conf
 /tpr_*
