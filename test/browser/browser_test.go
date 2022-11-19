@@ -50,7 +50,7 @@ type serverInstanceT struct {
 func startServer(t *testing.T) *serverInstanceT {
 	ctx := context.Background()
 	db := TestDBManager.AcquireDB(t, ctx)
-	handler, err := backend.NewAppServer(backend.HTTPConfig{}, db.PoolConnect(t, ctx), nil, log.New())
+	handler, err := backend.NewAppServer(backend.HTTPConfig{StaticURL: "http://127.0.0.1:8080/"}, db.PoolConnect(t, ctx), nil, log.New())
 	require.NoError(t, err)
 
 	server := httptest.NewServer(handler)
@@ -103,4 +103,12 @@ func browserTest(t *testing.T, maxDuration time.Duration, f func(ctx context.Con
 // instead of time.Sleep directly so all uses can easily be found and hopefully fixed later.
 func sleepForFlicker() {
 	time.Sleep(500 * time.Millisecond)
+}
+
+func login(t *testing.T, ctx context.Context, page *rod.Page, appHost, email, password string) {
+	page.MustNavigate(fmt.Sprintf("%s/#login", appHost))
+
+	page.MustElement("#name").MustInput(email)
+	page.MustElement("#password").MustInput(password)
+	page.MustElementR("input", "Login").MustClick()
 }
