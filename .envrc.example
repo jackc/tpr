@@ -1,4 +1,10 @@
 export PGDATABASE=tpr_dev
 
+export TEST_DATABASE=tpr_test
+
+# TEST_DATABASE_COUNT is how many test databases to use. Each database test has exclusive use of a database while it is
+# executing so this number is also the maximum number of database tests that can execute in parallel.
+export TEST_DATABASE_COUNT=8
+
 export TERN_CONFIG=postgresql/tern.conf
 export TERN_MIGRATIONS=postgresql/migrations

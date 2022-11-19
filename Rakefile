@@ -12,6 +12,8 @@ require "erb"
 
 CLOBBER.include("build")
 
+directory "tmp/test"
+
 namespace :build do
   task :directory do
     Dir.mkdir("build") unless Dir.exists?("build")
@@ -35,7 +37,7 @@ namespace :build do
 end
 
 file "build/tpr" => ["build:directory", *FileList["backend/*.go"]] do |t|
-  sh "cd backend; go build -o ../build/tpr github.com/jackc/tpr/backend"
+  sh "go build -o build/tpr"
 end
 
 file "build/tpr-linux" => ["build:directory", *FileList["backend/*.go"]] do |t|
@@ -69,8 +71,16 @@ end
 RSpec::Core::RakeTask.new(:spec)
 task spec: :spec_server
 
+file "tmp/test/.databases-prepared" => FileList["postgresql/**/*.sql", "test/testdata/*.sql"] do
+  sh "psql -f test/setup_test_databases.sql > /dev/null"
+  sh "touch tmp/test/.databases-prepared"
+end
+
+desc "Perform all preparation necessary to run tests"
+task "test:prepare" => ["tmp/test", "tmp/test/.databases-prepared"]
+
 desc "Run go tests"
-task :test do
+task test: ["test:prepare"] do
   sh "go test ./..."
 end
 

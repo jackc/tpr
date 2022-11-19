@@ -1,22 +1,91 @@
-package main
+package backend
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"strconv"
 	"testing"
 	"time"
 
+	log15adapter "github.com/jackc/pgx-log15"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/tracelog"
 	"github.com/jackc/tpr/backend/data"
 	"github.com/vaughan0/go-ini"
 	log "gopkg.in/inconshreveable/log15.v2"
 )
+
+func newLogger(conf ini.File) (log.Logger, error) {
+	level, _ := conf.Get("log", "level")
+	if level == "" {
+		level = "warn"
+	}
+
+	logger := log.New()
+	setFilterHandler(level, logger, log.StdoutHandler)
+
+	return logger, nil
+}
+
+func setFilterHandler(level string, logger log.Logger, handler log.Handler) error {
+	if level == "none" {
+		logger.SetHandler(log.DiscardHandler())
+		return nil
+	}
+
+	lvl, err := log.LvlFromString(level)
+	if err != nil {
+		return fmt.Errorf("Bad log level: %v", err)
+	}
+	logger.SetHandler(log.LvlFilterHandler(lvl, handler))
+
+	return nil
+}
+
+func newPool(conf ini.File, logger log.Logger) (*pgxpool.Pool, error) {
+	logger = logger.New("module", "pgx")
+	if level, ok := conf.Get("log", "pgx_level"); ok {
+		setFilterHandler(level, logger, log.StdoutHandler)
+	}
+
+	config, err := pgxpool.ParseConfig("")
+	if err != nil {
+		return nil, err
+	}
+	config.ConnConfig.Tracer = &tracelog.TraceLog{Logger: log15adapter.NewLogger(logger), LogLevel: tracelog.LogLevelInfo}
+
+	config.ConnConfig.Host, _ = conf.Get("database", "host")
+	if config.ConnConfig.Host == "" {
+		return nil, errors.New("Config must contain database.host but it does not")
+	}
+
+	if p, ok := conf.Get("database", "port"); ok {
+		n, err := strconv.ParseUint(p, 10, 16)
+		config.ConnConfig.Port = uint16(n)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var ok bool
+
+	if config.ConnConfig.Database, ok = conf.Get("database", "database"); !ok {
+		return nil, errors.New("Config must contain database.database but it does not")
+	}
+	config.ConnConfig.User, _ = conf.Get("database", "user")
+	config.ConnConfig.Password, _ = conf.Get("database", "password")
+
+	config.MaxConns = 10
+
+	return pgxpool.NewWithConfig(context.Background(), config)
+}
 
 func getLogger(t *testing.T) log.Logger {
 	configPath := "../tpr.test.conf"

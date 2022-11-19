@@ -12,6 +12,7 @@ import (
 	log15adapter "github.com/jackc/pgx-log15"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
+	"github.com/jackc/tpr/backend"
 	"github.com/jackc/tpr/backend/data"
 	"github.com/urfave/cli"
 	"github.com/vaughan0/go-ini"
@@ -19,12 +20,6 @@ import (
 )
 
 const version = "0.8.1"
-
-type httpConfig struct {
-	listenAddress string
-	listenPort    string
-	staticURL     string
-}
 
 func main() {
 	app := cli.NewApp()
@@ -143,21 +138,21 @@ func newPool(conf ini.File, logger log.Logger) (*pgxpool.Pool, error) {
 	return pgxpool.NewWithConfig(context.Background(), config)
 }
 
-func loadHTTPConfig(c *cli.Context, conf ini.File) (httpConfig, error) {
-	config := httpConfig{}
-	config.listenAddress = c.String("address")
-	config.listenPort = c.String("port")
-	config.staticURL = c.String("static-url")
+func loadHTTPConfig(c *cli.Context, conf ini.File) (backend.HTTPConfig, error) {
+	config := backend.HTTPConfig{}
+	config.ListenAddress = c.String("address")
+	config.ListenPort = c.String("port")
+	config.StaticURL = c.String("static-url")
 
 	var ok bool
 	if !c.IsSet("address") {
-		if config.listenAddress, ok = conf.Get("server", "address"); !ok {
+		if config.ListenAddress, ok = conf.Get("server", "address"); !ok {
 			return config, errors.New("Missing server address")
 		}
 	}
 
 	if !c.IsSet("port") {
-		if config.listenPort, ok = conf.Get("server", "port"); !ok {
+		if config.ListenPort, ok = conf.Get("server", "port"); !ok {
 			return config, errors.New("Missing server port")
 		}
 	}
@@ -165,7 +160,7 @@ func loadHTTPConfig(c *cli.Context, conf ini.File) (httpConfig, error) {
 	return config, nil
 }
 
-func newMailer(conf ini.File, logger log.Logger) (Mailer, error) {
+func newMailer(conf ini.File, logger log.Logger) (backend.Mailer, error) {
 	mailConf := conf.Section("mail")
 	if len(mailConf) == 0 {
 		return nil, nil
@@ -197,12 +192,12 @@ func newMailer(conf ini.File, logger log.Logger) (Mailer, error) {
 
 	logger = logger.New("module", "mail")
 
-	mailer := &SMTPMailer{
+	mailer := &backend.SMTPMailer{
 		ServerAddr: smtpAddr + ":" + smtpPort,
 		Auth:       auth,
 		From:       fromAddr,
-		rootURL:    rootURL,
-		logger:     logger,
+		RootURL:    rootURL,
+		Logger:     logger,
 	}
 
 	return mailer, nil
@@ -239,10 +234,10 @@ func Serve(c *cli.Context) {
 		os.Exit(1)
 	}
 
-	feedUpdater := NewFeedUpdater(pool, logger.New("module", "feedUpdater"))
+	feedUpdater := backend.NewFeedUpdater(pool, logger.New("module", "feedUpdater"))
 	go feedUpdater.KeepFeedsFresh()
 
-	server, err := NewAppServer(httpConfig, pool, mailer, logger)
+	server, err := backend.NewAppServer(httpConfig, pool, mailer, logger)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Could not create web server: %v\n", err)
 		os.Exit(1)
@@ -287,14 +282,14 @@ func ResetPassword(c *cli.Context) {
 		os.Exit(1)
 	}
 
-	password, err := genRandPassword()
+	password, err := backend.GenRandPassword()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
 	update := &data.User{}
-	SetPassword(update, password)
+	backend.SetPassword(update, password)
 
 	err = data.UpdateUser(context.Background(), pool, user.ID.Int32, update)
 	if err != nil {

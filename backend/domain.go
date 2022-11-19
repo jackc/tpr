@@ -1,11 +1,12 @@
-package main
+package backend
 
 import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	log "gopkg.in/inconshreveable/log15.v2"
 	"io"
+
+	log "gopkg.in/inconshreveable/log15.v2"
 )
 
 func validatePassword(password string) error {
@@ -16,7 +17,7 @@ func validatePassword(password string) error {
 	return nil
 }
 
-func genRandPassword() (string, error) {
+func GenRandPassword() (string, error) {
 	return genRandToken(6)
 }
 

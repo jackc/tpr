@@ -1,4 +1,4 @@
-package main
+package backend
 
 import (
 	"context"
@@ -20,6 +20,12 @@ import (
 	"github.com/jackc/tpr/backend/data"
 	log "gopkg.in/inconshreveable/log15.v2"
 )
+
+type HTTPConfig struct {
+	ListenAddress string
+	ListenPort    string
+	StaticURL     string
+}
 
 type EnvHandlerFunc func(w http.ResponseWriter, req *http.Request, env *environment)
 
@@ -44,15 +50,15 @@ func AuthenticatedHandler(f EnvHandlerFunc) EnvHandlerFunc {
 
 type AppServer struct {
 	handler    http.Handler
-	httpConfig httpConfig
+	httpConfig HTTPConfig
 	server     *http.Server
 }
 
-func NewAppServer(httpConfig httpConfig, pool *pgxpool.Pool, mailer Mailer, logger log.Logger) (*AppServer, error) {
+func NewAppServer(httpConfig HTTPConfig, pool *pgxpool.Pool, mailer Mailer, logger log.Logger) (*AppServer, error) {
 	r := chi.NewRouter()
 
-	if httpConfig.staticURL != "" {
-		staticURL, err := url.Parse(httpConfig.staticURL)
+	if httpConfig.StaticURL != "" {
+		staticURL, err := url.Parse(httpConfig.StaticURL)
 		if err != nil {
 			return nil, fmt.Errorf("bad static-url: %v", err)
 		}
@@ -68,8 +74,12 @@ func NewAppServer(httpConfig httpConfig, pool *pgxpool.Pool, mailer Mailer, logg
 	}, nil
 }
 
+func (s *AppServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.handler.ServeHTTP(w, r)
+}
+
 func (s *AppServer) Serve() error {
-	listenAt := fmt.Sprintf("%s:%s", s.httpConfig.listenAddress, s.httpConfig.listenPort)
+	listenAt := fmt.Sprintf("%s:%s", s.httpConfig.ListenAddress, s.httpConfig.ListenPort)
 	s.server = &http.Server{
 		Addr:    listenAt,
 		Handler: s.handler,

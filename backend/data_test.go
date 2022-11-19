@@ -1,4 +1,4 @@
-package main
+package backend
 
 // These tests originally belonged to PgxRepository.
 
