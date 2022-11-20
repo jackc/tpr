@@ -184,3 +184,17 @@ func (p *Page) HasContent(selector, jsRegex string) {
 		p.t.Fatalf("failed to find element by selector %q with content matching %q", selector, jsRegex)
 	}
 }
+
+func (p *Page) DoesNotHaveContent(selector, jsRegex string) {
+	p.t.Helper()
+
+	page := p.Page
+	found, _, err := page.HasR(selector, jsRegex)
+	if err != nil {
+		p.t.Fatal(err)
+	}
+
+	if found {
+		p.t.Fatalf("found element by selector %q with content matching %q when it should not have been", selector, jsRegex)
+	}
+}

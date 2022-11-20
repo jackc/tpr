@@ -8,5 +8,7 @@ export TEST_DATABASE=tpr_test
 # executing so this number is also the maximum number of database tests that can execute in parallel.
 export TEST_DATABASE_COUNT=8
 
+export TESTBROWSER_MAX_CONCURRENT_TESTS=4
+
 export TERN_CONFIG=postgresql/tern.conf
 export TERN_MIGRATIONS=postgresql/migrations
