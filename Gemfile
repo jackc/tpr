@@ -1,15 +1,6 @@
 source 'https://rubygems.org'
 
-gem 'capybara'
-gem 'ffaker'
-gem 'inifile'
-gem 'launchy'
 gem "mina", '0.3.8'
 gem "mina-scp", '0.1.2', require: false
-gem 'pg'
 gem 'pry'
 gem 'rake'
-gem 'rspec'
-gem 'scrypt'
-gem 'selenium-webdriver'
-gem 'sequel'

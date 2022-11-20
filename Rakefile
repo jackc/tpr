@@ -7,7 +7,6 @@ end
 
 require "rake/clean"
 require "fileutils"
-require "rspec/core/rake_task"
 require "erb"
 
 CLOBBER.include("build")
@@ -58,19 +57,6 @@ task :rerun do
   exec "react2fs -dir backend rake run"
 end
 
-task spec_server: "build:binary" do
-  FileUtils.mkdir_p "tmp/spec/server"
-  FileUtils.touch "tmp/spec/server/stdout.log"
-  FileUtils.touch "tmp/spec/server/stderr.log"
-  pid = Process.spawn "build/tpr server --config tpr.test.conf --static-url http://localhost:8080",
-    out: "tmp/spec/server/stdout.log",
-    err: "tmp/spec/server/stderr.log"
-  at_exit { Process.kill "TERM", pid }
-end
-
-RSpec::Core::RakeTask.new(:spec)
-task spec: :spec_server
-
 file "tmp/test/.databases-prepared" => FileList["postgresql/**/*.sql", "test/testdata/*.sql"] do
   sh "psql -f test/setup_test_databases.sql > /dev/null"
   sh "touch tmp/test/.databases-prepared"
@@ -84,4 +70,4 @@ task test: ["test:prepare"] do
   sh "go test ./..."
 end
 
-task :default => [:test, :spec]
+task :default => :test
