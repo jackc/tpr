@@ -11,67 +11,72 @@ The Pithy Reader is a simple RSS/Atom aggregator.
 
 ## Development
 
-The Pithy Reader backend is written in [Go](http://golang.org/). The frontend is built with [webpack](https://webpack.github.io/). First ensure [Go](http://golang.org/), [Ruby](https://www.ruby-lang.org/), [NodeJS](https://nodejs.org/en/), and [Yarn](https://yarnpkg.com/) are installed.
+The Pithy Reader backend is written in [Go](http://golang.org/). The frontend is built with [Vite](https://vitejs.dev/). First ensure [Go](http://golang.org/), [Ruby](https://www.ruby-lang.org/), and [NodeJS](https://nodejs.org/en/), and are installed.
 
-Get The Pithy Reader.
-
-    go get github.com/jackc/tpr/backend
-
-Go to repository you just checked out.
-
-    cd $GOPATH/src/github.com/jackc/tpr
+First, get The Pithy Reader (i.e. close this repo).
 
 Install the Ruby dependencies:
 
-    bundle install
+```
+bundle install
+```
 
 Install the Node packages:
 
-    cd frontend
-    yarn install
+```
+npm install
+```
 
 All source code and required libraries for The Pithy Reader should now be installed.
 
 The Pithy Reader requires a PostgreSQL database. Create one for testing and one for development.
 
-    createdb tpr_dev
-    createdb tpr_test
+```
+createdb tpr_dev
+createdb tpr_test
+```
 
 For security reasons, The Pithy Reader is designed to run with a limited database user. Create this user (remember the password - you will need it later).
 
-    createuser -P tpr
+```
+createuser -P tpr
+```
 
 Database migrations are managed with [tern](https://github.com/jackc/tern). Install tern if you don't already have it.
 
-    go get -u github.com/jackc/tern
+```
+go install github.com/jackc/tern@latest
+```
 
 Automatic server rebuild and restart are managed with [react2fs](https://github.com/jackc/react2fs). Install react2fs if you don't already have it.
 
-    go get -u github.com/jackc/react2fs
-
-Go back to The Pithy Reader directory.
-
-    cd $GOPATH/src/github.com/jackc/tpr
+```
+go install github.com/jackc/react2fs@latest
+```
 
 Make a copy of the example config files without the "example".
 
-    cp tern.example.conf tern.conf
-    cp tern.test.example.conf tern.test.conf
-    cp tpr.example.conf tpr.conf
-    cp tpr.test.example.conf tpr.test.conf
+```
+cp postgresql/tern.example.conf postgresql/tern.conf
+cp .envrc.example .envrc
+cp tpr.example.conf tpr.conf
+cp tpr.test.example.conf tpr.test.conf
+```
 
 The "tern" files are used the the database migrator. The "tpr" files are used by The Pithy Reader server. Conf files with "test" in them are used for the test environment. The ones without "test" are used by the development environment.
 
-Edit tern.conf and tern.test.conf and enter the database connection information for the development and test environments respectively. The database user tern runs as should be a superuser.
+Edit these config files as needed.
 
 Migrate the development and test databases.
 
-    tern migrate -m migrate -c tern.conf
-    tern migrate -m migrate -c tern.test.conf
+```
+tern migrate
+PGDATABASE=tpr_test tern migrate
+```
 
 Edit tpr.conf and tpr.test.conf. Configure the database connection to use the "tpr" user created above.
 
-The Pithy Reader development environment should be set up now. The Pithy Reader has Go tests for the server and RSpec/Capybara/Selenium integration tests. The default rake task runs the both test suites.
+The Pithy Reader development environment should be set up now. The default rake task runs the tests. You can also run tests directly with `go test ./...`, but the rake task ensures all dependencies are rebuilt if necessary.
 
 ```
 rake
@@ -83,10 +88,11 @@ There is a rake task that will automatically recompile and restart the backend s
 rake rerun
 ```
 
-In another terminal start the webpack development server.
+In another terminal start the vite development server.
 
-    cd frontend
-    npm run start
+```
+npx vite serve frontend
+```
 
 ## Deployment
 
