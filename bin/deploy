@@ -1,0 +1,39 @@
+#!/usr/bin/env ruby
+
+require 'net/ssh'
+require 'fileutils'
+
+if ARGV.size != 1 || !%w[staging production].include?(ARGV[0])
+  puts "Usage: deploy staging|production"
+  exit 1
+end
+
+deploy_environment = ARGV[0]
+
+host = ENV.fetch("#{deploy_environment.upcase}_HOST")
+user = 'root'
+
+def system!(cmd)
+  result = system(cmd)
+  abort "failed: #{cmd}" unless result
+end
+
+def sh(ssh, cmd)
+  puts "$ #{cmd}"
+  output = ssh.exec!(cmd)
+  puts output if output.size > 0
+  abort "failed with exit status: #{output.exitstatus}" if output.exitstatus != 0
+  output
+end
+
+FileUtils.rm_rf("tmp/deploy")
+FileUtils.mkdir_p("tmp/deploy/bin")
+system!(%Q[GOOS=linux GOARCH=amd64 go build -o tmp/deploy/bin])
+FileUtils.mkdir_p("tmp/deploy/assets")
+system!("rake clobber build")
+system!("mv build/assets/* tmp/deploy/assets")
+
+Net::SSH.start(host, user) do |ssh|
+  system!("rsync -rptvz --delete-after --executability tmp/deploy/ #{user}@#{host}:/apps/tpr/current")
+  sh ssh, "systemctl restart tpr"
+end

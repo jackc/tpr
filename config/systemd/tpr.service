@@ -12,7 +12,7 @@ Restart=on-failure
 RestartSec=30
 
 WorkingDirectory=/apps/tpr/current
-ExecStart=/apps/tpr/current/tpr server --config /apps/tpr/shared/tpr.conf
+ExecStart=/apps/tpr/current/bin/tpr server --config /apps/tpr/shared/tpr.conf
 
 [Install]
 WantedBy=multi-user.target

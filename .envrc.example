@@ -12,3 +12,5 @@ export TESTBROWSER_MAX_CONCURRENT_TESTS=4
 
 export TERN_CONFIG=postgresql/tern.conf
 export TERN_MIGRATIONS=postgresql/migrations
+
+export PRODUCTION_HOST=replaceme
