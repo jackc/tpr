@@ -1,5 +1,12 @@
 #!/usr/bin/env ruby
 
+begin
+  require "bundler"
+  Bundler.setup
+rescue LoadError
+  puts "You must `gem install bundler` and `bundle install` to run deploy"
+end
+
 require 'net/ssh'
 require 'fileutils'
 
