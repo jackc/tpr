@@ -1,49 +1,55 @@
 server {
-  listen {{replaceme}}:80;
-  return 301 https://$host$request_uri;
+	server_name tpr.example.com;
+
+	root /apps/tpr/current/assets;
+	index index.html index.htm;
+
+	location @go {
+		proxy_pass http://127.0.0.1:4000;
+		gzip on;
+		gzip_types *;
+		gzip_proxied any;
+		gzip_vary on;
+	}
+
+	location / {
+		try_files $uri $uri/ @go;
+
+		charset UTF-8;
+
+		gzip on;
+		gzip_types text/plain text/css application/json application/javascript application/x-javascript text/javascript text/xml application/xml application/rss+xml application/atom+xml application/rdf+xml;
+		gzip_static on;
+		gzip_vary on;
+
+		location ~* \.(html)$ {
+			add_header Cache-Control "max-age=0, must-revalidate";
+		}
+
+		location ~* \.(css|js)$ {
+			add_header Cache-Control "max-age=2592000, public";
+		}
+	}
+
+    listen [::]:443 ssl; # managed by Certbot
+    listen 443 ssl; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/tpr.example.com/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/tpr.example.com/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+
 }
-
 server {
-  listen {{replaceme}}:443;
-  server_name tpr.jackchristensen.com;
+    if ($host = tpr.example.com) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
 
-  root /var/www/tpr/current/assets;
-  index index.html index.htm;
 
-  ssl on;
-  ssl_certificate /etc/ssl/certs/{{replaceme}};
-  ssl_certificate_key /etc/ssl/private/{{replaceme}};
+	server_name tpr.example.com;
 
-  ssl_session_timeout 5m;
+listen 80;
+listen [::]:80;
+    return 404; # managed by Certbot
 
-  ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
-  ssl_ciphers "HIGH:!aNULL:!MD5";
-  ssl_prefer_server_ciphers on;
 
-  location @go {
-    proxy_pass http://127.0.0.1:4000;
-    gzip on;
-    gzip_types *;
-    gzip_proxied any;
-    gzip_vary on;
-  }
-
-  location / {
-    try_files $uri $uri/ @go;
-
-    charset UTF-8;
-
-    gzip on;
-    gzip_types text/plain text/css application/json application/javascript application/x-javascript text/javascript text/xml application/xml application/rss+xml application/atom+xml application/rdf+xml;
-    gzip_static on;
-    gzip_vary on;
-
-    location ~* \.(html)$ {
-      add_header Cache-Control "max-age=0, must-revalidate";
-    }
-
-    location ~* \.(css|js)$ {
-      add_header Cache-Control "max-age=2592000, public";
-    }
-  }
 }

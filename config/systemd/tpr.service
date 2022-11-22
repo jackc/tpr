@@ -1,0 +1,18 @@
+[Unit]
+Description=The Pithy Reader
+ConditionPathExists=/apps/tpr/current
+After=network.target
+
+[Service]
+Type=simple
+User=tpr
+Group=tpr
+
+Restart=on-failure
+RestartSec=30
+
+WorkingDirectory=/apps/tpr/current
+ExecStart=/apps/tpr/current/tpr server --config /apps/tpr/shared/tpr.conf
+
+[Install]
+WantedBy=multi-user.target
