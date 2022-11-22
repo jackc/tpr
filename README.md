@@ -73,13 +73,21 @@ Edit tpr.conf and tpr.test.conf. Configure the database connection to use the "t
 
 The Pithy Reader development environment should be set up now. The Pithy Reader has Go tests for the server and RSpec/Capybara/Selenium integration tests. The default rake task runs the both test suites.
 
-    bundle exec rake
+```
+rake
+```
 
 There is a rake task that will automatically recompile and restart the backend server whenever any Go code changes.
 
-    bundle exec rake rerun
+```
+rake rerun
+```
 
 In another terminal start the webpack development server.
 
     cd frontend
     npm run start
+
+## Deployment
+
+Configure host in `.envrc`. Run `bin/deploy production`.
