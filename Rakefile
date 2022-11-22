@@ -43,7 +43,7 @@ task build: ["build:assets", "build:binary", "build/tpr-linux"]
 
 desc "Run tpr"
 task run: "build:binary" do
-  puts "Remember to start webpack-dev-server"
+  puts "Remember to start vite dev server"
   exec "build/tpr server --config tpr.conf --static-url http://localhost:5173"
 end
 
