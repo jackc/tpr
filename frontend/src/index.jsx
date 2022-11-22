@@ -12,7 +12,7 @@ import ResetPasswordPage from './components/ResetPasswordPage.jsx'
 import RegisterPage from './components/RegisterPage.jsx'
 import Session from './session.js'
 
-require('./main.scss');
+import styles from './main.scss'
 
 
 function requireAuth(nextState, replace) {
@@ -39,4 +39,3 @@ ReactDOM.render((
     </Route>
   </Router>
 ), document.getElementById('view'))
-

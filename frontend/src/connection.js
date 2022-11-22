@@ -1,6 +1,5 @@
 import signals from 'signals'
 import Session from './session.js'
-import { router } from 'react-router'
 
 class Connection {
   constructor() {

@@ -20,12 +20,7 @@ namespace :build do
 
   desc "Build assets"
   task assets: :directory do
-    sh "cd frontend; NODE_ENV=production npm run build"
-    js_file_name = Dir.glob("build/assets/js/bundle.*.js").first.sub(/^build\/assets/, "")
-    index_html = File.read "frontend/html/index.html"
-    index_html.gsub!("./bundle.js", js_file_name)
-    File.write "build/assets/index.html", index_html
-
+    sh "npx vite --outDir ../build/assets build frontend"
     Dir.glob("build/assets/**/*.{js,html}").each do |path|
       sh "zopfli", path
     end
@@ -49,7 +44,7 @@ task build: ["build:assets", "build:binary", "build/tpr-linux"]
 desc "Run tpr"
 task run: "build:binary" do
   puts "Remember to start webpack-dev-server"
-  exec "build/tpr server --config tpr.conf --static-url http://localhost:8080"
+  exec "build/tpr server --config tpr.conf --static-url http://localhost:5173"
 end
 
 desc "Watch for source changes and rebuild and rerun"

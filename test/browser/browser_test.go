@@ -55,7 +55,7 @@ type serverInstanceT struct {
 func startServer(t *testing.T) *serverInstanceT {
 	ctx := context.Background()
 	db := TestDBManager.AcquireDB(t, ctx)
-	handler, err := backend.NewAppServer(backend.HTTPConfig{StaticURL: "http://127.0.0.1:8080/"}, db.PoolConnect(t, ctx), nil, log.New())
+	handler, err := backend.NewAppServer(backend.HTTPConfig{StaticURL: "http://127.0.0.1:5173/"}, db.PoolConnect(t, ctx), nil, log.New())
 	require.NoError(t, err)
 
 	server := httptest.NewServer(handler)
