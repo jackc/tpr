@@ -433,7 +433,7 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 			continue
 		}
 
-		if pwr.Email.String != tt.reqEmail {
+		if pwr.Email != tt.reqEmail {
 			t.Errorf("%s: PasswordReset.Email should be %s, but instead is %v", tt.descr, tt.reqEmail, pwr.Email)
 		}
 		if pwr.RequestIP.String() != tt.remoteHost {
@@ -462,7 +462,7 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 		if sentMails[0].to != tt.sentMailTo {
 			t.Errorf("%s: Expected to send reset mail to %s, instead sent it to %s", tt.descr, tt.sentMailTo, sentMails[0].to)
 		}
-		if sentMails[0].token != pwr.Token.String {
+		if sentMails[0].token != pwr.Token {
 			t.Errorf("%s: Reset mail (%v) and password reset (%v) do not have the same token", tt.descr, sentMails[0].token, pwr.Token)
 		}
 	}

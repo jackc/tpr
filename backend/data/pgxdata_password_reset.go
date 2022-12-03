@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 	"net/netip"
+	"time"
 
 	"errors"
 
@@ -11,10 +12,10 @@ import (
 )
 
 type PasswordReset struct {
-	Token          pgtype.Text
-	Email          pgtype.Text
+	Token          string
+	Email          string
 	RequestIP      netip.Addr
-	RequestTime    pgtype.Timestamptz
+	RequestTime    time.Time
 	UserID         pgtype.Int4
 	CompletionIP   netip.Addr
 	CompletionTime pgtype.Timestamptz
