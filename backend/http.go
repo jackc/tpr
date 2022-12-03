@@ -569,12 +569,12 @@ func UpdateAccountHandler(w http.ResponseWriter, req *http.Request, env *environ
 }
 
 func RequestPasswordResetHandler(w http.ResponseWriter, req *http.Request, env *environment) {
-	pwr := &data.PasswordReset{}
-	pwr.RequestTime = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+	pwr := data.PasswordResetsTable.NewRecord()
+	pwr.MustSet("request_time", time.Now())
 
 	if host, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
 		if addr, err := netip.ParseAddr(host); err == nil {
-			pwr.RequestIP = addr
+			pwr.MustSet("request_ip", addr)
 		}
 	}
 
@@ -585,7 +585,7 @@ func RequestPasswordResetHandler(w http.ResponseWriter, req *http.Request, env *
 		env.logger.Error("getLostPasswordToken failed", "error", err)
 		return
 	}
-	pwr.Token = pgtype.Text{String: token, Valid: true}
+	pwr.MustSet("token", token)
 
 	var reset struct {
 		Email string `json:"email"`
@@ -603,12 +603,12 @@ func RequestPasswordResetHandler(w http.ResponseWriter, req *http.Request, env *
 		return
 	}
 
-	pwr.Email = pgtype.Text{String: reset.Email, Valid: true}
+	pwr.MustSet("email", reset.Email)
 
 	user, err := data.SelectUserByEmail(context.Background(), env.pool, reset.Email)
 	switch err {
 	case nil:
-		pwr.UserID = user.ID
+		pwr.MustSet("user_id", user.ID)
 	case data.ErrNotFound:
 	default:
 		w.WriteHeader(500)
@@ -616,7 +616,7 @@ func RequestPasswordResetHandler(w http.ResponseWriter, req *http.Request, env *
 		return
 	}
 
-	err = data.InsertPasswordReset(context.Background(), env.pool, pwr)
+	err = pwr.Save(context.Background(), env.pool)
 	if err != nil {
 		w.WriteHeader(500)
 		fmt.Fprintln(w, `Internal server error`)

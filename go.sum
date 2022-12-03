@@ -21,6 +21,8 @@ github.com/jackc/pgx-log15 v0.0.0-20221105153733-200b3add954a/go.mod h1:aON62j9M
 github.com/jackc/pgx/v5 v5.0.0-alpha.5/go.mod h1:9166s9MdYYheYgI0ySjd/tbPF4wbq4vjgVzkZSt2UDE=
 github.com/jackc/pgx/v5 v5.1.1 h1:pZD79K1SYv8wc2HmCQA6VdmRQi7/OtCfv9bM3WAXUYA=
 github.com/jackc/pgx/v5 v5.1.1/go.mod h1:Ptn7zmohNsWEsdxRawMzk3gaKma2obW+NWTnKa0S4nk=
+github.com/jackc/pgxrecord v0.0.0-20221203155821-7f0853ce4226 h1:dJTr5fv2JoXz70l1BRrivYA8SL1zjlky/cswAtkpwvw=
+github.com/jackc/pgxrecord v0.0.0-20221203155821-7f0853ce4226/go.mod h1:4JYiLbDlD73YCeo9U02tAA93Api5g5i6oZJTMcRnwHg=
 github.com/jackc/pgxutil v0.0.0-20220430230859-aa3fd1dd3795 h1:h5CwJIdBK8IM/yq6KAw8abXriz/Q3LAwB3fl1wXZlHg=
 github.com/jackc/pgxutil v0.0.0-20220430230859-aa3fd1dd3795/go.mod h1:qr73gwmoRfV43QFnWlRXTNGa8owtdSHVEAup9WFagsQ=
 github.com/jackc/puddle v1.2.2-0.20220404125616-4e959849469a/go.mod h1:ZQuO1Un86Xpe1ShKl08ERTzYhzWq+OvrvotbpeE3XO0=
@@ -40,7 +42,6 @@ github.com/mattn/go-isatty v0.0.12/go.mod h1:cbi8OIDigv2wuxKPP5vlRcQ1OAZbq2CE4Ky
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/rogpeppe/go-internal v1.9.0 h1:73kH8U+JUqXU8lRuOHeVHaa/SZPifC7BkcraZVejAe8=
-github.com/rogpeppe/go-internal v1.9.0/go.mod h1:WtVeX8xhTBvf0smdhujwtBcq4Qrzq/fJaraNFVN+nFs=
 github.com/russross/blackfriday/v2 v2.0.1 h1:lPqVAte+HuHNfhJ/0LC98ESWRz8afy9tM/0RK8m9o+Q=
 github.com/russross/blackfriday/v2 v2.0.1/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/shurcooL/sanitized_anchor_name v1.0.0 h1:PdmoCO6wvbs+7yrJyMORt4/BmY5IYyJwS/kOiWx8mHo=
@@ -76,8 +77,6 @@ golang.org/x/crypto v0.3.0/go.mod h1:hebNnKkNXi2UzZN1eVRvBB7co0a+JxK6XbPiWVs/3J4
 golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2/go.mod h1:9nx3DQGgdP8bBQD5qxJ1jj9UTztislL4KSBs9R2vV5Y=
 golang.org/x/net v0.2.0 h1:sZfSu1wtKLGlWI4ZZayP0ck9Y73K1ynO6gqzTdBVdPU=
 golang.org/x/net v0.2.0/go.mod h1:KqCZLdyyvdV855qA2rE3GC2aiw5xGR5TEjj8smXukLY=
-golang.org/x/sync v0.0.0-20220923202941-7f9b1623fab7 h1:ZrnxWX62AgTKOSagEqxvb3ffipvEDX2pl7E1TdqLqIc=
-golang.org/x/sync v0.0.0-20220923202941-7f9b1623fab7/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sync v0.1.0 h1:wsuoTGHzEhffawBOhz5CYhcrV4IdKZbEyZjBMuTp12o=
 golang.org/x/sync v0.1.0/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sys v0.0.0-20200116001909-b77594299b42/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=

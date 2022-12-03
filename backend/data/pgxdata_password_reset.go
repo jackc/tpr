@@ -3,11 +3,9 @@ package data
 import (
 	"context"
 	"net/netip"
-	"strings"
 
 	"errors"
 
-	"github.com/jackc/pgsql"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -55,32 +53,4 @@ func SelectPasswordResetByPK(
 	}
 
 	return &row, nil
-}
-
-func InsertPasswordReset(ctx context.Context, db Queryer, row *PasswordReset) error {
-	args := pgsql.Args{}
-
-	var columns, values []string
-
-	columns = append(columns, `token`)
-	values = append(values, args.Use(&row.Token).String())
-	columns = append(columns, `email`)
-	values = append(values, args.Use(&row.Email).String())
-	columns = append(columns, `request_ip`)
-	values = append(values, args.Use(&row.RequestIP).String())
-	columns = append(columns, `request_time`)
-	values = append(values, args.Use(&row.RequestTime).String())
-	columns = append(columns, `user_id`)
-	values = append(values, args.Use(&row.UserID).String())
-	columns = append(columns, `completion_ip`)
-	values = append(values, args.Use(&row.CompletionIP).String())
-	columns = append(columns, `completion_time`)
-	values = append(values, args.Use(&row.CompletionTime).String())
-
-	sql := `insert into "password_resets"(` + strings.Join(columns, ", ") + `)
-values(` + strings.Join(values, ",") + `)
-returning "token"
-  `
-
-	return db.QueryRow(ctx, sql, args.Values()...).Scan(&row.Token)
 }

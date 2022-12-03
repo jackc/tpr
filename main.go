@@ -228,6 +228,12 @@ func Serve(c *cli.Context) {
 		os.Exit(1)
 	}
 
+	err = data.InitializeTables(context.Background(), pool)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
 	mailer, err := newMailer(conf, logger)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -271,6 +277,12 @@ func ResetPassword(c *cli.Context) {
 	}
 
 	pool, err := newPool(conf, logger)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	err = data.InitializeTables(context.Background(), pool)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

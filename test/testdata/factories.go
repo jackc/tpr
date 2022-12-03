@@ -2,16 +2,18 @@ package testdata
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgxutil"
-	"github.com/jackc/tpr/backend"
 	"github.com/jackc/tpr/backend/data"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/scrypt"
 )
 
 var counter atomic.Int64
@@ -22,9 +24,27 @@ type DB interface {
 }
 
 func CreateUser(t testing.TB, db DB, ctx context.Context, attrs map[string]any) map[string]any {
+	setPassword := func(u *data.User, password string) error {
+		salt := make([]byte, 8)
+		_, err := rand.Read(salt)
+		if err != nil {
+			return err
+		}
+
+		digest, err := scrypt.Key([]byte(password), salt, 16384, 8, 1, 32)
+		if err != nil {
+			return err
+		}
+
+		u.PasswordDigest = digest
+		u.PasswordSalt = salt
+
+		return nil
+	}
+
 	if password, ok := attrs["password"]; ok {
 		du := &data.User{}
-		backend.SetPassword(du, fmt.Sprint(password))
+		setPassword(du, fmt.Sprint(password))
 		delete(attrs, "password")
 		attrs["password_digest"] = du.PasswordDigest
 		attrs["password_salt"] = du.PasswordSalt
@@ -74,6 +94,25 @@ func CreateItem(t testing.TB, db DB, ctx context.Context, attrs map[string]any) 
 	}
 
 	item, err := pgxutil.Insert(ctx, db, "items", attrs)
+	require.NoError(t, err)
+
+	return item
+}
+
+func CreatePasswordReset(t testing.TB, db DB, ctx context.Context, attrs map[string]any) map[string]any {
+	n := counter.Add(1)
+
+	if _, ok := attrs["token"]; !ok {
+		attrs["token"] = fmt.Sprintf("token%v", n)
+	}
+	if _, ok := attrs["title"]; !ok {
+		attrs["email"] = fmt.Sprintf("user%v@example.com", n)
+	}
+	if _, ok := attrs["request_time"]; !ok {
+		attrs["request_time"] = time.Now()
+	}
+
+	item, err := pgxutil.Insert(ctx, db, "password_resets", attrs)
 	require.NoError(t, err)
 
 	return item

@@ -18,6 +18,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
 	"github.com/jackc/tpr/backend/data"
+	"github.com/jackc/tpr/test/testdata"
+	"github.com/stretchr/testify/require"
 	"github.com/vaughan0/go-ini"
 	log "gopkg.in/inconshreveable/log15.v2"
 )
@@ -123,6 +125,9 @@ func newConnPool(t testing.TB) *pgxpool.Pool {
 		if err != nil {
 			t.Fatal(err)
 		}
+
+		err = data.InitializeTables(context.Background(), pool)
+		require.NoError(t, err)
 
 		sharedPool = pool
 	}
@@ -477,18 +482,14 @@ func TestResetPasswordHandlerTokenMatchestValidPasswordReset(t *testing.T) {
 	}
 
 	requestIP := netip.MustParseAddr("127.0.0.1")
-	pwr := &data.PasswordReset{
-		Token:       pgtype.Text{String: "0123456789abcdef", Valid: true},
-		Email:       pgtype.Text{String: "test@example.com", Valid: true},
-		UserID:      pgtype.Int4{Int32: userID, Valid: true},
-		RequestTime: pgtype.Timestamptz{Time: time.Now(), Valid: true},
-		RequestIP:   requestIP,
-	}
 
-	err = data.InsertPasswordReset(context.Background(), pool, pwr)
-	if err != nil {
-		t.Fatalf("repo.CreatePasswordReset returned error: %v", err)
-	}
+	testdata.CreatePasswordReset(t, pool, context.Background(), map[string]any{
+		"token":        "0123456789abcdef",
+		"email":        "test@example.com",
+		"user_id":      userID,
+		"request_time": time.Now(),
+		"request_ip":   requestIP,
+	})
 
 	buf := bytes.NewBufferString(`{"token": "0123456789abcdef", "password": "bigsecret"}`)
 
@@ -539,20 +540,16 @@ func TestResetPasswordHandlerTokenMatchestUsedPasswordReset(t *testing.T) {
 	}
 
 	localhost := netip.MustParseAddr("127.0.0.1")
-	pwr := &data.PasswordReset{
-		Token:          pgtype.Text{String: "0123456789abcdef", Valid: true},
-		Email:          pgtype.Text{String: "test@example.com", Valid: true},
-		UserID:         pgtype.Int4{Int32: userID, Valid: true},
-		RequestTime:    pgtype.Timestamptz{Time: time.Now(), Valid: true},
-		RequestIP:      localhost,
-		CompletionTime: pgtype.Timestamptz{Time: time.Now(), Valid: true},
-		CompletionIP:   localhost,
-	}
 
-	err = data.InsertPasswordReset(context.Background(), pool, pwr)
-	if err != nil {
-		t.Fatalf("repo.CreatePasswordReset returned error: %v", err)
-	}
+	testdata.CreatePasswordReset(t, pool, context.Background(), map[string]any{
+		"token":           "0123456789abcdef",
+		"email":           "test@example.com",
+		"user_id":         userID,
+		"request_time":    time.Now(),
+		"request_ip":      localhost,
+		"completion_time": time.Now(),
+		"completion_ip":   localhost,
+	})
 
 	buf := bytes.NewBufferString(`{"token": "0123456789abcdef", "password": "bigsecret"}`)
 
@@ -583,17 +580,13 @@ func TestResetPasswordHandlerTokenMatchestInvalidPasswordReset(t *testing.T) {
 	pool := newConnPool(t)
 
 	localhost := netip.MustParseAddr("127.0.0.1")
-	pwr := &data.PasswordReset{
-		Token:       pgtype.Text{String: "0123456789abcdef", Valid: true},
-		Email:       pgtype.Text{String: "test@example.com", Valid: true},
-		RequestTime: pgtype.Timestamptz{Time: time.Now(), Valid: true},
-		RequestIP:   localhost,
-	}
 
-	err := data.InsertPasswordReset(context.Background(), pool, pwr)
-	if err != nil {
-		t.Fatalf("repo.CreatePasswordReset returned error: %v", err)
-	}
+	testdata.CreatePasswordReset(t, pool, context.Background(), map[string]any{
+		"token":        "0123456789abcdef",
+		"email":        "test@example.com",
+		"request_time": time.Now(),
+		"request_ip":   localhost,
+	})
 
 	buf := bytes.NewBufferString(`{"token": "0123456789abcdef", "password": "bigsecret"}`)
 
