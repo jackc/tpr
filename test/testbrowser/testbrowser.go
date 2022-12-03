@@ -188,10 +188,19 @@ func (p *Page) HasContent(selector, jsRegex string) {
 func (p *Page) DoesNotHaveContent(selector, jsRegex string) {
 	p.t.Helper()
 
+	found := true
+	deadline := time.Now().Add(p.Timeout)
 	page := p.Page
-	found, _, err := page.HasR(selector, jsRegex)
-	if err != nil {
-		p.t.Fatal(err)
+
+	for found && time.Now().Before(deadline) {
+		var err error
+		found, _, err = page.HasR(selector, jsRegex)
+		if err != nil {
+			p.t.Fatal(err)
+		}
+		if found {
+			time.Sleep(100 * time.Millisecond)
+		}
 	}
 
 	if found {
