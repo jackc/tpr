@@ -21,37 +21,27 @@ type PasswordReset struct {
 	CompletionTime pgtype.Timestamptz
 }
 
-const selectPasswordResetByPKSQL = `select
-  "token",
-  "email",
-  "request_ip",
-  "request_time",
-  "user_id",
-  "completion_ip",
-  "completion_time"
-from "password_resets"
-where "token"=$1`
+const selectPasswordResetSQL = `select token, email, request_ip, request_time, user_id, completion_ip, completion_time from password_resets`
+const selectPasswordResetByPKSQL = selectPasswordResetSQL + ` where token = $1`
+
+func RowToAddrOfPasswordReset(row pgx.CollectableRow) (*PasswordReset, error) {
+	pr := &PasswordReset{}
+	err := row.Scan(&pr.Token, &pr.Email, &pr.RequestIP, &pr.RequestTime, &pr.UserID, &pr.CompletionIP, &pr.CompletionTime)
+	return pr, err
+}
 
 func SelectPasswordResetByPK(
 	ctx context.Context,
 	db Queryer,
 	token string,
 ) (*PasswordReset, error) {
-	var row PasswordReset
-	err := db.QueryRow(ctx, selectPasswordResetByPKSQL, token).Scan(
-		&row.Token,
-		&row.Email,
-		&row.RequestIP,
-		&row.RequestTime,
-		&row.UserID,
-		&row.CompletionIP,
-		&row.CompletionTime,
-	)
+	rows, _ := db.Query(ctx, selectPasswordResetByPKSQL, token)
+	pr, err := pgx.CollectOneRow(rows, RowToAddrOfPasswordReset)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	} else if err != nil {
 		return nil, err
 	}
 
-	return &row, nil
+	return pr, nil
 }
