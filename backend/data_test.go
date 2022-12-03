@@ -195,11 +195,11 @@ func TestDataFeeds(t *testing.T) {
 		t.Fatalf("Found %d stale feed, expected 1", len(staleFeeds))
 	}
 
-	if staleFeeds[0].URL.String != url {
+	if staleFeeds[0].URL != url {
 		t.Errorf("Expected %v, got %v", url, staleFeeds[0].URL)
 	}
 
-	feedID := staleFeeds[0].ID.Int32
+	feedID := staleFeeds[0].ID
 
 	nullString := pgtype.Text{}
 
@@ -232,7 +232,7 @@ func TestDataFeeds(t *testing.T) {
 	if len(staleFeeds) != 1 {
 		t.Fatalf("Found %d stale feed, expected 1", len(staleFeeds))
 	}
-	if staleFeeds[0].ID.Int32 != feedID {
+	if staleFeeds[0].ID != feedID {
 		t.Errorf("Expected %v, got %v", feedID, staleFeeds[0].ID)
 	}
 

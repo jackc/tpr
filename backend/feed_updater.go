@@ -115,28 +115,28 @@ func (u *FeedUpdater) fetchFeed(feedURL string, etag pgtype.Text) (*rawFeed, err
 }
 
 func (u *FeedUpdater) RefreshFeed(staleFeed data.Feed) {
-	rawFeed, err := u.fetchFeed(staleFeed.URL.String, staleFeed.ETag)
+	rawFeed, err := u.fetchFeed(staleFeed.URL, staleFeed.ETag)
 	if err != nil {
-		u.logger.Error("fetchFeed failed", "url", staleFeed.URL.String, "error", err)
-		data.UpdateFeedWithFetchFailure(context.Background(), u.pool, staleFeed.ID.Int32, err.Error(), time.Now())
+		u.logger.Error("fetchFeed failed", "url", staleFeed.URL, "error", err)
+		data.UpdateFeedWithFetchFailure(context.Background(), u.pool, staleFeed.ID, err.Error(), time.Now())
 		return
 	}
 	// 304 unchanged
 	if rawFeed == nil {
-		u.logger.Info("fetchFeed 304 unchanged", "url", staleFeed.URL.Value)
-		data.UpdateFeedWithFetchUnchanged(context.Background(), u.pool, staleFeed.ID.Int32, time.Now())
+		u.logger.Info("fetchFeed 304 unchanged", "url", staleFeed.URL)
+		data.UpdateFeedWithFetchUnchanged(context.Background(), u.pool, staleFeed.ID, time.Now())
 		return
 	}
 
 	feed, err := parseFeed(rawFeed.body)
 	if err != nil {
-		u.logger.Error("parseFeed failed", "url", staleFeed.URL.Value, "error", err)
-		data.UpdateFeedWithFetchFailure(context.Background(), u.pool, staleFeed.ID.Int32, fmt.Sprintf("Unable to parse feed: %v", err), time.Now())
+		u.logger.Error("parseFeed failed", "url", staleFeed.URL, "error", err)
+		data.UpdateFeedWithFetchFailure(context.Background(), u.pool, staleFeed.ID, fmt.Sprintf("Unable to parse feed: %v", err), time.Now())
 		return
 	}
 
-	u.logger.Info("refreshFeed succeeded", "url", staleFeed.URL.Value, "id", staleFeed.ID.Int32)
-	data.UpdateFeedWithFetchSuccess(context.Background(), u.pool, staleFeed.ID.Int32, feed, rawFeed.etag, time.Now())
+	u.logger.Info("refreshFeed succeeded", "url", staleFeed.URL, "id", staleFeed.ID)
+	data.UpdateFeedWithFetchSuccess(context.Background(), u.pool, staleFeed.ID, feed, rawFeed.etag, time.Now())
 }
 
 func parseFeed(body []byte) (f *data.ParsedFeed, err error) {
