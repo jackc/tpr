@@ -537,7 +537,7 @@ func TestDataSessions(t *testing.T) {
 	err = data.InsertSession(context.Background(), pool,
 		&data.Session{
 			ID:     sessionID,
-			UserID: pgtype.Int4{Int32: userID, Valid: true},
+			UserID: userID,
 		},
 	)
 	if err != nil {

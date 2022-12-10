@@ -224,7 +224,7 @@ func RegisterHandler(w http.ResponseWriter, req *http.Request, env *environment)
 		env.pool,
 		&data.Session{
 			ID:     sessionID,
-			UserID: pgtype.Int4{Int32: userID, Valid: true},
+			UserID: userID,
 		},
 	)
 	if err != nil {
@@ -339,7 +339,7 @@ func CreateSessionHandler(w http.ResponseWriter, req *http.Request, env *environ
 		env.pool,
 		&data.Session{
 			ID:     sessionID,
-			UserID: user.ID,
+			UserID: user.ID.Int32,
 		},
 	)
 	if err != nil {
@@ -708,7 +708,7 @@ func ResetPasswordHandler(w http.ResponseWriter, req *http.Request, env *environ
 		env.pool,
 		&data.Session{
 			ID:     sessionID,
-			UserID: user.ID,
+			UserID: user.ID.Int32,
 		},
 	)
 	if err != nil {
