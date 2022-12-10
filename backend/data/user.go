@@ -8,6 +8,8 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgxrecord"
 )
 
 type DuplicationError struct {
@@ -54,7 +56,13 @@ func SelectUserBySessionID(ctx context.Context, db Queryer, id []byte) (*User, e
 }
 
 func CreateUser(ctx context.Context, db Queryer, user *User) (int32, error) {
-	err := InsertUser(ctx, db, user)
+	var err error
+	user.ID, err = pgxrecord.InsertRow(ctx, db, pgx.Identifier{"users"}, map[string]any{
+		"name":            &user.Name,
+		"password_digest": &user.PasswordDigest,
+		"password_salt":   &user.PasswordSalt,
+		"email":           &user.Email,
+	}, "id", pgx.RowTo[pgtype.Int4])
 	if err != nil {
 		if strings.Contains(err.Error(), "users_name_unq") {
 			return 0, DuplicationError{Field: "name"}

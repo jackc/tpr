@@ -50,28 +50,6 @@ func SelectUserByPK(
 	return &row, nil
 }
 
-func InsertUser(ctx context.Context, db Queryer, row *User) error {
-	args := pgsql.Args{}
-
-	var columns, values []string
-
-	columns = append(columns, `name`)
-	values = append(values, args.Use(&row.Name).String())
-	columns = append(columns, `password_digest`)
-	values = append(values, args.Use(&row.PasswordDigest).String())
-	columns = append(columns, `password_salt`)
-	values = append(values, args.Use(&row.PasswordSalt).String())
-	columns = append(columns, `email`)
-	values = append(values, args.Use(&row.Email).String())
-
-	sql := `insert into "users"(` + strings.Join(columns, ", ") + `)
-values(` + strings.Join(values, ",") + `)
-returning "id"
-  `
-
-	return db.QueryRow(ctx, sql, args.Values()...).Scan(&row.ID)
-}
-
 func UpdateUser(ctx context.Context, db Queryer,
 	id int32,
 	row *User,
