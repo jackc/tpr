@@ -2,13 +2,12 @@ package data
 
 import (
 	"context"
-	"strings"
 
 	"errors"
 
-	"github.com/jackc/pgsql"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgxrecord"
 )
 
 type User struct {
@@ -54,26 +53,12 @@ func UpdateUser(ctx context.Context, db Queryer,
 	id int32,
 	row *User,
 ) error {
-	sets := make([]string, 0, 5)
-	args := pgsql.Args{}
-
-	sets = append(sets, `name`+"="+args.Use(&row.Name).String())
-	sets = append(sets, `password_digest`+"="+args.Use(&row.PasswordDigest).String())
-	sets = append(sets, `password_salt`+"="+args.Use(&row.PasswordSalt).String())
-	sets = append(sets, `email`+"="+args.Use(&row.Email).String())
-
-	if len(sets) == 0 {
-		return nil
-	}
-
-	sql := `update "users" set ` + strings.Join(sets, ", ") + ` where ` + `"id"=` + args.Use(id).String()
-
-	commandTag, err := db.Exec(ctx, sql, args.Values()...)
-	if err != nil {
-		return err
-	}
-	if commandTag.RowsAffected() != 1 {
-		return ErrNotFound
-	}
-	return nil
+	return pgxrecord.UpdateRow(ctx, db, pgx.Identifier{"users"}, map[string]any{
+		"name":            row.Name,
+		"password_digest": row.PasswordDigest,
+		"password_salt":   row.PasswordSalt,
+		"email":           row.Email,
+	}, map[string]any{
+		"id": id,
+	})
 }

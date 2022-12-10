@@ -19,14 +19,8 @@ github.com/jackc/pgsql v0.0.0-20220720200728-bf8deec3ac70/go.mod h1:aG42qG8aLCLw
 github.com/jackc/pgx-log15 v0.0.0-20221105153733-200b3add954a h1:oz2MefLaDwd/4LWsHZFz2+NqQ+v4e0GWFqnoUXjsL6A=
 github.com/jackc/pgx-log15 v0.0.0-20221105153733-200b3add954a/go.mod h1:aON62j9MBi0Nh6BmBwBprmlNnuk9bZGXQg/kcmfkxv8=
 github.com/jackc/pgx/v5 v5.0.0-alpha.5/go.mod h1:9166s9MdYYheYgI0ySjd/tbPF4wbq4vjgVzkZSt2UDE=
-github.com/jackc/pgx/v5 v5.1.1 h1:pZD79K1SYv8wc2HmCQA6VdmRQi7/OtCfv9bM3WAXUYA=
-github.com/jackc/pgx/v5 v5.1.1/go.mod h1:Ptn7zmohNsWEsdxRawMzk3gaKma2obW+NWTnKa0S4nk=
 github.com/jackc/pgx/v5 v5.2.0 h1:NdPpngX0Y6z6XDFKqmFQaE+bCtkqzvQIOt1wvBlAqs8=
 github.com/jackc/pgx/v5 v5.2.0/go.mod h1:Ptn7zmohNsWEsdxRawMzk3gaKma2obW+NWTnKa0S4nk=
-github.com/jackc/pgxrecord v0.0.0-20221203155821-7f0853ce4226 h1:dJTr5fv2JoXz70l1BRrivYA8SL1zjlky/cswAtkpwvw=
-github.com/jackc/pgxrecord v0.0.0-20221203155821-7f0853ce4226/go.mod h1:4JYiLbDlD73YCeo9U02tAA93Api5g5i6oZJTMcRnwHg=
-github.com/jackc/pgxrecord v0.0.0-20221210155320-bfaa494018a1 h1:TUzHKVP33gK+9RZeq4KhWXvQ7V7A3hu3+4EXhgVRtT0=
-github.com/jackc/pgxrecord v0.0.0-20221210155320-bfaa494018a1/go.mod h1:4JYiLbDlD73YCeo9U02tAA93Api5g5i6oZJTMcRnwHg=
 github.com/jackc/pgxrecord v0.0.0-20221210234038-42bc3a46158f h1:GDxnOnxvwtZ4rgaSsuDiGjMbCcFOWPIn3K+IgX+kjz8=
 github.com/jackc/pgxrecord v0.0.0-20221210234038-42bc3a46158f/go.mod h1:4JYiLbDlD73YCeo9U02tAA93Api5g5i6oZJTMcRnwHg=
 github.com/jackc/pgxutil v0.0.0-20220430230859-aa3fd1dd3795 h1:h5CwJIdBK8IM/yq6KAw8abXriz/Q3LAwB3fl1wXZlHg=

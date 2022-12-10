@@ -5,7 +5,6 @@ go 1.19
 require (
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-rod/rod v0.112.0
-	github.com/jackc/pgsql v0.0.0-20220720200728-bf8deec3ac70
 	github.com/jackc/pgx-log15 v0.0.0-20221105153733-200b3add954a
 	github.com/jackc/pgx/v5 v5.2.0
 	github.com/jackc/pgxrecord v0.0.0-20221210234038-42bc3a46158f
@@ -26,6 +25,7 @@ require (
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
+	github.com/jackc/pgsql v0.0.0-20220720200728-bf8deec3ac70 // indirect
 	github.com/jackc/puddle/v2 v2.1.2 // indirect
 	github.com/mattn/go-colorable v0.1.6 // indirect
 	github.com/mattn/go-isatty v0.0.12 // indirect
