@@ -9,8 +9,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-const PGXDATA_VERSION = "0.1.0"
-
 var ErrNotFound = errors.New("not found")
 
 type Queryer interface {
