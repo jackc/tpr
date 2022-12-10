@@ -8,7 +8,7 @@ require (
 	github.com/jackc/pgsql v0.0.0-20220720200728-bf8deec3ac70
 	github.com/jackc/pgx-log15 v0.0.0-20221105153733-200b3add954a
 	github.com/jackc/pgx/v5 v5.2.0
-	github.com/jackc/pgxrecord v0.0.0-20221210155320-bfaa494018a1
+	github.com/jackc/pgxrecord v0.0.0-20221210234038-42bc3a46158f
 	github.com/jackc/pgxutil v0.0.0-20220430230859-aa3fd1dd3795
 	github.com/jackc/testdb v0.0.0-20221015161059-a3705a386fe0
 	github.com/stretchr/testify v1.8.0

@@ -57,7 +57,7 @@ func SelectUserBySessionID(ctx context.Context, db Queryer, id []byte) (*User, e
 
 func CreateUser(ctx context.Context, db Queryer, user *User) (int32, error) {
 	var err error
-	user.ID, err = pgxrecord.InsertRow(ctx, db, pgx.Identifier{"users"}, map[string]any{
+	user.ID, err = pgxrecord.InsertRowReturning(ctx, db, pgx.Identifier{"users"}, map[string]any{
 		"name":            &user.Name,
 		"password_digest": &user.PasswordDigest,
 		"password_salt":   &user.PasswordSalt,
