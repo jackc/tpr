@@ -2,10 +2,13 @@ package data
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/jackc/pgsql"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgxrecord"
 )
 
 type Session struct {
@@ -35,16 +38,12 @@ returning "id"
 func DeleteSession(ctx context.Context, db Queryer,
 	id []byte,
 ) error {
-	args := pgsql.Args{}
-
-	sql := `delete from "sessions" where ` + `"id"=` + args.Use(id).String()
-
-	commandTag, err := db.Exec(ctx, sql, args.Values()...)
+	_, err := pgxrecord.ExecRow(ctx, db, `delete from sessions where id = $1`, id)
 	if err != nil {
-		return err
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
 	}
-	if commandTag.RowsAffected() != 1 {
-		return ErrNotFound
-	}
+
 	return nil
 }
