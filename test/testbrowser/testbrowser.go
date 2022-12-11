@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -59,9 +60,7 @@ func NewManager(config ManagerConfig) (*Manager, error) {
 // Acquire returns a TestBrowser. Resources are automatically cleaned up at the end of the test.
 func (m *Manager) Acquire(t testing.TB) *Browser {
 	err := m.sem.Acquire(context.Background(), 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	t.Cleanup(func() { m.sem.Release(1) })
 
@@ -85,9 +84,7 @@ type Browser struct {
 
 func (b *Browser) Page() *Page {
 	page, err := b.Browser.Page(proto.TargetCreateTarget{})
-	if err != nil {
-		b.t.Fatal(err)
-	}
+	require.NoError(b.t, err)
 
 	return &Page{
 		t:       b.t,
@@ -195,9 +192,7 @@ func (p *Page) DoesNotHaveContent(selector, jsRegex string) {
 	for found && time.Now().Before(deadline) {
 		var err error
 		found, _, err = page.HasR(selector, jsRegex)
-		if err != nil {
-			p.t.Fatal(err)
-		}
+		require.NoError(p.t, err)
 		if found {
 			time.Sleep(100 * time.Millisecond)
 		}

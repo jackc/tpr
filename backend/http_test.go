@@ -92,14 +92,10 @@ func newPool(conf ini.File, logger log.Logger) (*pgxpool.Pool, error) {
 func getLogger(t *testing.T) log.Logger {
 	configPath := "../tpr.test.conf"
 	conf, err := ini.LoadFile(configPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	logger, err := newLogger(conf)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	return logger
 }
@@ -112,19 +108,13 @@ func newConnPool(t testing.TB) *pgxpool.Pool {
 	if sharedPool == nil {
 		configPath := "../tpr.test.conf"
 		conf, err := ini.LoadFile(configPath)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 
 		logger, err := newLogger(conf)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 
 		pool, err := newPool(conf, logger)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 
 		err = data.InitializeTables(context.Background(), pool)
 		require.NoError(t, err)
@@ -133,9 +123,7 @@ func newConnPool(t testing.TB) *pgxpool.Pool {
 	}
 
 	err = empty(sharedPool)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	return sharedPool
 }
@@ -161,19 +149,13 @@ func TestExportOPML(t *testing.T) {
 		PasswordDigest: []byte("digest"),
 		PasswordSalt:   []byte("salt"),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	err = data.InsertSubscription(context.Background(), pool, userID, "http://example.com/feed.rss")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	req, err := http.NewRequest("GET", "http://example.com/", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	env := &environment{pool: pool}
 	env.user = &data.User{ID: pgtype.Int4{Int32: userID, Valid: true}, Name: pgtype.Text{String: "test", Valid: true}}
@@ -203,19 +185,13 @@ func TestGetAccountHandler(t *testing.T) {
 	SetPassword(user, "password")
 
 	userID, err := data.CreateUser(context.Background(), pool, user)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	user, err = data.SelectUserByPK(context.Background(), pool, userID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	req, err := http.NewRequest("GET", "http://example.com/", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	env := &environment{user: user, pool: pool}
 	w := httptest.NewRecorder()
@@ -231,10 +207,8 @@ func TestGetAccountHandler(t *testing.T) {
 		Email string `json:"email"`
 	}
 
-	decoder := json.NewDecoder(w.Body)
-	if err := decoder.Decode(&resp); err != nil {
-		t.Fatal(err)
-	}
+	err = json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, err)
 
 	if user.ID.Int32 != resp.ID {
 		t.Errorf("Expected id %d, instead received %d", user.ID.Int32, resp.ID)

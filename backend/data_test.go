@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/tpr/backend/data"
+	"github.com/stretchr/testify/require"
 )
 
 func newUser() *data.User {
@@ -31,14 +32,10 @@ func TestDataUsersLifeCycle(t *testing.T) {
 		PasswordSalt:   []byte("salt"),
 	}
 	userID, err := data.CreateUser(context.Background(), pool, input)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	user, err := data.SelectUserByName(context.Background(), pool, input.Name.String)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if user.ID.Int32 != userID {
 		t.Errorf("Expected %v, got %v", userID, user.ID)
 	}
@@ -56,9 +53,7 @@ func TestDataUsersLifeCycle(t *testing.T) {
 	}
 
 	user, err = data.SelectUserByEmail(context.Background(), pool, input.Email.String)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if user.ID.Int32 != userID {
 		t.Errorf("Expected %v, got %v", userID, user.ID)
 	}
@@ -76,9 +71,7 @@ func TestDataUsersLifeCycle(t *testing.T) {
 	}
 
 	user, err = data.SelectUserByPK(context.Background(), pool, userID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if user.ID.Int32 != userID {
 		t.Errorf("Expected %v, got %v", userID, user.ID)
 	}
@@ -101,9 +94,7 @@ func TestDataCreateUserHandlesNameUniqueness(t *testing.T) {
 
 	u := newUser()
 	_, err := data.CreateUser(context.Background(), pool, u)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	u = newUser()
 	_, err = data.CreateUser(context.Background(), pool, u)
@@ -118,9 +109,7 @@ func TestDataCreateUserHandlesEmailUniqueness(t *testing.T) {
 	u := newUser()
 	u.Email = pgtype.Text{String: "test@example.com", Valid: true}
 	_, err := data.CreateUser(context.Background(), pool, u)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	u.ID = pgtype.Int4{}
 	u.Name = pgtype.Text{String: "othername", Valid: true}
@@ -169,9 +158,7 @@ func TestDataFeeds(t *testing.T) {
 	pool := newConnPool(t)
 
 	userID, err := data.CreateUser(context.Background(), pool, newUser())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	now := time.Now()
 	fiveMinutesAgo := now.Add(-5 * time.Minute)
@@ -182,15 +169,11 @@ func TestDataFeeds(t *testing.T) {
 	// Create a feed
 	url := "http://bar"
 	err = data.InsertSubscription(context.Background(), pool, userID, url)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// A new feed has never been fetched -- it should need fetching
 	staleFeeds, err := data.GetFeedsUncheckedSince(context.Background(), pool, tenMinutesAgo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if len(staleFeeds) != 1 {
 		t.Fatalf("Found %d stale feed, expected 1", len(staleFeeds))
 	}
@@ -205,30 +188,22 @@ func TestDataFeeds(t *testing.T) {
 
 	// Update feed as of now
 	err = data.UpdateFeedWithFetchSuccess(context.Background(), pool, feedID, update, nullString, now)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// feed should no longer be stale
 	staleFeeds, err = data.GetFeedsUncheckedSince(context.Background(), pool, tenMinutesAgo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if len(staleFeeds) != 0 {
 		t.Fatalf("Found %d stale feed, expected 0", len(staleFeeds))
 	}
 
 	// Update feed to be old enough to need refresh
 	err = data.UpdateFeedWithFetchSuccess(context.Background(), pool, feedID, update, nullString, fifteenMinutesAgo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// It should now need fetching
 	staleFeeds, err = data.GetFeedsUncheckedSince(context.Background(), pool, tenMinutesAgo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if len(staleFeeds) != 1 {
 		t.Fatalf("Found %d stale feed, expected 1", len(staleFeeds))
 	}
@@ -238,15 +213,11 @@ func TestDataFeeds(t *testing.T) {
 
 	// But update feed with a recent failed fetch
 	err = data.UpdateFeedWithFetchFailure(context.Background(), pool, feedID, "something went wrong", fiveMinutesAgo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// feed should no longer be stale
 	staleFeeds, err = data.GetFeedsUncheckedSince(context.Background(), pool, tenMinutesAgo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if len(staleFeeds) != 0 {
 		t.Fatalf("Found %d stale feed, expected 0", len(staleFeeds))
 	}
@@ -256,22 +227,16 @@ func TestDataUpdateFeedWithFetchSuccess(t *testing.T) {
 	pool := newConnPool(t)
 
 	userID, err := data.CreateUser(context.Background(), pool, newUser())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	now := time.Now()
 
 	url := "http://bar"
 	err = data.InsertSubscription(context.Background(), pool, userID, url)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	subscriptions, err := data.SelectSubscriptions(context.Background(), pool, userID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if len(subscriptions) != 1 {
 		t.Fatalf("Found %d subscriptions, expected 1", len(subscriptions))
 	}
@@ -288,15 +253,11 @@ func TestDataUpdateFeedWithFetchSuccess(t *testing.T) {
 	nullString := pgtype.Text{}
 
 	err = data.UpdateFeedWithFetchSuccess(context.Background(), pool, feedID, update, nullString, now)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	buffer := &bytes.Buffer{}
 	err = data.CopyUnreadItemsAsJSONByUserID(context.Background(), pool, buffer, userID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	type UnreadItemsFromJSON struct {
 		ID int32 `json:id`
@@ -304,29 +265,21 @@ func TestDataUpdateFeedWithFetchSuccess(t *testing.T) {
 
 	var unreadItems []UnreadItemsFromJSON
 	err = json.Unmarshal(buffer.Bytes(), &unreadItems)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if len(unreadItems) != 1 {
 		t.Fatalf("Found %d unreadItems, expected 1", len(unreadItems))
 	}
 
 	// Update again and ensure item does not get created again
 	err = data.UpdateFeedWithFetchSuccess(context.Background(), pool, feedID, update, nullString, now)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	buffer.Reset()
 	err = data.CopyUnreadItemsAsJSONByUserID(context.Background(), pool, buffer, userID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	err = json.Unmarshal(buffer.Bytes(), &unreadItems)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if len(unreadItems) != 1 {
 		t.Fatalf("Found %d unreadItems, expected 1", len(unreadItems))
 	}
@@ -338,22 +291,16 @@ func TestDataUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testing.T) {
 	pool := newConnPool(t)
 
 	userID, err := data.CreateUser(context.Background(), pool, newUser())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	now := time.Now()
 
 	url := "http://bar"
 	err = data.InsertSubscription(context.Background(), pool, userID, url)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	subscriptions, err := data.SelectSubscriptions(context.Background(), pool, userID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if len(subscriptions) != 1 {
 		t.Fatalf("Found %d subscriptions, expected 1", len(subscriptions))
 	}
@@ -366,15 +313,11 @@ func TestDataUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testing.T) {
 	nullString := pgtype.Text{}
 
 	err = data.UpdateFeedWithFetchSuccess(context.Background(), pool, feedID, update, nullString, now)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	buffer := &bytes.Buffer{}
 	err = data.CopyUnreadItemsAsJSONByUserID(context.Background(), pool, buffer, userID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	type UnreadItemsFromJSON struct {
 		ID int32 `json:id`
@@ -382,29 +325,21 @@ func TestDataUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testing.T) {
 
 	var unreadItems []UnreadItemsFromJSON
 	err = json.Unmarshal(buffer.Bytes(), &unreadItems)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if len(unreadItems) != 1 {
 		t.Fatalf("Found %d unreadItems, expected 1", len(unreadItems))
 	}
 
 	// Update again and ensure item does not get created again
 	err = data.UpdateFeedWithFetchSuccess(context.Background(), pool, feedID, update, nullString, now)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	buffer.Reset()
 	err = data.CopyUnreadItemsAsJSONByUserID(context.Background(), pool, buffer, userID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	err = json.Unmarshal(buffer.Bytes(), &unreadItems)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if len(unreadItems) != 1 {
 		t.Fatalf("Found %d unreadItems, expected 1", len(unreadItems))
 	}
@@ -414,20 +349,14 @@ func TestDataSubscriptions(t *testing.T) {
 	pool := newConnPool(t)
 
 	userID, err := data.CreateUser(context.Background(), pool, newUser())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	url := "http://foo"
 	err = data.InsertSubscription(context.Background(), pool, userID, url)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	subscriptions, err := data.SelectSubscriptions(context.Background(), pool, userID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if len(subscriptions) != 1 {
 		t.Fatalf("Found %d subscriptions, expected 1", len(subscriptions))
 	}
@@ -440,19 +369,13 @@ func TestDataDeleteSubscription(t *testing.T) {
 	pool := newConnPool(t)
 
 	userID, err := data.CreateUser(context.Background(), pool, newUser())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	err = data.InsertSubscription(context.Background(), pool, userID, "http://foo")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	subscriptions, err := data.SelectSubscriptions(context.Background(), pool, userID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if len(subscriptions) != 1 {
 		t.Fatalf("Found %d subscriptions, expected 1", len(subscriptions))
 	}
@@ -468,28 +391,20 @@ func TestDataDeleteSubscription(t *testing.T) {
 	nullString := pgtype.Text{}
 
 	err = data.UpdateFeedWithFetchSuccess(context.Background(), pool, feedID, update, nullString, time.Now().Add(-20*time.Minute))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	err = data.DeleteSubscription(context.Background(), pool, userID, feedID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	subscriptions, err = data.SelectSubscriptions(context.Background(), pool, userID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if len(subscriptions) != 0 {
 		t.Errorf("Found %d subscriptions, expected 0", len(subscriptions))
 	}
 
 	// feed should have been deleted as it was the last user
 	staleFeeds, err := data.GetFeedsUncheckedSince(context.Background(), pool, time.Now())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if len(staleFeeds) != 0 {
 		t.Errorf("Found %d staleFeeds, expected 0", len(staleFeeds))
 	}
@@ -499,9 +414,7 @@ func TestDataCopySubscriptionsForUserAsJSON(t *testing.T) {
 	pool := newConnPool(t)
 
 	userID, err := data.CreateUser(context.Background(), pool, newUser())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	buffer := &bytes.Buffer{}
 	err = data.CopySubscriptionsForUserAsJSON(context.Background(), pool, buffer, userID)
@@ -510,15 +423,11 @@ func TestDataCopySubscriptionsForUserAsJSON(t *testing.T) {
 	}
 
 	err = data.InsertSubscription(context.Background(), pool, userID, "http://foo")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	buffer.Reset()
 	err = data.CopySubscriptionsForUserAsJSON(context.Background(), pool, buffer, userID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if bytes.Contains(buffer.Bytes(), []byte("foo")) != true {
 		t.Errorf("Expected %v, got %v", true, bytes.Contains(buffer.Bytes(), []byte("foo")))
 	}
@@ -528,9 +437,7 @@ func TestDataSessions(t *testing.T) {
 	pool := newConnPool(t)
 
 	userID, err := data.CreateUser(context.Background(), pool, newUser())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	sessionID := []byte("deadbeef")
 
@@ -540,22 +447,16 @@ func TestDataSessions(t *testing.T) {
 			UserID: userID,
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	user, err := data.SelectUserBySessionID(context.Background(), pool, sessionID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if user.ID.Int32 != userID {
 		t.Errorf("Expected %v, got %v", userID, user.ID)
 	}
 
 	err = data.DeleteSession(context.Background(), pool, sessionID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	_, err = data.SelectUserBySessionID(context.Background(), pool, sessionID)
 	if err != data.ErrNotFound {
