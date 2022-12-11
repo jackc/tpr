@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"errors"
-
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgxrecord"
@@ -24,9 +22,6 @@ func selectUser(ctx context.Context, db Queryer, name, sql string, arg interface
 	user := User{}
 
 	err := db.QueryRow(ctx, sql, arg).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordDigest, &user.PasswordSalt)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNotFound
-	}
 	if err != nil {
 		return nil, err
 	}

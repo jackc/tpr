@@ -5,8 +5,6 @@ import (
 	"net/netip"
 	"time"
 
-	"errors"
-
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -37,9 +35,7 @@ func SelectPasswordResetByPK(
 ) (*PasswordReset, error) {
 	rows, _ := db.Query(ctx, selectPasswordResetByPKSQL, token)
 	pr, err := pgx.CollectOneRow(rows, RowToAddrOfPasswordReset)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNotFound
-	} else if err != nil {
+	if err != nil {
 		return nil, err
 	}
 

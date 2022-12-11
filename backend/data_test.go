@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/tpr/backend/data"
 	"github.com/stretchr/testify/require"
@@ -459,12 +460,8 @@ func TestDataSessions(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = data.SelectUserBySessionID(context.Background(), pool, sessionID)
-	if err != data.ErrNotFound {
-		t.Fatalf("Expected %v, got %v", data.ErrNotFound, err)
-	}
+	require.ErrorIs(t, err, pgx.ErrNoRows)
 
 	err = data.DeleteSession(context.Background(), pool, sessionID)
-	if err != data.ErrNotFound {
-		t.Fatalf("Expected %v, got %v", notFound, err)
-	}
+	require.ErrorIs(t, err, pgx.ErrNoRows)
 }

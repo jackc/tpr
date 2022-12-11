@@ -3,8 +3,6 @@ package data
 import (
 	"context"
 
-	"errors"
-
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgxrecord"
@@ -40,9 +38,7 @@ func SelectUserByPK(
 		&row.PasswordSalt,
 		&row.Email,
 	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNotFound
-	} else if err != nil {
+	if err != nil {
 		return nil, err
 	}
 

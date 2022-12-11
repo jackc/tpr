@@ -2,9 +2,7 @@ package data
 
 import (
 	"context"
-	"errors"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgxrecord"
 )
 
@@ -23,9 +21,7 @@ func DeleteSession(ctx context.Context, db Queryer,
 ) error {
 	_, err := pgxrecord.ExecRow(ctx, db, `delete from sessions where id = $1`, id)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
+		return err
 	}
 
 	return nil

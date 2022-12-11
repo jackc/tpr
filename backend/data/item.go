@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgxrecord"
 )
 
 const markItemReadSQL = `delete from unread_items
@@ -16,15 +17,8 @@ where user_id=$1
   and item_id=$2`
 
 func MarkItemRead(ctx context.Context, db Queryer, userID, itemID int32) error {
-	commandTag, err := db.Exec(ctx, markItemReadSQL, userID, itemID)
-	if err != nil {
-		return err
-	}
-	if commandTag.RowsAffected() != 1 {
-		return ErrNotFound
-	}
-
-	return nil
+	_, err := pgxrecord.ExecRow(ctx, db, markItemReadSQL, userID, itemID)
+	return err
 }
 
 const getFeedsForUserSQL = `select coalesce(json_agg(row_to_json(t)), '[]'::json)

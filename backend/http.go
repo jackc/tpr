@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/tpr/backend/data"
@@ -395,11 +397,11 @@ func MarkItemReadHandler(w http.ResponseWriter, req *http.Request, env *environm
 	}
 
 	err = data.MarkItemRead(context.Background(), env.pool, env.user.ID.Int32, int32(itemID))
-	if err == data.ErrNotFound {
-		http.NotFound(w, req)
-		return
-	}
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			http.NotFound(w, req)
+			return
+		}
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
@@ -418,7 +420,7 @@ func MarkMultipleItemsReadHandler(w http.ResponseWriter, req *http.Request, env 
 
 	for _, itemID := range request.ItemIDs {
 		err := data.MarkItemRead(context.Background(), env.pool, env.user.ID.Int32, itemID)
-		if err != nil && err != data.ErrNotFound {
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 		}
 	}
@@ -606,14 +608,16 @@ func RequestPasswordResetHandler(w http.ResponseWriter, req *http.Request, env *
 	pwr.MustSet("email", reset.Email)
 
 	user, err := data.SelectUserByEmail(context.Background(), env.pool, reset.Email)
-	switch err {
-	case nil:
+	if err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			w.WriteHeader(500)
+			fmt.Fprintln(w, `Internal server error`)
+			return
+		}
+	}
+
+	if user != nil {
 		pwr.MustSet("user_id", user.ID)
-	case data.ErrNotFound:
-	default:
-		w.WriteHeader(500)
-		fmt.Fprintln(w, `Internal server error`)
-		return
 	}
 
 	err = pwr.Save(context.Background(), env.pool)
@@ -659,10 +663,12 @@ func ResetPasswordHandler(w http.ResponseWriter, req *http.Request, env *environ
 	}
 
 	pwr, err := data.SelectPasswordResetByPK(context.Background(), env.pool, resetPassword.Token)
-	if err == data.ErrNotFound {
-		w.WriteHeader(404)
-		return
-	} else if err != nil {
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			w.WriteHeader(404)
+			return
+		}
+
 		w.WriteHeader(500)
 		fmt.Fprintf(w, "Error decoding request: %v", err)
 		return
