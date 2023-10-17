@@ -49,7 +49,7 @@ end
 
 desc "Watch for source changes and rebuild and rerun"
 task :rerun do
-  exec "react2fs -dir backend rake run"
+  exec %q[watchexec --project-origin . -r -f Rakefile -f main.go -f "backend/**" -- rake run]
 end
 
 file "tmp/test/.databases-prepared" => FileList["postgresql/**/*.sql", "test/testdata/*.sql"] do

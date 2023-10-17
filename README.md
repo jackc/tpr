@@ -48,11 +48,7 @@ Database migrations are managed with [tern](https://github.com/jackc/tern). Inst
 go install github.com/jackc/tern@latest
 ```
 
-Automatic server rebuild and restart are managed with [react2fs](https://github.com/jackc/react2fs). Install react2fs if you don't already have it.
-
-```
-go install github.com/jackc/react2fs@latest
-```
+Automatic server rebuild and restart are managed with [watchexec](https://github.com/watchexec/watchexec). Install watchexec if you don't already have it.
 
 Make a copy of the example config files without the "example".
 
