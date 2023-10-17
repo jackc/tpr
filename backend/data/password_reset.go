@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgxutil"
 )
 
 type PasswordReset struct {
@@ -30,7 +31,7 @@ func RowToAddrOfPasswordReset(row pgx.CollectableRow) (*PasswordReset, error) {
 
 func SelectPasswordResetByPK(
 	ctx context.Context,
-	db Queryer,
+	db pgxutil.DB,
 	token string,
 ) (*PasswordReset, error) {
 	rows, _ := db.Query(ctx, selectPasswordResetByPKSQL, token)

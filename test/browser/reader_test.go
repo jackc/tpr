@@ -21,14 +21,14 @@ func TestUserMarksAllItemsRead(t *testing.T) {
 
 	user := testdata.CreateUser(t, db, ctx, map[string]any{"name": "john", "password": "secret"})
 	feed := testdata.CreateFeed(t, db, ctx, nil)
-	_, err := pgxutil.Insert(ctx, db, "subscriptions", map[string]any{"user_id": user["id"], "feed_id": feed["id"]})
+	err := pgxutil.InsertRow(ctx, db, "subscriptions", map[string]any{"user_id": user["id"], "feed_id": feed["id"]})
 	require.NoError(t, err)
 	beforeItem := testdata.CreateItem(t, db, ctx, map[string]any{
 		"feed_id":          feed["id"],
 		"title":            "First Post",
 		"publication_time": time.Date(2014, 2, 6, 10, 34, 51, 0, time.Local),
 	})
-	_, err = pgxutil.Insert(ctx, db, "unread_items", map[string]any{"user_id": user["id"], "feed_id": feed["id"], "item_id": beforeItem["id"]})
+	err = pgxutil.InsertRow(ctx, db, "unread_items", map[string]any{"user_id": user["id"], "feed_id": feed["id"], "item_id": beforeItem["id"]})
 	require.NoError(t, err)
 
 	login(t, ctx, page, serverInstance.Server.URL, "john", "secret")
@@ -41,7 +41,7 @@ func TestUserMarksAllItemsRead(t *testing.T) {
 		"feed_id": feed["id"],
 		"title":   "Second Post",
 	})
-	_, err = pgxutil.Insert(ctx, db, "unread_items", map[string]any{"user_id": user["id"], "feed_id": feed["id"], "item_id": afterItem["id"]})
+	err = pgxutil.InsertRow(ctx, db, "unread_items", map[string]any{"user_id": user["id"], "feed_id": feed["id"], "item_id": afterItem["id"]})
 	require.NoError(t, err)
 
 	page.ClickOn("Mark All Read")
@@ -57,7 +57,7 @@ func TestUserMarksAllItemsRead(t *testing.T) {
 		"feed_id": feed["id"],
 		"title":   "Third Post",
 	})
-	_, err = pgxutil.Insert(ctx, db, "unread_items", map[string]any{"user_id": user["id"], "feed_id": feed["id"], "item_id": anotherItem["id"]})
+	err = pgxutil.InsertRow(ctx, db, "unread_items", map[string]any{"user_id": user["id"], "feed_id": feed["id"], "item_id": anotherItem["id"]})
 	require.NoError(t, err)
 
 	page.ClickOn("Refresh")
@@ -75,21 +75,21 @@ func TestUserUsesKeyboardShortcuts(t *testing.T) {
 
 	user := testdata.CreateUser(t, db, ctx, map[string]any{"name": "john", "password": "secret"})
 	feed := testdata.CreateFeed(t, db, ctx, nil)
-	_, err := pgxutil.Insert(ctx, db, "subscriptions", map[string]any{"user_id": user["id"], "feed_id": feed["id"]})
+	err := pgxutil.InsertRow(ctx, db, "subscriptions", map[string]any{"user_id": user["id"], "feed_id": feed["id"]})
 	require.NoError(t, err)
 	item := testdata.CreateItem(t, db, ctx, map[string]any{
 		"feed_id":          feed["id"],
 		"title":            "First Post",
 		"publication_time": time.Now().Add(-5 * time.Second),
 	})
-	_, err = pgxutil.Insert(ctx, db, "unread_items", map[string]any{"user_id": user["id"], "feed_id": feed["id"], "item_id": item["id"]})
+	err = pgxutil.InsertRow(ctx, db, "unread_items", map[string]any{"user_id": user["id"], "feed_id": feed["id"], "item_id": item["id"]})
 	require.NoError(t, err)
 	item = testdata.CreateItem(t, db, ctx, map[string]any{
 		"feed_id":          feed["id"],
 		"title":            "Second Post",
 		"publication_time": time.Now(),
 	})
-	_, err = pgxutil.Insert(ctx, db, "unread_items", map[string]any{"user_id": user["id"], "feed_id": feed["id"], "item_id": item["id"]})
+	err = pgxutil.InsertRow(ctx, db, "unread_items", map[string]any{"user_id": user["id"], "feed_id": feed["id"], "item_id": item["id"]})
 	require.NoError(t, err)
 
 	login(t, ctx, page, serverInstance.Server.URL, "john", "secret")
@@ -135,14 +135,14 @@ func TestUserLooksAtArchivedPosts(t *testing.T) {
 
 	user := testdata.CreateUser(t, db, ctx, map[string]any{"name": "john", "password": "secret"})
 	feed := testdata.CreateFeed(t, db, ctx, nil)
-	_, err := pgxutil.Insert(ctx, db, "subscriptions", map[string]any{"user_id": user["id"], "feed_id": feed["id"]})
+	err := pgxutil.InsertRow(ctx, db, "subscriptions", map[string]any{"user_id": user["id"], "feed_id": feed["id"]})
 	require.NoError(t, err)
 	beforeItem := testdata.CreateItem(t, db, ctx, map[string]any{
 		"feed_id":          feed["id"],
 		"title":            "First Post",
 		"publication_time": time.Date(2014, 2, 6, 10, 34, 51, 0, time.Local),
 	})
-	_, err = pgxutil.Insert(ctx, db, "unread_items", map[string]any{"user_id": user["id"], "feed_id": feed["id"], "item_id": beforeItem["id"]})
+	err = pgxutil.InsertRow(ctx, db, "unread_items", map[string]any{"user_id": user["id"], "feed_id": feed["id"], "item_id": beforeItem["id"]})
 	require.NoError(t, err)
 
 	login(t, ctx, page, serverInstance.Server.URL, "john", "secret")

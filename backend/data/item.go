@@ -10,13 +10,14 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgxrecord"
+	"github.com/jackc/pgxutil"
 )
 
 const markItemReadSQL = `delete from unread_items
 where user_id=$1
   and item_id=$2`
 
-func MarkItemRead(ctx context.Context, db Queryer, userID, itemID int32) error {
+func MarkItemRead(ctx context.Context, db pgxutil.DB, userID, itemID int32) error {
 	_, err := pgxrecord.ExecRow(ctx, db, markItemReadSQL, userID, itemID)
 	return err
 }
@@ -40,7 +41,7 @@ from (
   order by name
 ) t`
 
-func CopySubscriptionsForUserAsJSON(ctx context.Context, db Queryer, w io.Writer, userID int32) error {
+func CopySubscriptionsForUserAsJSON(ctx context.Context, db pgxutil.DB, w io.Writer, userID int32) error {
 	var b []byte
 	err := db.QueryRow(ctx, getFeedsForUserSQL, userID).Scan(&b)
 	if err != nil {
@@ -67,7 +68,7 @@ from (
   order by publication_time asc
 ) t`
 
-func CopyUnreadItemsAsJSONByUserID(ctx context.Context, db Queryer, w io.Writer, userID int32) error {
+func CopyUnreadItemsAsJSONByUserID(ctx context.Context, db pgxutil.DB, w io.Writer, userID int32) error {
 	var b []byte
 	err := db.QueryRow(ctx, getUnreadItemsSQL, userID).Scan(&b)
 	if err != nil {
@@ -95,7 +96,7 @@ from (
   limit $2
 ) t`
 
-func CopyArchivedItemsAsJSONByUserID(ctx context.Context, db Queryer, w io.Writer, userID int32) error {
+func CopyArchivedItemsAsJSONByUserID(ctx context.Context, db pgxutil.DB, w io.Writer, userID int32) error {
 	var b []byte
 	err := db.QueryRow(ctx, getArchivedItemsSQL, userID, 250).Scan(&b)
 	if err != nil {
@@ -180,7 +181,7 @@ set last_fetch_time=$1,
   failure_count=0
 where id=$2`
 
-func UpdateFeedWithFetchUnchanged(ctx context.Context, db Queryer, feedID int32, fetchTime time.Time) (err error) {
+func UpdateFeedWithFetchUnchanged(ctx context.Context, db pgxutil.DB, feedID int32, fetchTime time.Time) (err error) {
 	_, err = db.Exec(ctx, updateFeedWithFetchUnchangedSQL, fetchTime, feedID)
 	return
 }
@@ -191,7 +192,7 @@ set last_failure=$1,
   failure_count=failure_count+1
 where id=$3`
 
-func UpdateFeedWithFetchFailure(ctx context.Context, db Queryer, feedID int32, failure string, fetchTime time.Time) (err error) {
+func UpdateFeedWithFetchFailure(ctx context.Context, db pgxutil.DB, feedID int32, failure string, fetchTime time.Time) (err error) {
 	_, err = db.Exec(ctx, updateFeedWithFetchFailureSQL, failure, fetchTime, feedID)
 	return err
 }
@@ -254,7 +255,7 @@ const getFeedsUncheckedSinceSQL = `select id, url, etag
 from feeds
 where greatest(last_fetch_time, last_failure_time, '-Infinity'::timestamptz) < $1`
 
-func GetFeedsUncheckedSince(ctx context.Context, db Queryer, since time.Time) ([]Feed, error) {
+func GetFeedsUncheckedSince(ctx context.Context, db pgxutil.DB, since time.Time) ([]Feed, error) {
 	feeds := make([]Feed, 0, 8)
 	rows, _ := db.Query(ctx, getFeedsUncheckedSinceSQL, since)
 

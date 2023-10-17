@@ -54,7 +54,7 @@ func CreateUser(t testing.TB, db DB, ctx context.Context, attrs map[string]any) 
 		attrs["name"] = "test"
 	}
 
-	user, err := pgxutil.Insert(ctx, db, "users", attrs)
+	user, err := pgxutil.InsertRowReturning(ctx, db, "users", attrs, "*", pgx.RowToMap)
 	require.NoError(t, err)
 
 	return user
@@ -74,7 +74,7 @@ func CreateFeed(t testing.TB, db DB, ctx context.Context, attrs map[string]any) 
 		attrs["url"] = fmt.Sprintf("http://localhost/%v", n)
 	}
 
-	feed, err := pgxutil.Insert(ctx, db, "feeds", attrs)
+	feed, err := pgxutil.InsertRowReturning(ctx, db, "feeds", attrs, "*", pgx.RowToMap)
 	require.NoError(t, err)
 
 	return feed
@@ -93,7 +93,7 @@ func CreateItem(t testing.TB, db DB, ctx context.Context, attrs map[string]any) 
 		attrs["url"] = fmt.Sprintf("http://localhost/%v", n)
 	}
 
-	item, err := pgxutil.Insert(ctx, db, "items", attrs)
+	item, err := pgxutil.InsertRowReturning(ctx, db, "items", attrs, "*", pgx.RowToMap)
 	require.NoError(t, err)
 
 	return item
@@ -112,7 +112,7 @@ func CreatePasswordReset(t testing.TB, db DB, ctx context.Context, attrs map[str
 		attrs["request_time"] = time.Now()
 	}
 
-	item, err := pgxutil.Insert(ctx, db, "password_resets", attrs)
+	item, err := pgxutil.InsertRowReturning(ctx, db, "password_resets", attrs, "*", pgx.RowToMap)
 	require.NoError(t, err)
 
 	return item

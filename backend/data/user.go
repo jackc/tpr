@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgxrecord"
+	"github.com/jackc/pgxutil"
 )
 
 type DuplicationError struct {
@@ -18,7 +19,7 @@ func (e DuplicationError) Error() string {
 	return fmt.Sprintf("%s is already taken", e.Field)
 }
 
-func selectUser(ctx context.Context, db Queryer, name, sql string, arg interface{}) (*User, error) {
+func selectUser(ctx context.Context, db pgxutil.DB, name, sql string, arg interface{}) (*User, error) {
 	user := User{}
 
 	err := db.QueryRow(ctx, sql, arg).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordDigest, &user.PasswordSalt)
@@ -31,13 +32,13 @@ func selectUser(ctx context.Context, db Queryer, name, sql string, arg interface
 
 const getUserByNameSQL = `select id, name, email, password_digest, password_salt from users where name=$1`
 
-func SelectUserByName(ctx context.Context, db Queryer, name string) (*User, error) {
+func SelectUserByName(ctx context.Context, db pgxutil.DB, name string) (*User, error) {
 	return selectUser(ctx, db, "getUserByName", getUserByNameSQL, name)
 }
 
 const getUserByEmailSQL = `select id, name, email, password_digest, password_salt from users where email=$1`
 
-func SelectUserByEmail(ctx context.Context, db Queryer, email string) (*User, error) {
+func SelectUserByEmail(ctx context.Context, db pgxutil.DB, email string) (*User, error) {
 	return selectUser(ctx, db, "getUserByEmail", getUserByEmailSQL, email)
 }
 
@@ -46,11 +47,11 @@ from sessions
   join users on sessions.user_id=users.id
 where sessions.id=$1`
 
-func SelectUserBySessionID(ctx context.Context, db Queryer, id []byte) (*User, error) {
+func SelectUserBySessionID(ctx context.Context, db pgxutil.DB, id []byte) (*User, error) {
 	return selectUser(ctx, db, "getUserBySessionID", getUserBySessionIDSQL, id)
 }
 
-func CreateUser(ctx context.Context, db Queryer, user *User) (int32, error) {
+func CreateUser(ctx context.Context, db pgxutil.DB, user *User) (int32, error) {
 	var err error
 	user.ID, err = pgxrecord.InsertRowReturning(ctx, db, pgx.Identifier{"users"}, map[string]any{
 		"name":            &user.Name,

@@ -6,6 +6,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgxrecord"
+	"github.com/jackc/pgxutil"
 )
 
 type User struct {
@@ -27,7 +28,7 @@ where "id"=$1`
 
 func SelectUserByPK(
 	ctx context.Context,
-	db Queryer,
+	db pgxutil.DB,
 	id int32,
 ) (*User, error) {
 	var row User
@@ -45,7 +46,7 @@ func SelectUserByPK(
 	return &row, nil
 }
 
-func UpdateUser(ctx context.Context, db Queryer,
+func UpdateUser(ctx context.Context, db pgxutil.DB,
 	id int32,
 	row *User,
 ) error {

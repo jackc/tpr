@@ -6,6 +6,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgxutil"
 )
 
 type Subscription struct {
@@ -22,7 +23,7 @@ type Subscription struct {
 
 const createSubscriptionSQL = `select create_subscription($1::integer, $2::varchar)`
 
-func InsertSubscription(ctx context.Context, db Queryer, userID int32, feedURL string) error {
+func InsertSubscription(ctx context.Context, db pgxutil.DB, userID int32, feedURL string) error {
 	_, err := db.Exec(ctx, createSubscriptionSQL, userID, feedURL)
 	return err
 }
@@ -43,7 +44,7 @@ where user_id=$1
 group by feeds.id
 order by name`
 
-func SelectSubscriptions(ctx context.Context, db Queryer, userID int32) ([]Subscription, error) {
+func SelectSubscriptions(ctx context.Context, db pgxutil.DB, userID int32) ([]Subscription, error) {
 	subs := make([]Subscription, 0, 16)
 	rows, _ := db.Query(ctx, getSubscriptionsSQL, userID)
 	for rows.Next() {
