@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	log15adapter "github.com/jackc/pgx-log15"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
 	"github.com/jackc/tpr/backend"
@@ -300,7 +301,7 @@ func ResetPassword(c *cli.Context) {
 		os.Exit(1)
 	}
 
-	update := &data.User{}
+	update := &data.User{Name: pgtype.Text{String: name, Valid: true}}
 	backend.SetPassword(update, password)
 
 	err = data.UpdateUser(context.Background(), pool, user.ID.Int32, update)
