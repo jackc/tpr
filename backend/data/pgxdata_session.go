@@ -3,7 +3,6 @@ package data
 import (
 	"context"
 
-	"github.com/jackc/pgxrecord"
 	"github.com/jackc/pgxutil"
 )
 
@@ -20,7 +19,7 @@ func InsertSession(ctx context.Context, db pgxutil.DB, row *Session) error {
 func DeleteSession(ctx context.Context, db pgxutil.DB,
 	id []byte,
 ) error {
-	_, err := pgxrecord.ExecRow(ctx, db, `delete from sessions where id = $1`, id)
+	_, err := pgxutil.ExecRow(ctx, db, `delete from sessions where id = $1`, id)
 	if err != nil {
 		return err
 	}

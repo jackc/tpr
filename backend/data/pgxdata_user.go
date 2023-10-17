@@ -5,7 +5,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgxrecord"
 	"github.com/jackc/pgxutil"
 )
 
@@ -50,7 +49,7 @@ func UpdateUser(ctx context.Context, db pgxutil.DB,
 	id int32,
 	row *User,
 ) error {
-	return pgxrecord.UpdateRow(ctx, db, pgx.Identifier{"users"}, map[string]any{
+	return pgxutil.UpdateRow(ctx, db, pgx.Identifier{"users"}, map[string]any{
 		"name":            row.Name,
 		"password_digest": row.PasswordDigest,
 		"password_salt":   row.PasswordSalt,

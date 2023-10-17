@@ -9,7 +9,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/jackc/pgxrecord"
 	"github.com/jackc/pgxutil"
 )
 
@@ -18,7 +17,7 @@ where user_id=$1
   and item_id=$2`
 
 func MarkItemRead(ctx context.Context, db pgxutil.DB, userID, itemID int32) error {
-	_, err := pgxrecord.ExecRow(ctx, db, markItemReadSQL, userID, itemID)
+	_, err := pgxutil.ExecRow(ctx, db, markItemReadSQL, userID, itemID)
 	return err
 }
 

@@ -19,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgxutil"
 	"github.com/jackc/tpr/backend/data"
 	log "gopkg.in/inconshreveable/log15.v2"
 )
@@ -571,12 +572,13 @@ func UpdateAccountHandler(w http.ResponseWriter, req *http.Request, env *environ
 }
 
 func RequestPasswordResetHandler(w http.ResponseWriter, req *http.Request, env *environment) {
-	pwr := data.PasswordResetsTable.NewRecord()
-	pwr.MustSet("request_time", time.Now())
+	attrs := map[string]any{
+		"request_time": time.Now(),
+	}
 
 	if host, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
 		if addr, err := netip.ParseAddr(host); err == nil {
-			pwr.MustSet("request_ip", addr)
+			attrs["request_ip"] = addr
 		}
 	}
 
@@ -587,7 +589,7 @@ func RequestPasswordResetHandler(w http.ResponseWriter, req *http.Request, env *
 		env.logger.Error("getLostPasswordToken failed", "error", err)
 		return
 	}
-	pwr.MustSet("token", token)
+	attrs["token"] = token
 
 	var reset struct {
 		Email string `json:"email"`
@@ -605,7 +607,7 @@ func RequestPasswordResetHandler(w http.ResponseWriter, req *http.Request, env *
 		return
 	}
 
-	pwr.MustSet("email", reset.Email)
+	attrs["email"] = reset.Email
 
 	user, err := data.SelectUserByEmail(context.Background(), env.pool, reset.Email)
 	if err != nil {
@@ -617,14 +619,14 @@ func RequestPasswordResetHandler(w http.ResponseWriter, req *http.Request, env *
 	}
 
 	if user != nil {
-		pwr.MustSet("user_id", user.ID)
+		attrs["user_id"] = user.ID
 	}
 
-	err = pwr.Save(context.Background(), env.pool)
+	err = pgxutil.InsertRow(context.Background(), env.pool, "password_resets", attrs)
 	if err != nil {
 		w.WriteHeader(500)
 		fmt.Fprintln(w, `Internal server error`)
-		env.logger.Error("repo.CreatePasswordReset failed", "error", err)
+		env.logger.Error("CreatePasswordReset failed", "error", err)
 		return
 	}
 

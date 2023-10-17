@@ -7,7 +7,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgxrecord"
 	"github.com/jackc/pgxutil"
 )
 
@@ -53,7 +52,7 @@ func SelectUserBySessionID(ctx context.Context, db pgxutil.DB, id []byte) (*User
 
 func CreateUser(ctx context.Context, db pgxutil.DB, user *User) (int32, error) {
 	var err error
-	user.ID, err = pgxrecord.InsertRowReturning(ctx, db, pgx.Identifier{"users"}, map[string]any{
+	user.ID, err = pgxutil.InsertRowReturning(ctx, db, pgx.Identifier{"users"}, map[string]any{
 		"name":            &user.Name,
 		"password_digest": &user.PasswordDigest,
 		"password_salt":   &user.PasswordSalt,
