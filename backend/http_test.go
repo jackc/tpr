@@ -116,9 +116,6 @@ func newConnPool(t testing.TB) *pgxpool.Pool {
 		pool, err := newPool(conf, logger)
 		require.NoError(t, err)
 
-		err = data.InitializeTables(context.Background(), pool)
-		require.NoError(t, err)
-
 		sharedPool = pool
 	}
 
