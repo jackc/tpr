@@ -15,7 +15,7 @@ directory "tmp/test"
 
 namespace :build do
   task :directory do
-    Dir.mkdir("build") unless Dir.exists?("build")
+    Dir.mkdir("build") unless Dir.exist?("build")
   end
 
   desc "Build assets"
