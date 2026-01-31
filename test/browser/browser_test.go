@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/go-rod/rod"
 	"github.com/jackc/testdb"
 	"github.com/jackc/tpr/backend"
 	"github.com/jackc/tpr/test/testbrowser"
@@ -19,7 +18,6 @@ import (
 
 var concurrentChan chan struct{}
 var TestDBManager *testdb.Manager
-var baseBrowser *rod.Browser
 var TestBrowserManager *testbrowser.Manager
 
 func TestMain(m *testing.M) {
@@ -41,8 +39,6 @@ func TestMain(m *testing.M) {
 		fmt.Println("Failed to initialize TestBrowserManager")
 		os.Exit(1)
 	}
-
-	baseBrowser = rod.New().MustConnect()
 
 	os.Exit(m.Run())
 }
