@@ -19,7 +19,7 @@ PGDATABASE=tpr_test tern migrate
 
 # Install Playwright's Chromium browser and dependencies for system tests (ARM64 support)
 # electron-chromedriver (installed via npm) provides the chromedriver
-npx -y playwright@1.57.0 install --with-deps chromium
+npx -y playwright@1.58.1 install --with-deps chromium
 
 # Run any additional setup scripts included in the shared/devcontainer directory. This is to allow for per developer or
 # per-environment customizations. These scripts are not checked into source control.
