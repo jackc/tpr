@@ -12,6 +12,7 @@ import (
 	"net/http/httputil"
 	"net/netip"
 	"net/url"
+	"os"
 	"strconv"
 	"time"
 
@@ -134,6 +135,11 @@ func NewAPIHandler(pool *pgxpool.Pool, mailer Mailer, logger log.Logger) chi.Rou
 	router.Method("GET", "/items/archived", EnvHandler(pool, mailer, logger, AuthenticatedHandler(GetArchivedItemsHandler)))
 	router.Method("GET", "/account", EnvHandler(pool, mailer, logger, AuthenticatedHandler(GetAccountHandler)))
 	router.Method("PATCH", "/account", EnvHandler(pool, mailer, logger, AuthenticatedHandler(UpdateAccountHandler)))
+
+	// Register test endpoints if TEST_ENDPOINTS environment variable is set
+	if os.Getenv("TEST_ENDPOINTS") == "true" {
+		RegisterTestEndpoints(router, pool, logger)
+	}
 
 	return router
 }

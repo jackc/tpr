@@ -12,10 +12,16 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed"
   },
   "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "@types/node": "^25.1.0",
     "sass": "^1.56.1",
+    "typescript": "^5.7.2",
     "vite": "^4.4.11"
   }
 }

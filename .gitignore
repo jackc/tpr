@@ -11,3 +11,8 @@
 /tpr_*
 /tpr.conf
 /tpr.test.conf
+
+# Playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
