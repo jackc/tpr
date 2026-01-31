@@ -1,6 +1,12 @@
 #!/bin/bash
 set -e
 
+psql -f postgresql/prepare.sql
+
+[ ! -f postgresql/tern.conf ] && cp postgresql/tern.example.conf postgresql/tern.conf
+[ ! -f tpr.conf ] && cp tpr.example.conf tpr.conf
+[ ! -f tpr.test.conf ] && cp tpr.test.example.conf tpr.test.conf
+
 mise trust
 mise install
 eval "$(mise env -s bash)"
@@ -8,13 +14,8 @@ bundle install
 npm install
 go install golang.org/x/tools/cmd/goimports@latest
 
-psql -f postgresql/prepare.sql
 tern migrate
 PGDATABASE=tpr_test tern migrate
-
-[ ! -f postgresql/tern.conf ] && cp postgresql/tern.example.conf postgresql/tern.conf
-[ ! -f tpr.conf ] && cp tpr.example.conf tpr.conf
-[ ! -f tpr.test.conf ] && cp tpr.test.example.conf tpr.test.conf
 
 # Install Playwright's Chromium browser and dependencies for system tests (ARM64 support)
 # electron-chromedriver (installed via npm) provides the chromedriver

@@ -11,7 +11,10 @@ The Pithy Reader is a simple RSS/Atom aggregator.
 
 ## Development
 
-The preferred development environment is the provided devcontainer.
+The preferred development environment is the provided devcontainer. There are VS Code tasks defined to automatically
+start the Go HTTP server and the Vite server. Unfortunately, the first time the devcontainer is created the tasks will
+run before the devcontainer is fully setup. So those tasks will need to be manually restarted the first time the project
+is used.
 
 Tests are run with `rake`.
 
