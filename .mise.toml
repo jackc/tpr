@@ -23,5 +23,5 @@ TESTBROWSER_CHROME_BINARY = "{{env.HOME}}/.cache/ms-playwright/chromium-1200/chr
 
 [tools]
 go = '1.25.6'
-nodejs = '22.20.0'
+nodejs = '24.13.0'
 ruby = '4.0.1'
