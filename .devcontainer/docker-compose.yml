@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ../..:/workspaces:cached
+    command: sleep infinity
+    environment:
+      # PostgreSQL connection settings for testing
+      PGHOST: localhost
+      PGUSER: postgres
+      PGDATABASE: postgres
+
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    volumes:
+      - postgresql:/var/lib/postgresql
+    network_mode: service:app
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+
+volumes:
+  postgresql:

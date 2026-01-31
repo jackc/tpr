@@ -87,5 +87,10 @@ func TestUserChangesEmail(t *testing.T) {
 	page.ClickOn("Feeds")
 	page.ClickOn("Account")
 
+	page.HasContent("label", "Existing Password")
+
+	// Wait for React to render and the email field to be populated
+	page.Page.MustElement("#email").MustWaitStable()
+
 	require.Equal(t, "john@example.com", page.Page.MustElement("#email").MustEval("function() { return this.value }").String())
 }

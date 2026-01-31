@@ -1,0 +1,30 @@
+#!/bin/bash
+set -e
+
+# watchexec version
+WATCHEXEC_VERSION="2.3.3"
+
+# Detect architecture
+ARCH=$(uname -m)
+if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+  ARCH_SUFFIX="aarch64"
+elif [ "$ARCH" = "x86_64" ] || [ "$ARCH" = "amd64" ]; then
+  ARCH_SUFFIX="x86_64"
+else
+  echo "Unsupported architecture: $ARCH"
+  exit 1
+fi
+
+DOWNLOAD_URL="https://github.com/watchexec/watchexec/releases/download/v${WATCHEXEC_VERSION}/watchexec-${WATCHEXEC_VERSION}-${ARCH_SUFFIX}-unknown-linux-gnu.deb"
+
+# Download and install watchexec
+echo "Downloading watchexec from $DOWNLOAD_URL"
+
+# Download and extract to /tmp, then move binary to /usr/local/bin
+TMP_DIR="/tmp/watchexec_install"
+mkdir -p "$TMP_DIR"
+curl -L "$DOWNLOAD_URL" > "$TMP_DIR/watchexec.deb"
+sudo dpkg -i "$TMP_DIR/watchexec.deb"
+rm -rf "$TMP_DIR"
+
+echo "watchexec v${WATCHEXEC_VERSION} installed successfully"

@@ -1,0 +1,32 @@
+#!/bin/bash
+set -e
+
+# tern version
+TERN_VERSION="2.3.5"
+
+# Detect architecture
+ARCH=$(uname -m)
+if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+  ARCH_SUFFIX="arm64"
+elif [ "$ARCH" = "x86_64" ] || [ "$ARCH" = "amd64" ]; then
+  ARCH_SUFFIX="x86_64"
+else
+  echo "Unsupported architecture: $ARCH"
+  exit 1
+fi
+
+DOWNLOAD_URL="https://github.com/jackc/tern/releases/download/v${TERN_VERSION}/tern_${TERN_VERSION}_linux_${ARCH_SUFFIX}.tar.gz"
+
+# Download and install tern
+echo "Downloading tern from $DOWNLOAD_URL"
+
+
+# Download and extract to /tmp, then move binary to /usr/local/bin
+TMP_DIR="/tmp/tern_install"
+mkdir -p "$TMP_DIR"
+curl -L "$DOWNLOAD_URL" | tar -xz -C "$TMP_DIR"
+sudo mv "$TMP_DIR/tern" /usr/local/bin/
+sudo chmod +x /usr/local/bin/tern
+rm -rf "$TMP_DIR"
+
+echo "tern v${TERN_VERSION} installed successfully"

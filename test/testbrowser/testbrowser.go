@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/semaphore"
@@ -28,6 +29,15 @@ type ManagerConfig struct {
 
 func NewManager(config ManagerConfig) (*Manager, error) {
 	browser := rod.New()
+
+	if os.Getenv("TESTBROWSER_CHROME_BINARY") != "" {
+		controlURL, err := launcher.New().Bin(os.Getenv("TESTBROWSER_CHROME_BINARY")).Launch()
+		if err != nil {
+			return nil, fmt.Errorf("launch chrome failed: %w", err)
+		}
+		browser = browser.ControlURL(controlURL)
+	}
+
 	err := browser.Connect()
 	if err != nil {
 		return nil, fmt.Errorf("connect to browser failed: %w", err)
@@ -140,14 +150,31 @@ func (p *Page) FillIn(labelOrSelector string, content string) {
 		p.t.Fatalf("failed to find label or selector for %q: %v", labelOrSelector, err)
 	}
 
+	// Click to focus the element first - this is critical for React to register focus
+	err = inputEl.Click(proto.InputMouseButtonLeft, 1)
+	if err != nil {
+		p.t.Fatalf("failed to click input for %q", labelOrSelector)
+	}
+
+	// Wait a moment for focus to register
+	inputEl.Page().MustWaitIdle()
+
+	// Clear existing content
 	err = inputEl.SelectAllText()
 	if err != nil {
 		p.t.Fatalf("failed to select all text for %q", labelOrSelector)
 	}
 
+	// Use Input which simulates typing - this should trigger React events
 	err = inputEl.Input(content)
 	if err != nil {
 		p.t.Fatalf("failed to input text for %q", labelOrSelector)
+	}
+
+	// Blur the element to ensure onChange fires in React
+	_, err = inputEl.Eval(`function() { this.blur(); }`)
+	if err != nil {
+		p.t.Fatalf("failed to blur input for %q", labelOrSelector)
 	}
 }
 

@@ -1,0 +1,59 @@
+{
+  "name": "tpr",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  // Features to add to the dev container. More info: https://containers.dev/features.
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "configureZshAsDefaultShell": true
+    },
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "1.25"
+    },
+    "ghcr.io/rails/devcontainer/features/ruby:2.1.2": {
+      "version": "4.0.1",
+      "versionManager": "mise"
+    },
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
+  },
+
+  // Use 'forwardPorts' to make a list of ports inside the container available locally.
+  "forwardPorts": [4000, 5173, 5432],
+
+  "portsAttributes": {
+    "4000": {
+      "label": "Go HTTP Server"
+    },
+    "5173": {
+      "label": "Vite"
+    },
+    "5432": {
+      "label": "PostgreSQL"
+    }
+  },
+
+  "onCreateCommand": ".devcontainer/on-create.bash",
+
+  // Use 'postCreateCommand' to run commands after the container is created.
+  "postCreateCommand": ".devcontainer/post-create.bash",
+  // Configure tool-specific properties.
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "bradlc.vscode-tailwindcss",
+        "eamodio.gitlens",
+        "golang.go",
+        "hverlin.mise-vscode",
+        "janisdd.vscode-edit-csv",
+        "KoichiSasada.vscode-rdbg",
+        "redhat.vscode-yaml",
+        "svelte.svelte-vscode",
+        "tamasfe.even-better-toml"
+      ]
+    }
+  }
+  // Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+  // "remoteUser": "root"
+}
