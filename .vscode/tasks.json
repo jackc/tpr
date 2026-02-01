@@ -16,7 +16,7 @@
       "type": "shell",
       // 'mise exec' is necessary because the mise extension may not be loaded when the startup tasks run. Without it,
       // the wrong tool versions could be used.
-      "command": "mise exec -- npx vite serve frontend",
+      "command": "mise exec -- npm run dev",
       "isBackground": true,
       "problemMatcher": [],
       "runOptions": { "runOn": "folderOpen" }

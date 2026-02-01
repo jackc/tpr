@@ -5,6 +5,7 @@
 /config/secrets.rb
 /frontend/.cache
 /node_modules
+/.svelte-kit
 /postgresql/tern.conf
 /public
 /tmp

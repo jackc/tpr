@@ -37,12 +37,16 @@ export default defineConfig({
       port: 5173,
       reuseExistingServer: !process.env.CI,
       timeout: 120000,
+      stdout: 'pipe',
+      stderr: 'pipe',
     },
     {
       command: 'TEST_ENDPOINTS=true go run main.go server -c tpr.test.conf --static-url http://127.0.0.1:5173',
       port: 5000,
       reuseExistingServer: !process.env.CI,
       timeout: 120000,
+      stdout: 'pipe',
+      stderr: 'pipe',
     },
   ],
 });

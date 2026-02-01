@@ -4,15 +4,8 @@
   "private": true,
   "type": "module",
   "main": "index.js",
-  "dependencies": {
-    "prop-types": "^15.8.1",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.22.0",
-    "signals": "^1.0.0"
-  },
   "scripts": {
-    "dev": "vite",
+    "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
     "test:e2e": "playwright test",
@@ -22,10 +15,13 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.49.1",
+    "@sveltejs/adapter-static": "^3.0.10",
+    "@sveltejs/kit": "^2.50.1",
+    "@sveltejs/vite-plugin-svelte": "^6.2.4",
     "@types/node": "^25.1.0",
-    "@vitejs/plugin-react": "^4.2.1",
     "sass": "^1.56.1",
+    "svelte": "^5.49.1",
     "typescript": "^5.7.2",
-    "vite": "^5.1.0"
+    "vite": "^6.4.1"
   }
 }
