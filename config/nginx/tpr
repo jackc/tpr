@@ -4,7 +4,7 @@ server {
 	root /apps/tpr/current/assets;
 	index index.html index.htm;
 
-	location @go {
+	location /api/ {
 		proxy_pass http://127.0.0.1:4000;
 		gzip on;
 		gzip_types *;
@@ -13,7 +13,7 @@ server {
 	}
 
 	location / {
-		try_files $uri $uri/ @go;
+		try_files $uri $uri/ /index.html;
 
 		charset UTF-8;
 
