@@ -1,10 +1,8 @@
-import React from 'react'
-import ReactDOM from 'react-dom'
-import {conn} from '../connection.js'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import UnreadItems from '../UnreadItems.js'
-import{toTPRString} from '../date.js'
+import {toTPRString} from '../date.js'
 
-var viewItem = function(item, e) {
+const viewItem = (item, e) => {
   if(e) {
     e.preventDefault()
   }
@@ -12,217 +10,193 @@ var viewItem = function(item, e) {
   window.open(item.url)
 }
 
-export default class HomePage extends React.Component {
-  constructor(props, context) {
-    super(props, context)
+export default function HomePage() {
+  const [items, setItems] = useState([])
+  const [selected, setSelected] = useState(null)
+  const itemRefs = useRef([])
+  const collectionRef = useRef(new UnreadItems())
+  const prevSelectedRef = useRef(null)
 
-    this.collection = new UnreadItems
-    this.state = {
-      items: [],
-      selected: null
+  // Effect 1: Collection subscription (runs once)
+  useEffect(() => {
+    const collection = collectionRef.current
+
+    const handleChange = () => {
+      setItems(collection.items)
+      setSelected(collection.items[0])
     }
 
-    this.keyDown = this.keyDown.bind(this)
-    this.markAllRead = this.markAllRead.bind(this)
-    this.refresh = this.refresh.bind(this)
-    this.selectNext = this.selectNext.bind(this)
-    this.selectPrevious = this.selectPrevious.bind(this)
-    this.viewSelected = this.viewSelected.bind(this)
-    this.ensureSelectedItemVisible = this.ensureSelectedItemVisible.bind(this)
-  }
+    collection.changed.add(handleChange)
+    collection.fetch()
 
-  componentDidMount() {
-    this.collection.changed.add(function() {
-      this.setState({items: this.collection.items, selected: this.collection.items[0]})
-    }.bind(this))
-    this.collection.fetch()
-
-    document.addEventListener("keydown", this.keyDown)
-  }
-
-  componentWillUnmount() {
-    document.removeEventListener("keydown", this.keyDown)
-  }
-
-  componentDidUpdate(prevProps, prevState) {
-    if(this.state.selected !== prevState.selected) {
-      if(prevState.selected) {
-        prevState.selected.markRead()
-      }
-      this.ensureSelectedItemVisible()
+    return () => {
+      collection.changed.remove(handleChange)
     }
-  }
+  }, [])
 
-  render() {
-    return (
-      <div className="home">
-        <Actions items={this.state.items} markAllReadFn={this.markAllRead} refreshFn={this.refresh} />
-
-        <ul className="unreadItems">
-          {
-            this.state.items.map(function(item, index) {
-              return (
-                <UnreadItem key={item.id} ref={"itemidx-"+index} item={item} selected={item==this.state.selected} />
-              )
-            }.bind(this))
+  // Effect 2: Keyboard navigation (depends on items/selected)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      switch(e.which) {
+        case 74: // j
+          selectNext()
+          break
+        case 75: // k
+          selectPrevious()
+          break
+        case 86: // v
+          viewSelected()
+          break
+        case 65: // a
+          if(e.shiftKey) {
+            collectionRef.current.markAllRead()
           }
-        </ul>
-
-        {
-          this.state.items.length > 15 ?
-          (<Actions items={this.state.items} markAllReadFn={this.markAllRead} refreshFn={this.refresh} />) :
-          null
-        }
-      </div>
-    );
-  }
-
-  keyDown(e) {
-    switch(e.which) {
-      // j
-      case 74:
-        this.selectNext()
-        break
-      // k
-      case 75:
-        this.selectPrevious()
-        break
-      // v
-      case 86:
-        this.viewSelected()
-        break
-      // a
-      case 65:
-        if(e.shiftKey) {
-          this.collection.markAllRead()
-        }
-        break
+          break
+      }
     }
-  }
 
-  markAllRead(e) {
+    document.addEventListener("keydown", handleKeyDown)
+    return () => document.removeEventListener("keydown", handleKeyDown)
+  }, [items, selected])
+
+  // Effect 3: Selection change side effects
+  useEffect(() => {
+    if (prevSelectedRef.current && prevSelectedRef.current !== selected) {
+      prevSelectedRef.current.markRead()
+      ensureSelectedItemVisible()
+    }
+    prevSelectedRef.current = selected
+  }, [selected])
+
+  const markAllRead = (e) => {
     e.preventDefault()
-    this.collection.markAllRead()
+    collectionRef.current.markAllRead()
   }
 
-  refresh(e) {
+  const refresh = (e) => {
     e.preventDefault()
-    this.collection.fetch()
+    collectionRef.current.fetch()
   }
 
-  selectNext() {
-    var items = this.state.items
-    if(items.length == 0) {
-      return
+  const selectNext = useCallback(() => {
+    if(items.length === 0) return
+
+    const idx = items.indexOf(selected) + 1
+    if(idx >= items.length) return
+
+    setSelected(items[idx])
+  }, [items, selected])
+
+  const selectPrevious = useCallback(() => {
+    if(items.length === 0) return
+
+    const idx = items.indexOf(selected) - 1
+    if(idx < 0) return
+
+    setSelected(items[idx])
+  }, [items, selected])
+
+  const viewSelected = useCallback(() => {
+    if(selected) {
+      viewItem(selected)
     }
+  }, [selected])
 
-    var idx = items.indexOf(this.state.selected) + 1
-    if(idx >= items.length) {
-      return
-    }
+  const ensureSelectedItemVisible = useCallback(() => {
+    if(!selected) return
 
-    this.setState({selected: items[idx]})
-  }
+    const idx = items.indexOf(selected)
+    const el = itemRefs.current[idx]
 
-  selectPrevious() {
-    var items = this.state.items
+    if (!el) return
 
-    if(items.length == 0) {
-      return
-    }
-
-    var idx = items.indexOf(this.state.selected) - 1
-    if(idx < 0) {
-      return
-    }
-
-    this.setState({selected: items[idx]})
-  }
-
-  viewSelected() {
-    if(this.state.selected) {
-      viewItem(this.state.selected)
-    }
-  }
-
-  ensureSelectedItemVisible() {
-    if(!this.state.selected) {
-      return
-    }
-
-    var items = this.state.items
-    var idx = items.indexOf(this.state.selected)
-    var component = this.refs["itemidx-"+idx]
-    var el = ReactDOM.findDOMNode(component)
-    var rect = el.getBoundingClientRect()
-    var entirelyVisible = rect.top >= 0 && rect.left >= 0 && rect.bottom <= window.innerHeight && rect.right <= window.innerWidth
+    const rect = el.getBoundingClientRect()
+    const entirelyVisible = rect.top >= 0 &&
+                           rect.left >= 0 &&
+                           rect.bottom <= window.innerHeight &&
+                           rect.right <= window.innerWidth
 
     if(!entirelyVisible) {
       el.scrollIntoView()
     }
-  }
+  }, [items, selected])
+
+  return (
+    <div className="home">
+      <Actions
+        items={items}
+        markAllReadFn={markAllRead}
+        refreshFn={refresh}
+      />
+
+      <ul className="unreadItems">
+        {items.map((item, index) => (
+          <UnreadItem
+            key={item.id}
+            ref={(el) => itemRefs.current[index] = el}
+            item={item}
+            selected={item === selected}
+          />
+        ))}
+      </ul>
+
+      {items.length > 15 && (
+        <Actions
+          items={items}
+          markAllReadFn={markAllRead}
+          refreshFn={refresh}
+        />
+      )}
+    </div>
+  )
 }
 
-class Actions extends React.Component {
-  constructor(props, context) {
-    super(props, context)
-  }
-
-  render() {
-    if(this.props.items.length > 0) {
-      return (
-        <div className="pageActions">
-          <a href="#" className="markAllRead button" onClick={this.props.markAllReadFn}>Mark All Read</a>
-          <div className="keyboardShortcuts">
-            <dl>
-              <dt>Move down:</dt>
-              <dd>j</dd>
-              <dt>Move up:</dt>
-              <dd>k</dd>
-              <dt>Open selected:</dt>
-              <dd>v</dd>
-              <dt>Mark all read:</dt>
-              <dd>shift+a</dd>
-            </dl>
-          </div>
-        </div>
-      )
-    } else {
-      return (
-        <div className="pageActions">
-          <a href="#" className="refresh button" onClick={this.props.refreshFn}>Refresh</a>
-          <p className="noUnread">No unread items as of {toTPRString(new Date())}.</p>
-        </div>
-      )
-    }
-  }
-}
-
-class UnreadItem extends React.Component {
-  constructor(props, context) {
-    super(props, context)
-  }
-
-  shouldComponentUpdate(nextProps, nextState) {
-    return nextProps.selected !== this.props.selected
-  }
-
-  render() {
+function Actions({ items, markAllReadFn, refreshFn }) {
+  if(items.length > 0) {
     return (
-      <li className={this.props.selected ? "selected" : ""}>
-        <div className="title">
-          <a href={this.props.item.url} onClick={viewItem.bind(null, this.props.item)}>{this.props.item.title}</a>
+      <div className="pageActions">
+        <a href="#" className="markAllRead button" onClick={markAllReadFn}>
+          Mark All Read
+        </a>
+        <div className="keyboardShortcuts">
+          <dl>
+            <dt>Move down:</dt>
+            <dd>j</dd>
+            <dt>Move up:</dt>
+            <dd>k</dd>
+            <dt>Open selected:</dt>
+            <dd>v</dd>
+            <dt>Mark all read:</dt>
+            <dd>shift+a</dd>
+          </dl>
         </div>
-        <span className="meta">
-          <span className="feedName">{this.props.item.feed_name}</span>
-          {' '}
-          on
-          {' '}
-          <time dateTime={this.props.item.publication_time.toISOString()} className="publication">
-            {toTPRString(this.props.item.publication_time)}
-          </time>
-        </span>
-      </li>
+      </div>
+    )
+  } else {
+    return (
+      <div className="pageActions">
+        <a href="#" className="refresh button" onClick={refreshFn}>Refresh</a>
+        <p className="noUnread">No unread items as of {toTPRString(new Date())}.</p>
+      </div>
     )
   }
 }
+
+const UnreadItem = React.memo(React.forwardRef(({ item, selected }, ref) => {
+  return (
+    <li ref={ref} className={selected ? "selected" : ""}>
+      <div className="title">
+        <a href={item.url} onClick={(e) => viewItem(item, e)}>{item.title}</a>
+      </div>
+      <span className="meta">
+        <span className="feedName">{item.feed_name}</span>
+        {' '}
+        on
+        {' '}
+        <time dateTime={item.publication_time.toISOString()} className="publication">
+          {toTPRString(item.publication_time)}
+        </time>
+      </span>
+    </li>
+  )
+}))

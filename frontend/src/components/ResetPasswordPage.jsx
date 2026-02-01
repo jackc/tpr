@@ -1,68 +1,60 @@
-import React from 'react';
+import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {conn} from '../connection.js'
 import Session from '../session.js'
 
-export default class ResetPasswordPage extends React.Component {
-  constructor(props, context) {
-    super(props, context)
-    this.state = {
-      token: window.location.hash.split("=")[1],
-      password: null
-    }
+export default function ResetPasswordPage() {
+  const navigate = useNavigate()
+  const [token] = useState(window.location.hash.split("=")[1])
+  const [password, setPassword] = useState('')
 
-    this.handleChange = this.handleChange.bind(this)
-    this.resetPassword = this.resetPassword.bind(this)
-    this.onResetPasswordSuccess = this.onResetPasswordSuccess.bind(this)
-    this.onResetPasswordFailure = this.onResetPasswordFailure.bind(this)
+  const handleChange = (e) => {
+    setPassword(e.target.value)
   }
 
-  handleChange(name, event) {
-    var h = {}
-    h[name] = event.target.value
-    this.setState(h)
-  }
-
-  render() {
-    return (
-      <div className="lostPassword">
-        <header>
-          <h1>The Pithy Reader</h1>
-        </header>
-        <form onSubmit={this.resetPassword}>
-          <dl>
-            <dt>
-              <label htmlFor="password">Password</label>
-            </dt>
-            <dd><input type="password" id="password" autofocus value={this.state.password} onChange={this.handleChange.bind(null, "password")} /></dd>
-          </dl>
-
-          <input type="submit" value="Reset Password" />
-        </form>
-      </div>
-    )
-  }
-
-  resetPassword(e) {
+  const resetPassword = (e) => {
     e.preventDefault()
-    var reset = {
-      "token": this.state.token,
-      "password": this.state.password
+    const reset = {
+      token: token,
+      password: password
     }
+
     conn.resetPassword(reset, {
-      succeeded: this.onResetPasswordSuccess,
-      failed: function(_, response) { this.onResetPasswordFailure(response.responseText) }.bind(this)
+      succeeded: (data) => {
+        alert("Successfully reset password")
+        Session.id = data.sessionID
+        Session.name = data.name
+        navigate('/home')
+      },
+      failed: () => {
+        alert("Failure resetting password")
+      }
     })
   }
 
-  onResetPasswordSuccess(data) {
-    alert("Successfully reset password")
-    Session.id = data.sessionID
-    Session.name = data.name
-    this.context.router.push('home')
-  }
+  return (
+    <div className="lostPassword">
+      <header>
+        <h1>The Pithy Reader</h1>
+      </header>
+      <form onSubmit={resetPassword}>
+        <dl>
+          <dt>
+            <label htmlFor="password">Password</label>
+          </dt>
+          <dd>
+            <input
+              type="password"
+              id="password"
+              autoFocus
+              value={password}
+              onChange={handleChange}
+            />
+          </dd>
+        </dl>
 
-  onResetPasswordFailure(response) {
-    alert("Failure resetting password")
-  }
+        <input type="submit" value="Reset Password" />
+      </form>
+    </div>
+  )
 }
-
