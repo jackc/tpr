@@ -2,6 +2,7 @@
   "name": "frontend",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "main": "index.js",
   "dependencies": {
     "prop-types": "^15.8.1",

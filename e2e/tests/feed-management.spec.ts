@@ -2,6 +2,9 @@ import { test, expect } from '@playwright/test';
 import { resetDatabase, createUser } from '../fixtures/database';
 import { login } from '../fixtures/test-helpers';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 test.describe('Feed Management', () => {
   test.beforeEach(async () => {
