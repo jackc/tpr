@@ -1,20 +1,14 @@
 import React from 'react'
+import { Outlet } from 'react-router-dom'
 import Header from './Header.jsx'
 import WorkingNotice from './WorkingNotice.jsx'
 
-export default class App extends React.Component {
-  constructor(props, context) {
-    super(props, context)
-    window.router = context.router
-  }
-
-  render() {
-    return (
-      <div>
-        <WorkingNotice />
-        <Header />
-        {this.props.children}
-      </div>
-    )
-  }
+export default function App() {
+  return (
+    <div>
+      <WorkingNotice />
+      <Header />
+      <Outlet />
+    </div>
+  )
 }

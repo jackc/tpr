@@ -1,31 +1,26 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react'
 import {conn} from '../connection.js'
-import Session from '../session.js'
-import{toTPRString} from '../date.js'
 
-export default class WorkingNotice extends React.Component {
-  constructor(props, context) {
-    super(props, context)
-    this.state = {
-        display: "none"
-      }
-  }
+export default function WorkingNotice() {
+  const [display, setDisplay] = useState("none")
 
-  componentDidMount() {
-    conn.firstAjaxStarted.add(function() {
-      this.setState({display: ""})
-    }.bind(this))
+  useEffect(() => {
+    const handleStart = () => setDisplay("")
+    const handleFinish = () => setDisplay("none")
 
-    conn.lastAjaxFinished.add(function() {
-      this.setState({display: "none"})
-    }.bind(this))
-  }
+    conn.firstAjaxStarted.add(handleStart)
+    conn.lastAjaxFinished.add(handleFinish)
 
-  render() {
-    return (
-      <div id="working_notice" style={{display: this.state.display}}>
-        <div>Working...</div>
-      </div>
-    )
-  }
+    // CRITICAL: Clean up signal listeners to prevent memory leaks
+    return () => {
+      conn.firstAjaxStarted.remove(handleStart)
+      conn.lastAjaxFinished.remove(handleFinish)
+    }
+  }, [])
+
+  return (
+    <div id="working_notice" style={{display}}>
+      <div>Working...</div>
+    </div>
+  )
 }

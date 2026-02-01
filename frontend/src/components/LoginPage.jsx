@@ -1,80 +1,77 @@
-import React from 'react'
-import PropTypes from 'prop-types'
-import { Link } from 'react-router'
+import React, { useState } from 'react'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import {conn} from '../connection.js'
 import Session from '../session.js'
 
-export default class LoginPage extends React.Component {
-  constructor(props, context) {
-    super(props, context)
-    this.state = {
-      name: null,
-      password: null
-    }
+export default function LoginPage() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [formData, setFormData] = useState({
+    name: '',
+    password: ''
+  })
 
-    this.handleChange = this.handleChange.bind(this)
-    this.login = this.login.bind(this)
-    this.onLoginSuccess = this.onLoginSuccess.bind(this)
-    this.onLoginFailure = this.onLoginFailure.bind(this)
+  const handleChange = (name, e) => {
+    setFormData(prev => ({...prev, [name]: e.target.value}))
   }
 
-  handleChange(name, event) {
-    var h = {}
-    h[name] = event.target.value
-    this.setState(h)
-  }
-
-  render() {
-    return (
-      <div className="login">
-        <form onSubmit={this.login}>
-          <dl>
-            <dt>
-              <label htmlFor="name">User name</label>
-            </dt>
-            <dd><input type="text" id="name" autofocus value={this.state.name} onChange={this.handleChange.bind(null, "name")} /></dd>
-
-            <dt>
-              <label htmlFor="password">Password</label>
-            </dt>
-            <dd><input type="password" id="password" value={this.state.password} onChange={this.handleChange.bind(null, "password")} /></dd>
-          </dl>
-
-          <input type="submit" value="Login" />
-          {' '}
-
-          <Link to="/register" className="register">Create an account</Link>
-          {' '}
-          <Link to="/lostPassword" className="lostPassword">Lost password</Link>
-        </form>
-      </div>
-    );
-  }
-
-  login(e) {
+  const login = (e) => {
     e.preventDefault()
 
-    var credentials = {
-      name: this.state.name,
-      password: this.state.password
+    const credentials = {
+      name: formData.name,
+      password: formData.password
     }
+
     conn.login(credentials, {
-      succeeded: this.onLoginSuccess,
-      failed: function(_, response) { this.onLoginFailure(response.responseText) }.bind(this)
+      succeeded: (data) => {
+        Session.id = data.sessionID
+        Session.name = data.name
+        const from = location.state?.from?.pathname || '/home'
+        navigate(from, { replace: true })
+      },
+      failed: (_, response) => {
+        alert(response.responseText)
+      }
     })
   }
 
-  onLoginSuccess(data) {
-    Session.id = data.sessionID
-    Session.name = data.name
-    this.context.router.push('home')
-  }
+  return (
+    <div className="login">
+      <form onSubmit={login}>
+        <dl>
+          <dt>
+            <label htmlFor="name">User name</label>
+          </dt>
+          <dd>
+            <input
+              type="text"
+              id="name"
+              autoFocus
+              value={formData.name}
+              onChange={(e) => handleChange("name", e)}
+            />
+          </dd>
 
-  onLoginFailure(response) {
-    alert(response)
-  }
-}
+          <dt>
+            <label htmlFor="password">Password</label>
+          </dt>
+          <dd>
+            <input
+              type="password"
+              id="password"
+              value={formData.password}
+              onChange={(e) => handleChange("password", e)}
+            />
+          </dd>
+        </dl>
 
-LoginPage.contextTypes = {
-  router: PropTypes.object
+        <input type="submit" value="Login" />
+        {' '}
+        <Link to="/register" className="register">Create an account</Link>
+        {' '}
+        <Link to="/lostPassword" className="lostPassword">Lost password</Link>
+      </form>
+    </div>
+  )
 }

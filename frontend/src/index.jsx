@@ -1,6 +1,6 @@
 import React from 'react'
 import { createRoot } from 'react-dom/client'
-import { Router, Route, IndexRoute, Link, hashHistory } from 'react-router'
+import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import App from './components/App.jsx'
 import LoginPage from './components/LoginPage.jsx'
 import HomePage from './components/HomePage.jsx'
@@ -14,29 +14,31 @@ import Session from './session.js'
 
 import styles from './main.scss'
 
+// Protected Route Component - redirects to login if not authenticated
+function ProtectedRoute({ children }) {
+  const location = useLocation()
 
-function requireAuth(nextState, replace) {
   if (!Session.isAuthenticated()) {
-    replace({
-      pathname: '/login',
-      state: { nextPathname: nextState.location.pathname }
-    })
+    return <Navigate to="/login" state={{ from: location }} replace />
   }
+  return children
 }
 
 const root = createRoot(document.getElementById('view'))
 root.render(
-  <Router history={hashHistory}>
-    <Route path="/" component={App}>
-      <IndexRoute component={HomePage} onEnter={requireAuth} />
-      <Route path="/login" component={LoginPage} />
-      <Route path="/home" component={HomePage} onEnter={requireAuth} />
-      <Route path="/archive" component={ArchivePage} onEnter={requireAuth} />
-      <Route path="/feeds" component={FeedsPage} onEnter={requireAuth} />
-      <Route path="/account" component={AccountPage} onEnter={requireAuth} />
-      <Route path="/register" component={RegisterPage} />
-      <Route path="/lostPassword" component={LostPasswordPage} />
-      <Route path="/resetPassword" component={ResetPasswordPage} />
-    </Route>
-  </Router>
+  <HashRouter>
+    <Routes>
+      <Route path="/" element={<App />}>
+        <Route index element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+        <Route path="login" element={<LoginPage />} />
+        <Route path="home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+        <Route path="archive" element={<ProtectedRoute><ArchivePage /></ProtectedRoute>} />
+        <Route path="feeds" element={<ProtectedRoute><FeedsPage /></ProtectedRoute>} />
+        <Route path="account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
+        <Route path="register" element={<RegisterPage />} />
+        <Route path="lostPassword" element={<LostPasswordPage />} />
+        <Route path="resetPassword" element={<ResetPasswordPage />} />
+      </Route>
+    </Routes>
+  </HashRouter>
 )
