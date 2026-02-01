@@ -15,6 +15,9 @@ test.describe('Account Management', () => {
     // Navigate to account page
     await page.getByRole('link', { name: 'Account' }).click();
 
+    // Wait for the account page to load
+    await expect(page.getByLabel('Existing Password')).toBeVisible();
+
     // Fill in password change form
     await page.getByLabel('Existing Password').fill('secret');
     await page.getByLabel('New Password').fill('bigsecret');
@@ -41,6 +44,9 @@ test.describe('Account Management', () => {
 
     // Navigate to account page
     await page.getByRole('link', { name: 'Account' }).click();
+
+    // Wait for the account page to load
+    await expect(page.getByLabel('Existing Password')).toBeVisible();
 
     // Fill in password change form with wrong existing password
     await page.getByLabel('Existing Password').fill('wrong');

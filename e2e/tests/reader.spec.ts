@@ -109,7 +109,9 @@ test.describe('Reader Functionality', () => {
 
     // Navigate away and back
     await page.getByRole('link', { name: 'Feeds' }).click();
+    await expect(page.getByLabel('Feed URL')).toBeVisible();
     await page.getByRole('link', { name: 'Home' }).click();
+    await expect(page.locator('body')).toContainText('unread');
 
     // First post should be gone (was auto-marked as read), second should still be there
     await expect(page.locator('body')).not.toContainText('First Post');
@@ -153,6 +155,7 @@ test.describe('Reader Functionality', () => {
 
     // Go to Archive
     await page.getByRole('link', { name: 'Archive' }).click();
+    await page.waitForLoadState('networkidle');
 
     // Verify archived item is shown
     await expect(page.locator('body')).toContainText('First Post');

@@ -11,6 +11,9 @@ test.describe('User Registration', () => {
 
     await page.getByRole('link', { name: 'Create an account' }).click();
 
+    // Wait for registration form to load
+    await expect(page.getByLabel('User name')).toBeVisible();
+
     await page.getByLabel('User name').fill('joe1');
     await page.getByLabel(/Email \(optional\)/).fill('joe@example.com');
     await page.getByLabel('Password', { exact: true }).fill('bigsecret');
@@ -31,6 +34,9 @@ test.describe('User Registration', () => {
     await page.goto('/#login');
 
     await page.getByRole('link', { name: 'Create an account' }).click();
+
+    // Wait for registration form to load
+    await expect(page.getByLabel('User name')).toBeVisible();
 
     await page.getByLabel('User name').fill('joe2');
     await page.getByLabel('Password', { exact: true }).fill('bigsecret');

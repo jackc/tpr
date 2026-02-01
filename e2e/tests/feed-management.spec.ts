@@ -16,6 +16,9 @@ test.describe('Feed Management', () => {
     // Navigate to feeds page
     await page.getByRole('link', { name: 'Feeds' }).click();
 
+    // Wait for feeds page to load
+    await expect(page.getByLabel('Feed URL')).toBeVisible();
+
     // Subscribe to a feed
     await page.getByLabel('Feed URL').fill('http://localhost:1234');
     await page.getByRole('button', { name: 'Subscribe' }).click();
@@ -31,6 +34,9 @@ test.describe('Feed Management', () => {
 
     // Navigate to feeds page
     await page.getByRole('link', { name: 'Feeds' }).click();
+
+    // Wait for feeds page to load
+    await expect(page.locator('[type=file]')).toBeVisible();
 
     // Upload OPML file
     const opmlPath = path.join(__dirname, '../../test/testdata/opml.xml');
