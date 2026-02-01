@@ -20,7 +20,7 @@
   },
 
   // Use 'forwardPorts' to make a list of ports inside the container available locally.
-  "forwardPorts": [4000, 5173, 5432],
+  "forwardPorts": [4000, 5173, 5432, 9323],
 
   "portsAttributes": {
     "4000": {
@@ -31,6 +31,9 @@
     },
     "5432": {
       "label": "PostgreSQL"
+    },
+    "9323": {
+      "label": "Playwright Report"
     }
   },
 

@@ -14,7 +14,7 @@ export default defineConfig({
 
   workers: 1,
 
-  reporter: 'html',
+  reporter: [['html', { open: 'never' }]],
 
   use: {
     baseURL: 'http://127.0.0.1:5000',
