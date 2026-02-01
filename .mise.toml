@@ -16,8 +16,6 @@ TESTBROWSER_MAX_CONCURRENT_TESTS = "4"
 TERN_CONFIG = "postgresql/tern.conf"
 TERN_MIGRATIONS = "postgresql/migrations"
 
-TESTBROWSER_CHROME_BINARY = "{{env.HOME}}/.cache/ms-playwright/chromium-1208/chrome-linux/chrome"
-
 # Production configuration
 # PRODUCTION_HOST = "example.com"
 
