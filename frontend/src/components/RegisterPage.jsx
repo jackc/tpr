@@ -1,4 +1,5 @@
 import React from 'react'
+import PropTypes from 'prop-types'
 import { Link } from 'react-router'
 import {conn} from '../connection.js'
 import Session from '../session.js'
@@ -87,5 +88,5 @@ export default class RegisterPage extends React.Component {
 }
 
 RegisterPage.contextTypes = {
-  router: React.PropTypes.object
+  router: PropTypes.object
 }

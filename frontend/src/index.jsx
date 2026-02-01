@@ -1,5 +1,5 @@
 import React from 'react'
-import ReactDOM from 'react-dom'
+import { createRoot } from 'react-dom/client'
 import { Router, Route, IndexRoute, Link, hashHistory } from 'react-router'
 import App from './components/App.jsx'
 import LoginPage from './components/LoginPage.jsx'
@@ -24,7 +24,8 @@ function requireAuth(nextState, replace) {
   }
 }
 
-ReactDOM.render((
+const root = createRoot(document.getElementById('view'))
+root.render(
   <Router history={hashHistory}>
     <Route path="/" component={App}>
       <IndexRoute component={HomePage} onEnter={requireAuth} />
@@ -38,4 +39,4 @@ ReactDOM.render((
       <Route path="/resetPassword" component={ResetPasswordPage} />
     </Route>
   </Router>
-), document.getElementById('view'))
+)

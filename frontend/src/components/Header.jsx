@@ -1,4 +1,5 @@
 import React from 'react'
+import PropTypes from 'prop-types'
 import { Link } from 'react-router'
 import Session from '../session.js'
 import {conn} from '../connection.js'
@@ -44,5 +45,5 @@ export default class Header extends React.Component {
 }
 
 Header.contextTypes = {
-  router: React.PropTypes.object
+  router: PropTypes.object
 }

@@ -1,4 +1,5 @@
 import React from 'react'
+import PropTypes from 'prop-types'
 import { Link } from 'react-router'
 import {conn} from '../connection.js'
 import Session from '../session.js'
@@ -75,5 +76,5 @@ export default class LoginPage extends React.Component {
 }
 
 LoginPage.contextTypes = {
-  router: React.PropTypes.object
+  router: PropTypes.object
 }
