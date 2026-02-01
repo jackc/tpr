@@ -4,7 +4,7 @@
 	import '../styles/main.scss';
 </script>
 
-<div>
+<div id="view">
 	<WorkingNotice />
 	<Header />
 	<slot />
