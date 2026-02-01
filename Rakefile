@@ -20,8 +20,8 @@ namespace :build do
 
   desc "Build assets"
   task assets: :directory do
-    sh "npx vite --outDir ../build/assets build frontend"
-    Dir.glob("build/assets/**/*.{js,html}").each do |path|
+    sh "npm run build"
+    Dir.glob("build/assets/**/*.{js,css,html}").each do |path|
       sh "zopfli", path
     end
   end
