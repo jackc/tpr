@@ -52,9 +52,9 @@ This document provides context for AI assistants (like Claude) working with The 
    - Raw SQL queries (no ORM)
 
 6. **frontend/src/**: React application
-   - Legacy React 0.14.7 (pre-hooks)
-   - React Router v2
-   - Component-based architecture
+   - React 18.2.0 with modern hooks
+   - React Router v6
+   - Functional component architecture with hooks
 
 ## Code Patterns and Conventions
 
@@ -107,31 +107,36 @@ if err != nil {
 #### Component Structure
 
 ```jsx
-var ComponentName = React.createClass({
-  getInitialState: function() {
-    return {/* initial state */};
-  },
-  componentDidMount: function() {
+import React, { useState, useEffect } from 'react'
+
+function ComponentName() {
+  const [state, setState] = useState(/* initial state */)
+
+  useEffect(() => {
     // Setup
-  },
-  render: function() {
-    return <div>...</div>;
-  }
-});
+    return () => {
+      // Cleanup
+    }
+  }, [])
+
+  return <div>...</div>
+}
 ```
 
-Note: This is **React 0.14.7** - no hooks, no functional components with state.
+Note: This is **React 18.2.0** - uses modern functional components with hooks.
 
 #### Routing
 
-Uses React Router v2:
+Uses React Router v6:
 ```jsx
-<Router history={browserHistory}>
-  <Route path="/" component={App}>
-    <IndexRoute component={HomePage} />
-    <Route path="login" component={LoginPage} />
-  </Route>
-</Router>
+<HashRouter>
+  <Routes>
+    <Route path="/" element={<App />}>
+      <Route index element={<HomePage />} />
+      <Route path="login" element={<LoginPage />} />
+    </Route>
+  </Routes>
+</HashRouter>
 ```
 
 #### State Management
@@ -223,15 +228,22 @@ Uses React Router v2:
 
 1. Create file: `frontend/src/components/ComponentName.jsx`
 
-2. Use React.createClass pattern:
+2. Use functional component with hooks:
    ```jsx
-   var ComponentName = React.createClass({
-     render: function() {
-       return <div>Component content</div>;
-     }
-   });
+   import React, { useState, useEffect } from 'react'
 
-   export default ComponentName;
+   export default function ComponentName() {
+     const [state, setState] = useState(initialValue)
+
+     useEffect(() => {
+       // Side effects
+       return () => {
+         // Cleanup
+       }
+     }, [dependencies])
+
+     return <div>Component content</div>
+   }
    ```
 
 3. Import where needed:
@@ -275,25 +287,25 @@ npm run test:e2e:ui      # Interactive mode
 
 ### Backend
 
-1. **Old React Version**: Frontend uses React 0.14.7 (2016). No hooks, fragments, or modern features.
+1. **Session Authentication**: Uses custom `X-Authentication` header, not cookies. Frontend must send this header.
 
-2. **Session Authentication**: Uses custom `X-Authentication` header, not cookies. Frontend must send this header.
+2. **pgx Context**: Always pass `context.Context` as first parameter to database functions.
 
-3. **pgx Context**: Always pass `context.Context` as first parameter to database functions.
+3. **Error Responses**: Must manually set HTTP status codes. No automatic error handling.
 
-4. **Error Responses**: Must manually set HTTP status codes. No automatic error handling.
+4. **Feed Updater**: Runs in background goroutine. Be careful with shared state.
 
-5. **Feed Updater**: Runs in background goroutine. Be careful with shared state.
-
-6. **SQL Injection**: Uses pgx's prepared statements. Always use `$1, $2` placeholders.
+5. **SQL Injection**: Uses pgx's prepared statements. Always use `$1, $2` placeholders.
 
 ### Frontend
 
-1. **No JSX Transform**: Using old JSX syntax. May need pragma comments.
+1. **Modern React 18**: Uses functional components with hooks. Always use useState, useEffect, useCallback, etc.
 
-2. **React Router v2**: Old API. Use `browserHistory`, not `BrowserRouter`.
+2. **React Router v6**: Uses `<HashRouter>`, `<Routes>`, and `element` prop. Navigation via `useNavigate()` hook.
 
-3. **No Module Bundler State**: Vite is added later. Some old patterns may exist.
+3. **Signals Library**: Used for pub/sub between components (WorkingNotice, HomePage, ArchivePage). Always clean up signal listeners in useEffect return functions.
+
+4. **Vite Build Tool**: Modern build tool with Fast Refresh. Run `npm run dev` for development server.
 
 4. **Signals Library**: Used for pub/sub between components. Check before adding new state management.
 
@@ -341,7 +353,8 @@ npm run test:e2e:ui      # Interactive mode
 
 - [pgx Documentation](https://github.com/jackc/pgx)
 - [chi Router](https://github.com/go-chi/chi)
-- [React 0.14 Docs](https://legacy.reactjs.org/docs/react-api.html)
+- [React 18 Docs](https://react.dev/)
+- [React Router v6 Docs](https://reactrouter.com/)
 - [Tern Migrations](https://github.com/jackc/tern)
 - [Playwright](https://playwright.dev)
 
@@ -364,7 +377,7 @@ npm run test:e2e:ui      # Interactive mode
 
 When modifying this codebase:
 
-1. **Maintain compatibility**: Keep using React 0.14.7 patterns unless upgrading
+1. **Use modern patterns**: Use functional components with hooks (useState, useEffect, useCallback, etc.)
 2. **Write tests**: Add tests for new backend functionality
 3. **Migrations**: Always include both up and down migrations
 4. **Security**: Validate input, use prepared statements, hash passwords

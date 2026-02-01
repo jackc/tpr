@@ -26,19 +26,21 @@ function ProtectedRoute({ children }) {
 
 const root = createRoot(document.getElementById('view'))
 root.render(
-  <HashRouter>
-    <Routes>
-      <Route path="/" element={<App />}>
-        <Route index element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
-        <Route path="login" element={<LoginPage />} />
-        <Route path="home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
-        <Route path="archive" element={<ProtectedRoute><ArchivePage /></ProtectedRoute>} />
-        <Route path="feeds" element={<ProtectedRoute><FeedsPage /></ProtectedRoute>} />
-        <Route path="account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
-        <Route path="register" element={<RegisterPage />} />
-        <Route path="lostPassword" element={<LostPasswordPage />} />
-        <Route path="resetPassword" element={<ResetPasswordPage />} />
-      </Route>
-    </Routes>
-  </HashRouter>
+  <React.StrictMode>
+    <HashRouter>
+      <Routes>
+        <Route path="/" element={<App />}>
+          <Route index element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+          <Route path="login" element={<LoginPage />} />
+          <Route path="home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+          <Route path="archive" element={<ProtectedRoute><ArchivePage /></ProtectedRoute>} />
+          <Route path="feeds" element={<ProtectedRoute><FeedsPage /></ProtectedRoute>} />
+          <Route path="account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
+          <Route path="register" element={<RegisterPage />} />
+          <Route path="lostPassword" element={<LostPasswordPage />} />
+          <Route path="resetPassword" element={<ResetPasswordPage />} />
+        </Route>
+      </Routes>
+    </HashRouter>
+  </React.StrictMode>
 )
