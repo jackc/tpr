@@ -116,7 +116,6 @@
 
 <div class="home">
 	{#if items.length > 0}
-		<p class="unreadCount">{items.length} unread {items.length === 1 ? 'item' : 'items'}</p>
 		<div class="pageActions">
 			<a href="#" class="markAllRead button" on:click={markAllRead}> Mark All Read </a>
 			<div class="keyboardShortcuts">
