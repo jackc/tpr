@@ -12,7 +12,7 @@ import ResetPasswordPage from './components/ResetPasswordPage.jsx'
 import RegisterPage from './components/RegisterPage.jsx'
 import Session from './session.js'
 
-import styles from './main.scss'
+import './main.scss'
 
 // Protected Route Component - redirects to login if not authenticated
 function ProtectedRoute({ children }) {
