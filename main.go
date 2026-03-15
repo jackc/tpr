@@ -54,7 +54,7 @@ func main() {
 
 	serverFlags := []cli.Flag{
 		cli.StringFlag{
-			Name:   "address, a",
+			Name:   "bind-address, a",
 			Value:  "127.0.0.1",
 			EnvVar: "BIND_ADDRESS",
 			Usage:  "address to listen on",
@@ -221,7 +221,7 @@ func newMailer(c *cli.Context, logger log.Logger) (backend.Mailer, error) {
 
 func Serve(c *cli.Context) {
 	httpConfig := backend.HTTPConfig{
-		ListenAddress: c.String("address"),
+		ListenAddress: c.String("bind-address"),
 		ListenPort:    c.String("port"),
 	}
 
