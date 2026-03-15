@@ -17,7 +17,7 @@ export default defineConfig({
   reporter: [['html', { open: 'never' }]],
 
   use: {
-    baseURL: 'http://127.0.0.1:5000',
+    baseURL: 'http://127.0.0.1:5174',
 
     trace: 'on-first-retry',
 
@@ -33,15 +33,15 @@ export default defineConfig({
 
   webServer: [
     {
-      command: 'npm run dev',
-      port: 5173,
+      command: 'API_PORT=5000 npm run dev -- --port 5174',
+      port: 5174,
       reuseExistingServer: !process.env.CI,
       timeout: 120000,
       stdout: 'pipe',
       stderr: 'pipe',
     },
     {
-      command: 'TEST_ENDPOINTS=true DATABASE_URL=postgres://tpr:secret@127.0.0.1:5432/tpr_test LOG_LEVEL=none go run main.go server --port 5000 --static-url http://127.0.0.1:5173',
+      command: 'TEST_ENDPOINTS=true DATABASE_URL=postgres://tpr:secret@127.0.0.1:5432/tpr_test LOG_LEVEL=none go run main.go server --port 5000',
       port: 5000,
       reuseExistingServer: !process.env.CI,
       timeout: 120000,

@@ -9,9 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/http/httputil"
 	"net/netip"
-	"net/url"
 	"os"
 	"strconv"
 	"time"
@@ -28,7 +26,6 @@ import (
 type HTTPConfig struct {
 	ListenAddress string
 	ListenPort    string
-	StaticURL     string
 }
 
 type EnvHandlerFunc func(w http.ResponseWriter, req *http.Request, env *environment)
@@ -60,14 +57,6 @@ type AppServer struct {
 
 func NewAppServer(httpConfig HTTPConfig, pool *pgxpool.Pool, mailer Mailer, logger log.Logger) (*AppServer, error) {
 	r := chi.NewRouter()
-
-	if httpConfig.StaticURL != "" {
-		staticURL, err := url.Parse(httpConfig.StaticURL)
-		if err != nil {
-			return nil, fmt.Errorf("bad static-url: %v", err)
-		}
-		r.Handle("/*", httputil.NewSingleHostReverseProxy(staticURL))
-	}
 
 	r.Get("/health", func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")

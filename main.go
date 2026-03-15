@@ -66,12 +66,6 @@ func main() {
 			Usage:  "port to listen on",
 		},
 		cli.StringFlag{
-			Name:   "static-url",
-			Value:  "",
-			EnvVar: "STATIC_URL",
-			Usage:  "reverse proxy static asset requests to URL",
-		},
-		cli.StringFlag{
 			Name:   "smtp-server",
 			EnvVar: "SMTP_SERVER",
 			Usage:  "SMTP server hostname",
@@ -229,7 +223,6 @@ func Serve(c *cli.Context) {
 	httpConfig := backend.HTTPConfig{
 		ListenAddress: c.String("address"),
 		ListenPort:    c.String("port"),
-		StaticURL:     c.String("static-url"),
 	}
 
 	logger, err := newLogger(c)
