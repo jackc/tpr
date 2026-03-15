@@ -115,39 +115,42 @@ tpr-a/
 │   └── migrations/
 ├── e2e/             # Playwright E2E tests
 ├── test/            # Test utilities and fixtures
-├── config/          # systemd and nginx configs
+├── deploy/          # verna deployment configuration
 ├── main.go          # Application entry point
 └── Rakefile         # Build tasks
 ```
 
 ## Building for Production
 
-Build all assets and binaries:
+Build a deployment tarball:
 ```bash
-rake build
+rake build/linux_amd64.tar.gz
 ```
 
-This creates:
-- `build/assets/` - Minified and compressed frontend assets
-- `build/tpr` - Native binary
-- `build/tpr-linux` - Linux AMD64 binary
+This creates a tarball containing:
+- `tpr` - Linux AMD64 binary
+- `assets/` - Frontend static assets
+- `VERSION` - Git commit hash
+
+Other targets: `linux_arm64`, `darwin_amd64`, `darwin_arm64`.
 
 ## Deployment
 
-1. Configure production host in `.mise.local.toml`:
+Deployment uses [verna](https://github.com/jackc/verna) with Caddy as the reverse proxy.
+
+1. Configure verna in `.mise.local.toml`:
    ```toml
    [env]
-   PRODUCTION_HOST = "your.server.com"
+   VERNA_SSH_HOST = "your.server.com"
+   VERNA_APP = "tpr"
    ```
 
-2. Deploy:
+2. Build and deploy:
    ```bash
-   bin/deploy production
+   rake build/linux_amd64.tar.gz && verna app deploy build/linux_amd64.tar.gz
    ```
 
-### Server Configuration
-
-Sample systemd service and nginx configurations are in the `config/` directory.
+The Caddy reverse proxy template is in `deploy/caddy-handle-template.json`.
 
 ## CLI Usage
 

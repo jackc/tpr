@@ -377,11 +377,12 @@ CLI flags take the same names with `--` prefix (e.g., `--db-host`, `--log-level`
 
 ## Deployment
 
-1. **Build**: `rake build` creates production assets
-2. **Deploy**: `bin/deploy production` deploys to configured host
-3. **Config**: Set `PRODUCTION_HOST` in `.mise.local.toml`
-4. **Systemd**: Sample service file in `config/systemd/tpr.service`
-5. **Nginx**: Sample reverse proxy config in `config/nginx/tpr`
+Deployment uses [verna](https://github.com/jackc/verna) with Caddy as the reverse proxy.
+
+1. **Build**: `rake build/linux_amd64.tar.gz` creates a deployment tarball
+2. **Deploy**: `verna app deploy build/linux_amd64.tar.gz`
+3. **Config**: Set `VERNA_SSH_HOST` and `VERNA_APP` in `.mise.local.toml`
+4. **Caddy**: Reverse proxy template in `deploy/caddy-handle-template.json`
 
 ## Resources
 
@@ -436,7 +437,7 @@ When working on new features, consider:
 - Database connection pooling via pgxpool (max 10 connections)
 - Feed updates run continuously in background
 - Frontend is mostly static after build
-- Gzip/zopfli compression on static assets
+- Caddy serves precompressed static assets
 - PostgreSQL indexes on frequently queried columns
 - Consider N+1 queries when adding new features
 
