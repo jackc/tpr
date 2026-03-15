@@ -1,6 +1,6 @@
 # The Pithy Reader
 
-A lightweight, self-hosted RSS/Atom feed aggregator written in Go with a React frontend.
+A lightweight, self-hosted RSS/Atom feed aggregator written in Go with a SvelteKit frontend.
 
 ## Features
 
@@ -17,7 +17,7 @@ A lightweight, self-hosted RSS/Atom feed aggregator written in Go with a React f
 - `j` - Select next item
 - `k` - Select previous item
 - `v` - Open item in new tab
-- `shift+a` - Mark all items as read
+- `shift+a` - Mark all items as read (home page)
 
 ## Tech Stack
 
@@ -30,10 +30,11 @@ A lightweight, self-hosted RSS/Atom feed aggregator written in Go with a React f
 - **Email**: SMTP for password reset
 
 ### Frontend
-- **Framework**: React 0.14.7
-- **Router**: React Router v2
-- **Build Tool**: Vite
+- **Framework**: [Svelte 5](https://svelte.dev/) with [SvelteKit](https://svelte.dev/docs/kit)
+- **Routing**: SvelteKit file-based routing
+- **Build Tool**: [Vite 8](https://vite.dev/)
 - **Styling**: Sass
+- **Static Adapter**: [@sveltejs/adapter-static](https://svelte.dev/docs/kit/adapter-static)
 
 ### Testing
 - **Backend**: Go standard testing + [testify](https://github.com/stretchr/testify)
@@ -46,7 +47,8 @@ The application follows a traditional client-server architecture:
 - **HTTP API** (`/api/*`) handles all client requests
 - **Session-based authentication** using PostgreSQL-backed sessions
 - **Background feed updater** runs continuously to fetch new feed items
-- **Static asset serving** via Vite dev server (development) or reverse proxy (production)
+- **Vite dev server** proxies `/api` requests to the Go backend in development
+- **Caddy** reverse proxy serves the app in production
 
 ### Database Schema
 
@@ -64,29 +66,34 @@ Key tables:
 ### Prerequisites
 
 - Go 1.25+
-- Node.js 18+
+- Node.js 24+
 - PostgreSQL 14+
-- Ruby (for Rake build tasks)
+- Ruby 4+ (for Rake build tasks)
 
 ### Setup
 
 The preferred development environment is the provided devcontainer, which includes all dependencies pre-configured.
 
-The following two servers need to run in development to use the system.
+The following two servers need to run in development:
 
-- `rake rerun` - run Go server, automatically rebuilds on change.
-- `npx vite serve frontend` - run Vite server for asset building.
+- `rake rerun` - run Go server on port 4000, automatically rebuilds on change.
+- `npm run dev` - run Vite dev server on port 5173, proxies `/api` to Go server.
 
 If using VS Code, they automatically run via VS Code tasks. When you first open the devcontainer, VS Code tasks will
 auto-start but may fail. Manually restart them:
 - Restart the "Go HTTP Server" task
-- Restart the "Vite Dev Server" task
+- Restart the "Vite Dev" task
 
 ### Running Tests
 
-Run all backend tests:
+Run all tests (backend + E2E):
 ```bash
 rake
+```
+
+Run backend tests only:
+```bash
+rake test:backend
 ```
 
 The rake task automatically sets up test databases before running Go tests.
@@ -102,22 +109,24 @@ npm run test:e2e:ui       # Interactive UI mode
 
 ```
 tpr-a/
-├── backend/           # Go backend code
-│   ├── data/         # Database models and queries
-│   ├── http.go       # HTTP server and routing
-│   ├── domain.go     # Domain types
-│   └── feed_updater.go  # Background feed fetcher
-├── frontend/         # React frontend
-│   └── src/
-│       ├── components/  # React components
-│       └── index.jsx    # Entry point
-├── postgresql/       # Database migrations
+├── backend/             # Go backend code
+│   ├── data/           # Database models and queries
+│   ├── http.go         # HTTP server and routing
+│   ├── domain.go       # Domain types
+│   └── feed_updater.go # Background feed fetcher
+├── src/                 # SvelteKit frontend
+│   ├── routes/         # SvelteKit file-based routes
+│   ├── lib/            # Shared components, models, and utilities
+│   └── styles/         # Sass stylesheets
+├── postgresql/          # Database migrations
 │   └── migrations/
-├── e2e/             # Playwright E2E tests
-├── test/            # Test utilities and fixtures
-├── deploy/          # verna deployment configuration
-├── main.go          # Application entry point
-└── Rakefile         # Build tasks
+├── e2e/                 # Playwright E2E tests
+├── test/                # Test utilities and fixtures
+├── deploy/              # Verna deployment configuration
+├── main.go              # Application entry point
+├── svelte.config.js     # SvelteKit configuration
+├── vite.config.js       # Vite configuration
+└── Rakefile             # Build tasks
 ```
 
 ## Building for Production
@@ -161,16 +170,16 @@ The Caddy reverse proxy template is in `deploy/caddy-handle-template.json`.
 tpr server
 
 # Using CLI flags
-tpr server --db-host localhost --db-name tpr --db-user tpr --db-password secret
+tpr server --database-url postgres://user:pass@localhost:5432/tpr --bind-address 127.0.0.1 --port 8080
 ```
 
 ### Reset a user's password
 
 ```bash
-tpr reset-password <username>
+tpr reset-password --database-url postgres://user:pass@localhost:5432/tpr <username>
 ```
 
-Generates a random password and updates the user account.
+Generates a random password and updates the user account. Use `--password` to set a specific password.
 
 ## Configuration
 
@@ -180,29 +189,17 @@ Configuration is via CLI flags or environment variables. CLI flags take preceden
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `TPR_ADDRESS` | Listen address | `127.0.0.1` |
-| `TPR_PORT` | Listen port | `8080` |
-| `TPR_DB_HOST` | PostgreSQL host | *required* |
-| `TPR_DB_PORT` | PostgreSQL port | `5432` |
-| `TPR_DB_NAME` | Database name | *required* |
-| `TPR_DB_USER` | Database user | |
-| `TPR_DB_PASSWORD` | Database password | |
-| `TPR_LOG_LEVEL` | Log level (debug/info/warn/error/crit/none) | `warn` |
-| `TPR_PGX_LOG_LEVEL` | PGX driver log level | `warn` |
-| `TPR_SMTP_SERVER` | SMTP server hostname | |
-| `TPR_SMTP_PORT` | SMTP port | `587` |
-| `TPR_SMTP_USERNAME` | SMTP username | |
-| `TPR_SMTP_PASSWORD` | SMTP password | |
-| `TPR_SMTP_FROM` | From email address | |
-| `TPR_ROOT_URL` | Root URL for email links | |
-
-### CLI Flags
-
-All environment variables have corresponding CLI flags with `--` prefix:
-
-```bash
-tpr server --db-host localhost --db-name tpr --port 8080 --log-level info
-```
+| `DATABASE_URL` | PostgreSQL connection URL | *required* |
+| `BIND_ADDRESS` | Listen address | `127.0.0.1` |
+| `PORT` | Listen port | `8080` |
+| `LOG_LEVEL` | Log level (debug, info, warn, error, crit, none) | `warn` |
+| `PGX_LOG_LEVEL` | PGX driver log level | `warn` |
+| `SMTP_SERVER` | SMTP server hostname | |
+| `SMTP_PORT` | SMTP port | `587` |
+| `SMTP_USERNAME` | SMTP username | |
+| `SMTP_PASSWORD` | SMTP password | |
+| `SMTP_FROM` | From email address | |
+| `ROOT_URL` | Root URL for email links | |
 
 ### Development Configuration
 
