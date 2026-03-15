@@ -154,7 +154,11 @@ Sample systemd service and nginx configurations are in the `config/` directory.
 ### Start the server
 
 ```bash
-tpr server --address 127.0.0.1 --port 8080 --config tpr.conf
+# Using environment variables
+tpr server
+
+# Using CLI flags
+tpr server --db-host localhost --db-name tpr --db-user tpr --db-password secret
 ```
 
 ### Reset a user's password
@@ -167,32 +171,39 @@ Generates a random password and updates the user account.
 
 ## Configuration
 
-Configuration is stored in INI format (default: `tpr.conf`):
+Configuration is via CLI flags or environment variables. CLI flags take precedence over environment variables.
 
-```ini
-[database]
-host = localhost
-port = 5432
-database = tpr
-user = tpr
-password = secret
+### Environment Variables
 
-[server]
-address = 127.0.0.1
-port = 8080
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `TPR_ADDRESS` | Listen address | `127.0.0.1` |
+| `TPR_PORT` | Listen port | `8080` |
+| `TPR_DB_HOST` | PostgreSQL host | *required* |
+| `TPR_DB_PORT` | PostgreSQL port | `5432` |
+| `TPR_DB_NAME` | Database name | *required* |
+| `TPR_DB_USER` | Database user | |
+| `TPR_DB_PASSWORD` | Database password | |
+| `TPR_LOG_LEVEL` | Log level (debug/info/warn/error/crit/none) | `warn` |
+| `TPR_PGX_LOG_LEVEL` | PGX driver log level | `warn` |
+| `TPR_SMTP_SERVER` | SMTP server hostname | |
+| `TPR_SMTP_PORT` | SMTP port | `587` |
+| `TPR_SMTP_USERNAME` | SMTP username | |
+| `TPR_SMTP_PASSWORD` | SMTP password | |
+| `TPR_SMTP_FROM` | From email address | |
+| `TPR_ROOT_URL` | Root URL for email links | |
 
-[log]
-level = info
-pgx_level = warn
+### CLI Flags
 
-[mail]
-smtp_server = smtp.example.com
-port = 587
-from_address = noreply@example.com
-username = user
-password = pass
-root_url = https://example.com
+All environment variables have corresponding CLI flags with `--` prefix:
+
+```bash
+tpr server --db-host localhost --db-name tpr --port 8080 --log-level info
 ```
+
+### Development Configuration
+
+For development, environment variables are set in `.mise.toml`. Create `.mise.local.toml` for local overrides.
 
 ## License
 

@@ -5,6 +5,16 @@ _.path = ["{{config_root}}/bin"]
 PGDATABASE = "tpr_dev"
 TEST_DATABASE = "tpr_test"
 
+# TPR Application Configuration
+TPR_ADDRESS = "127.0.0.1"
+TPR_PORT = "4000"
+TPR_DB_HOST = "127.0.0.1"
+TPR_DB_NAME = "tpr_dev"
+TPR_DB_USER = "tpr"
+TPR_DB_PASSWORD = "secret"
+TPR_LOG_LEVEL = "info"
+TPR_PGX_LOG_LEVEL = "warn"
+
 # TEST_DATABASE_COUNT is how many test databases to use. Each database test has exclusive use of a database while it is
 # executing so this number is also the maximum number of database tests that can execute in parallel.
 TEST_DATABASE_COUNT = "8"

@@ -41,7 +41,7 @@ export default defineConfig({
       stderr: 'pipe',
     },
     {
-      command: 'TEST_ENDPOINTS=true go run main.go server -c tpr.test.conf --static-url http://127.0.0.1:5173',
+      command: 'TEST_ENDPOINTS=true TPR_DB_HOST=127.0.0.1 TPR_DB_NAME=tpr_test TPR_DB_USER=tpr TPR_DB_PASSWORD=secret TPR_LOG_LEVEL=none go run main.go server --port 5000 --static-url http://127.0.0.1:5173',
       port: 5000,
       reuseExistingServer: !process.env.CI,
       timeout: 120000,

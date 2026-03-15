@@ -269,9 +269,9 @@ npm run test:e2e:ui      # Interactive mode
 ## Important Files
 
 ### Configuration
-- `tpr.conf` - Main configuration (gitignored)
-- `tpr.example.conf` - Example configuration
-- `tpr.test.conf` - Test database configuration
+- `.mise.toml` - Development environment variables (TPR_* settings)
+- `.mise.local.toml` - Local overrides (gitignored)
+- Configuration via CLI flags or environment variables (see CLI Usage below)
 
 ### Build
 - `Rakefile` - Build tasks (build, test, deploy)
@@ -282,6 +282,40 @@ npm run test:e2e:ui      # Interactive mode
 - `.devcontainer/` - VS Code devcontainer configuration
 - `.vscode/tasks.json` - VS Code tasks for auto-start
 - `frontend/vite.config.js` - Vite configuration
+
+## CLI Usage
+
+### Server Command
+
+```bash
+# Using environment variables (set in .mise.toml for development)
+go run main.go server
+
+# Using CLI flags
+go run main.go server --db-host localhost --db-name tpr_dev --db-user tpr --db-password secret
+```
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `TPR_ADDRESS` | Listen address | `127.0.0.1` |
+| `TPR_PORT` | Listen port | `8080` |
+| `TPR_DB_HOST` | PostgreSQL host | *required* |
+| `TPR_DB_PORT` | PostgreSQL port | `5432` |
+| `TPR_DB_NAME` | Database name | *required* |
+| `TPR_DB_USER` | Database user | |
+| `TPR_DB_PASSWORD` | Database password | |
+| `TPR_LOG_LEVEL` | Log level (debug/info/warn/error/crit/none) | `warn` |
+| `TPR_PGX_LOG_LEVEL` | PGX driver log level | `warn` |
+| `TPR_SMTP_SERVER` | SMTP server hostname | |
+| `TPR_SMTP_PORT` | SMTP port | `587` |
+| `TPR_SMTP_USERNAME` | SMTP username | |
+| `TPR_SMTP_PASSWORD` | SMTP password | |
+| `TPR_SMTP_FROM` | From email address | |
+| `TPR_ROOT_URL` | Root URL for email links | |
+
+CLI flags take the same names with `--` prefix (e.g., `--db-host`, `--log-level`).
 
 ## Gotchas and Notes
 

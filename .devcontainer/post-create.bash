@@ -4,8 +4,6 @@ set -e
 psql -f postgresql/prepare.sql
 
 [ ! -f postgresql/tern.conf ] && cp postgresql/tern.example.conf postgresql/tern.conf
-[ ! -f tpr.conf ] && cp tpr.example.conf tpr.conf
-[ ! -f tpr.test.conf ] && cp tpr.test.example.conf tpr.test.conf
 
 mise trust
 mise install

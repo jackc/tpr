@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -20,20 +20,14 @@ import (
 	"github.com/jackc/tpr/backend/data"
 	"github.com/jackc/tpr/test/testdata"
 	"github.com/stretchr/testify/require"
-	"github.com/vaughan0/go-ini"
 	log "gopkg.in/inconshreveable/log15.v2"
 )
 
-func newLogger(conf ini.File) (log.Logger, error) {
-	level, _ := conf.Get("log", "level")
-	if level == "" {
-		level = "warn"
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
 	}
-
-	logger := log.New()
-	setFilterHandler(level, logger, log.StdoutHandler)
-
-	return logger, nil
+	return defaultValue
 }
 
 func setFilterHandler(level string, logger log.Logger, handler log.Handler) error {
@@ -51,50 +45,11 @@ func setFilterHandler(level string, logger log.Logger, handler log.Handler) erro
 	return nil
 }
 
-func newPool(conf ini.File, logger log.Logger) (*pgxpool.Pool, error) {
-	logger = logger.New("module", "pgx")
-	if level, ok := conf.Get("log", "pgx_level"); ok {
-		setFilterHandler(level, logger, log.StdoutHandler)
-	}
-
-	config, err := pgxpool.ParseConfig("")
-	if err != nil {
-		return nil, err
-	}
-	config.ConnConfig.Tracer = &tracelog.TraceLog{Logger: log15adapter.NewLogger(logger), LogLevel: tracelog.LogLevelInfo}
-
-	config.ConnConfig.Host, _ = conf.Get("database", "host")
-	if config.ConnConfig.Host == "" {
-		return nil, errors.New("Config must contain database.host but it does not")
-	}
-
-	if p, ok := conf.Get("database", "port"); ok {
-		n, err := strconv.ParseUint(p, 10, 16)
-		config.ConnConfig.Port = uint16(n)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	var ok bool
-
-	if config.ConnConfig.Database, ok = conf.Get("database", "database"); !ok {
-		return nil, errors.New("Config must contain database.database but it does not")
-	}
-	config.ConnConfig.User, _ = conf.Get("database", "user")
-	config.ConnConfig.Password, _ = conf.Get("database", "password")
-
-	config.MaxConns = 10
-
-	return pgxpool.NewWithConfig(context.Background(), config)
-}
-
 func getLogger(t *testing.T) log.Logger {
-	configPath := "../tpr.test.conf"
-	conf, err := ini.LoadFile(configPath)
-	require.NoError(t, err)
+	level := getEnvOrDefault("TPR_LOG_LEVEL", "none")
 
-	logger, err := newLogger(conf)
+	logger := log.New()
+	err := setFilterHandler(level, logger, log.StdoutHandler)
 	require.NoError(t, err)
 
 	return logger
@@ -106,14 +61,36 @@ func newConnPool(t testing.TB) *pgxpool.Pool {
 	var err error
 
 	if sharedPool == nil {
-		configPath := "../tpr.test.conf"
-		conf, err := ini.LoadFile(configPath)
+		level := getEnvOrDefault("TPR_LOG_LEVEL", "none")
+		logger := log.New()
+		err = setFilterHandler(level, logger, log.StdoutHandler)
 		require.NoError(t, err)
 
-		logger, err := newLogger(conf)
+		pgxLogger := logger.New("module", "pgx")
+		if pgxLevel := os.Getenv("TPR_PGX_LOG_LEVEL"); pgxLevel != "" {
+			setFilterHandler(pgxLevel, pgxLogger, log.StdoutHandler)
+		}
+
+		config, err := pgxpool.ParseConfig("")
 		require.NoError(t, err)
 
-		pool, err := newPool(conf, logger)
+		config.ConnConfig.Tracer = &tracelog.TraceLog{Logger: log15adapter.NewLogger(pgxLogger), LogLevel: tracelog.LogLevelInfo}
+
+		config.ConnConfig.Host = getEnvOrDefault("TPR_DB_HOST", "127.0.0.1")
+
+		if p := getEnvOrDefault("TPR_DB_PORT", ""); p != "" {
+			n, err := strconv.ParseUint(p, 10, 16)
+			require.NoError(t, err)
+			config.ConnConfig.Port = uint16(n)
+		}
+
+		config.ConnConfig.Database = getEnvOrDefault("TPR_DB_NAME", "tpr_test")
+		config.ConnConfig.User = getEnvOrDefault("TPR_DB_USER", "tpr")
+		config.ConnConfig.Password = getEnvOrDefault("TPR_DB_PASSWORD", "secret")
+
+		config.MaxConns = 10
+
+		pool, err := pgxpool.NewWithConfig(context.Background(), config)
 		require.NoError(t, err)
 
 		sharedPool = pool

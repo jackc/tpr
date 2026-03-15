@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/smtp"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	log15adapter "github.com/jackc/pgx-log15"
@@ -16,11 +15,56 @@ import (
 	"github.com/jackc/tpr/backend"
 	"github.com/jackc/tpr/backend/data"
 	"github.com/urfave/cli"
-	"github.com/vaughan0/go-ini"
 	log "gopkg.in/inconshreveable/log15.v2"
 )
 
 const version = "0.8.1"
+
+// Shared database flags for both commands
+var databaseFlags = []cli.Flag{
+	cli.StringFlag{
+		Name:   "db-host",
+		EnvVar: "TPR_DB_HOST",
+		Usage:  "PostgreSQL host",
+	},
+	cli.StringFlag{
+		Name:   "db-port",
+		Value:  "5432",
+		EnvVar: "TPR_DB_PORT",
+		Usage:  "PostgreSQL port",
+	},
+	cli.StringFlag{
+		Name:   "db-name",
+		EnvVar: "TPR_DB_NAME",
+		Usage:  "PostgreSQL database name",
+	},
+	cli.StringFlag{
+		Name:   "db-user",
+		EnvVar: "TPR_DB_USER",
+		Usage:  "PostgreSQL user",
+	},
+	cli.StringFlag{
+		Name:   "db-password",
+		EnvVar: "TPR_DB_PASSWORD",
+		Usage:  "PostgreSQL password",
+	},
+}
+
+// Shared log flags for both commands
+var logFlags = []cli.Flag{
+	cli.StringFlag{
+		Name:   "log-level",
+		Value:  "warn",
+		EnvVar: "TPR_LOG_LEVEL",
+		Usage:  "Log level (debug, info, warn, error, crit, none)",
+	},
+	cli.StringFlag{
+		Name:   "pgx-log-level",
+		Value:  "warn",
+		EnvVar: "TPR_PGX_LOG_LEVEL",
+		Usage:  "PGX (database driver) log level",
+	},
+}
 
 func main() {
 	app := cli.NewApp()
@@ -30,52 +74,93 @@ func main() {
 	app.Author = "Jack Christensen"
 	app.Email = "jack@jackchristensen.com"
 
+	serverFlags := []cli.Flag{
+		cli.StringFlag{
+			Name:   "address, a",
+			Value:  "127.0.0.1",
+			EnvVar: "TPR_ADDRESS",
+			Usage:  "address to listen on",
+		},
+		cli.StringFlag{
+			Name:   "port, p",
+			Value:  "8080",
+			EnvVar: "TPR_PORT",
+			Usage:  "port to listen on",
+		},
+		cli.StringFlag{
+			Name:   "static-url",
+			Value:  "",
+			EnvVar: "TPR_STATIC_URL",
+			Usage:  "reverse proxy static asset requests to URL",
+		},
+		cli.StringFlag{
+			Name:   "smtp-server",
+			EnvVar: "TPR_SMTP_SERVER",
+			Usage:  "SMTP server hostname",
+		},
+		cli.StringFlag{
+			Name:   "smtp-port",
+			Value:  "587",
+			EnvVar: "TPR_SMTP_PORT",
+			Usage:  "SMTP server port",
+		},
+		cli.StringFlag{
+			Name:   "smtp-username",
+			EnvVar: "TPR_SMTP_USERNAME",
+			Usage:  "SMTP username",
+		},
+		cli.StringFlag{
+			Name:   "smtp-password",
+			EnvVar: "TPR_SMTP_PASSWORD",
+			Usage:  "SMTP password",
+		},
+		cli.StringFlag{
+			Name:   "smtp-from",
+			EnvVar: "TPR_SMTP_FROM",
+			Usage:  "From address for emails",
+		},
+		cli.StringFlag{
+			Name:   "root-url",
+			EnvVar: "TPR_ROOT_URL",
+			Usage:  "Root URL for email links (e.g., https://example.com)",
+		},
+	}
+	serverFlags = append(serverFlags, databaseFlags...)
+	serverFlags = append(serverFlags, logFlags...)
+
+	resetPasswordFlags := []cli.Flag{
+		cli.StringFlag{
+			Name:  "password, p",
+			Value: "",
+			Usage: "password to set",
+		},
+	}
+	resetPasswordFlags = append(resetPasswordFlags, databaseFlags...)
+	resetPasswordFlags = append(resetPasswordFlags, logFlags...)
+
 	app.Commands = []cli.Command{
 		{
 			Name:        "server",
 			ShortName:   "s",
 			Usage:       "run the server",
 			Description: "run the tpr server",
-			Flags: []cli.Flag{
-				cli.StringFlag{Name: "address, a", Value: "127.0.0.1", Usage: "address to listen on"},
-				cli.StringFlag{Name: "port, p", Value: "8080", Usage: "port to listen on"},
-				cli.StringFlag{Name: "config, c", Value: "tpr.conf", Usage: "path to config file"},
-				cli.StringFlag{Name: "static-url", Value: "", Usage: "reverse proxy static asset requests to URL"},
-			},
-			Action: Serve,
+			Flags:       serverFlags,
+			Action:      Serve,
 		},
 		{
 			Name:        "reset-password",
 			Usage:       "reset a user's password",
 			Description: "reset a user's password",
-			Flags: []cli.Flag{
-				cli.StringFlag{Name: "config, c", Value: "tpr.conf", Usage: "path to config file"},
-				cli.StringFlag{Name: "password, p", Value: "", Usage: "password to set"},
-			},
-			Action: ResetPassword,
+			Flags:       resetPasswordFlags,
+			Action:      ResetPassword,
 		},
 	}
 
 	app.Run(os.Args)
-
 }
 
-func loadConfig(path string) (ini.File, error) {
-	path, err := filepath.Abs(path)
-	if err != nil {
-		return nil, fmt.Errorf("Invalid config path: %v", err)
-	}
-
-	file, err := ini.LoadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to load config file: %v", err)
-	}
-
-	return file, nil
-}
-
-func newLogger(conf ini.File) (log.Logger, error) {
-	level, _ := conf.Get("log", "level")
+func newLogger(c *cli.Context) (log.Logger, error) {
+	level := c.String("log-level")
 	if level == "" {
 		level = "warn"
 	}
@@ -101,9 +186,9 @@ func setFilterHandler(level string, logger log.Logger, handler log.Handler) erro
 	return nil
 }
 
-func newPool(conf ini.File, logger log.Logger) (*pgxpool.Pool, error) {
+func newPool(c *cli.Context, logger log.Logger) (*pgxpool.Pool, error) {
 	logger = logger.New("module", "pgx")
-	if level, ok := conf.Get("log", "pgx_level"); ok {
+	if level := c.String("pgx-log-level"); level != "" {
 		setFilterHandler(level, logger, log.StdoutHandler)
 	}
 
@@ -113,88 +198,63 @@ func newPool(conf ini.File, logger log.Logger) (*pgxpool.Pool, error) {
 	}
 	config.ConnConfig.Tracer = &tracelog.TraceLog{Logger: log15adapter.NewLogger(logger), LogLevel: tracelog.LogLevelInfo}
 
-	config.ConnConfig.Host, _ = conf.Get("database", "host")
+	config.ConnConfig.Host = c.String("db-host")
 	if config.ConnConfig.Host == "" {
-		return nil, errors.New("Config must contain database.host but it does not")
+		return nil, errors.New("--db-host is required")
 	}
 
-	if p, ok := conf.Get("database", "port"); ok {
+	if p := c.String("db-port"); p != "" {
 		n, err := strconv.ParseUint(p, 10, 16)
-		config.ConnConfig.Port = uint16(n)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("invalid db-port: %v", err)
 		}
+		config.ConnConfig.Port = uint16(n)
 	}
 
-	var ok bool
-
-	if config.ConnConfig.Database, ok = conf.Get("database", "database"); !ok {
-		return nil, errors.New("Config must contain database.database but it does not")
+	config.ConnConfig.Database = c.String("db-name")
+	if config.ConnConfig.Database == "" {
+		return nil, errors.New("--db-name is required")
 	}
-	config.ConnConfig.User, _ = conf.Get("database", "user")
-	config.ConnConfig.Password, _ = conf.Get("database", "password")
+
+	config.ConnConfig.User = c.String("db-user")
+	config.ConnConfig.Password = c.String("db-password")
 
 	config.MaxConns = 10
 
 	return pgxpool.NewWithConfig(context.Background(), config)
 }
 
-func loadHTTPConfig(c *cli.Context, conf ini.File) (backend.HTTPConfig, error) {
-	config := backend.HTTPConfig{}
-	config.ListenAddress = c.String("address")
-	config.ListenPort = c.String("port")
-	config.StaticURL = c.String("static-url")
-
-	var ok bool
-	if !c.IsSet("address") {
-		if config.ListenAddress, ok = conf.Get("server", "address"); !ok {
-			return config, errors.New("Missing server address")
-		}
-	}
-
-	if !c.IsSet("port") {
-		if config.ListenPort, ok = conf.Get("server", "port"); !ok {
-			return config, errors.New("Missing server port")
-		}
-	}
-
-	return config, nil
-}
-
-func newMailer(conf ini.File, logger log.Logger) (backend.Mailer, error) {
-	mailConf := conf.Section("mail")
-	if len(mailConf) == 0 {
+func newMailer(c *cli.Context, logger log.Logger) (backend.Mailer, error) {
+	smtpServer := c.String("smtp-server")
+	if smtpServer == "" {
+		// Mail is optional - return nil if not configured
 		return nil, nil
 	}
 
-	smtpAddr, ok := mailConf["smtp_server"]
-	if !ok {
-		return nil, errors.New("Missing mail -- smtp_server")
-	}
-	smtpPort, _ := mailConf["port"]
+	smtpPort := c.String("smtp-port")
 	if smtpPort == "" {
 		smtpPort = "587"
 	}
 
-	fromAddr, ok := mailConf["from_address"]
-	if !ok {
-		return nil, errors.New("Missing mail -- from_address")
+	fromAddr := c.String("smtp-from")
+	if fromAddr == "" {
+		return nil, errors.New("--smtp-from is required when --smtp-server is set")
 	}
 
-	rootURL, ok := mailConf["root_url"]
-	if !ok {
-		return nil, errors.New("Missing mail -- root_url")
+	rootURL := c.String("root-url")
+	if rootURL == "" {
+		return nil, errors.New("--root-url is required when --smtp-server is set")
 	}
 
-	username, _ := mailConf["username"]
-	password, _ := mailConf["password"]
+	username := c.String("smtp-username")
+	password := c.String("smtp-password")
 
-	auth := smtp.PlainAuth("", username, password, smtpAddr)
+	auth := smtp.PlainAuth("", username, password, smtpServer)
 
 	logger = logger.New("module", "mail")
 
 	mailer := &backend.SMTPMailer{
-		ServerAddr: smtpAddr + ":" + smtpPort,
+		ServerAddr: smtpServer + ":" + smtpPort,
 		Auth:       auth,
 		From:       fromAddr,
 		RootURL:    rootURL,
@@ -205,31 +265,25 @@ func newMailer(conf ini.File, logger log.Logger) (backend.Mailer, error) {
 }
 
 func Serve(c *cli.Context) {
-	conf, err := loadConfig(c.String("config"))
+	httpConfig := backend.HTTPConfig{
+		ListenAddress: c.String("address"),
+		ListenPort:    c.String("port"),
+		StaticURL:     c.String("static-url"),
+	}
+
+	logger, err := newLogger(c)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	httpConfig, err := loadHTTPConfig(c, conf)
+	pool, err := newPool(c, logger)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	logger, err := newLogger(conf)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-
-	pool, err := newPool(conf, logger)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-
-	mailer, err := newMailer(conf, logger)
+	mailer, err := newMailer(c, logger)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -259,19 +313,13 @@ func ResetPassword(c *cli.Context) {
 
 	name := c.Args()[0]
 
-	conf, err := loadConfig(c.String("config"))
+	logger, err := newLogger(c)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	logger, err := newLogger(conf)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-
-	pool, err := newPool(conf, logger)
+	pool, err := newPool(c, logger)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -283,10 +331,13 @@ func ResetPassword(c *cli.Context) {
 		os.Exit(1)
 	}
 
-	password, err := backend.GenRandPassword()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+	password := c.String("password")
+	if password == "" {
+		password, err = backend.GenRandPassword()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 	}
 
 	update := &data.User{Name: pgtype.Text{String: name, Valid: true}}

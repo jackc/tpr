@@ -44,7 +44,7 @@ task build: ["build:assets", "build:binary", "build/tpr-linux"]
 desc "Run tpr"
 task run: "build:binary" do
   puts "Remember to start vite dev server"
-  exec "build/tpr server --config tpr.conf --static-url http://localhost:5173"
+  exec "build/tpr server --static-url http://localhost:5173"
 end
 
 desc "Watch for source changes and rebuild and rerun"

@@ -10,7 +10,6 @@ require (
 	github.com/jackc/testdb v0.0.0-20221015161059-a3705a386fe0
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli v1.22.17
-	github.com/vaughan0/go-ini v0.0.0-20130923145212-a98ad7ee00ec
 	golang.org/x/crypto v0.47.0
 	golang.org/x/net v0.49.0
 	gopkg.in/inconshreveable/log15.v2 v2.16.0
