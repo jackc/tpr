@@ -69,6 +69,11 @@ func NewAppServer(httpConfig HTTPConfig, pool *pgxpool.Pool, mailer Mailer, logg
 		r.Handle("/*", httputil.NewSingleHostReverseProxy(staticURL))
 	}
 
+	r.Get("/health", func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		fmt.Fprint(w, "ok")
+	})
+
 	apiHandler := NewAPIHandler(pool, mailer, logger.New("module", "http"))
 	r.Mount("/api", apiHandler)
 

@@ -1,0 +1,77 @@
+[
+  {
+    "handler": "subroute",
+    "routes": [
+      {
+        "match": [
+          {
+            "path": [
+              "/_app/immutable/*"
+            ]
+          }
+        ],
+        "handle": [
+          {
+            "handler": "headers",
+            "response": {
+              "set": {
+                "Cache-Control": [
+                  "public, max-age=31536000, immutable"
+                ]
+              }
+            }
+          },
+          {
+            "handler": "file_server",
+            "root": "{{.SlotDir}}/assets",
+            "precompressed": {
+              "br": {},
+              "gzip": {}
+            }
+          }
+        ]
+      },
+      {
+        "match": [
+          {
+            "path": [
+              "/health",
+              "/api/*"
+            ]
+          }
+        ],
+        "handle": [
+          {
+            "handler": "reverse_proxy",
+            "upstreams": [
+              {
+                "dial": "{{.Dial}}"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "handle": [
+          {
+            "handler": "file_server",
+            "root": "{{.SlotDir}}/assets",
+            "pass_thru": true,
+            "precompressed": {
+              "br": {},
+              "gzip": {}
+            }
+          },
+          {
+            "handler": "rewrite",
+            "uri": "/index.html"
+          },
+          {
+            "handler": "file_server",
+            "root": "{{.SlotDir}}/assets"
+          }
+        ]
+      }
+    ]
+  }
+]
