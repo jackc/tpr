@@ -111,7 +111,7 @@ test.describe('Reader Functionality', () => {
     await page.getByRole('link', { name: 'Feeds' }).click();
     await expect(page.getByLabel('Feed URL')).toBeVisible();
     await page.getByRole('link', { name: 'Home' }).click();
-    await expect(page.locator('body')).toContainText('unread');
+    await expect(page.getByRole('link', { name: 'Mark All Read' })).toBeVisible();
 
     // First post should be gone (was auto-marked as read), second should still be there
     await expect(page.locator('body')).not.toContainText('First Post');
