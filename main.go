@@ -4,17 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/smtp"
 	"os"
 
-	log15adapter "github.com/jackc/pgx-log15"
+	pgxslog "github.com/mcosta74/pgx-slog"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
 	"github.com/jackc/tpr/backend"
 	"github.com/jackc/tpr/backend/data"
 	"github.com/urfave/cli"
-	log "gopkg.in/inconshreveable/log15.v2"
 )
 
 const version = "0.8.1"
@@ -35,6 +35,12 @@ var logFlags = []cli.Flag{
 		Value:  "warn",
 		EnvVar: "LOG_LEVEL",
 		Usage:  "Log level (debug, info, warn, error, crit, none)",
+	},
+	cli.StringFlag{
+		Name:   "log-format",
+		Value:  "text",
+		EnvVar: "LOG_FORMAT",
+		Usage:  "Log format (text, json, journal)",
 	},
 	cli.StringFlag{
 		Name:   "pgx-log-level",
@@ -131,37 +137,33 @@ func main() {
 	app.Run(os.Args)
 }
 
-func newLogger(c *cli.Context) (log.Logger, error) {
+func newLogger(c *cli.Context) (*slog.Logger, error) {
 	level := c.String("log-level")
 	if level == "" {
 		level = "warn"
 	}
+	format := c.String("log-format")
+	if format == "" {
+		format = "text"
+	}
 
-	logger := log.New()
-	setFilterHandler(level, logger, log.StdoutHandler)
+	handler, err := newSlogHandler(format, level)
+	if err != nil {
+		return nil, err
+	}
+
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
 
 	return logger, nil
 }
 
-func setFilterHandler(level string, logger log.Logger, handler log.Handler) error {
-	if level == "none" {
-		logger.SetHandler(log.DiscardHandler())
-		return nil
-	}
+func newPool(c *cli.Context, logger *slog.Logger) (*pgxpool.Pool, error) {
+	pgxLogger := logger.With("module", "pgx")
 
-	lvl, err := log.LvlFromString(level)
-	if err != nil {
-		return fmt.Errorf("Bad log level: %v", err)
-	}
-	logger.SetHandler(log.LvlFilterHandler(lvl, handler))
-
-	return nil
-}
-
-func newPool(c *cli.Context, logger log.Logger) (*pgxpool.Pool, error) {
-	logger = logger.New("module", "pgx")
-	if level := c.String("pgx-log-level"); level != "" {
-		setFilterHandler(level, logger, log.StdoutHandler)
+	pgxLogLevel := c.String("pgx-log-level")
+	if pgxLogLevel == "" {
+		pgxLogLevel = "none"
 	}
 
 	databaseURL := c.String("database-url")
@@ -173,13 +175,13 @@ func newPool(c *cli.Context, logger log.Logger) (*pgxpool.Pool, error) {
 	if err != nil {
 		return nil, err
 	}
-	config.ConnConfig.Tracer = &tracelog.TraceLog{Logger: log15adapter.NewLogger(logger), LogLevel: tracelog.LogLevelInfo}
+	config.ConnConfig.Tracer = &tracelog.TraceLog{Logger: pgxslog.NewLogger(pgxLogger), LogLevel: parseTraceLogLevel(pgxLogLevel)}
 	config.MaxConns = 10
 
 	return pgxpool.NewWithConfig(context.Background(), config)
 }
 
-func newMailer(c *cli.Context, logger log.Logger) (backend.Mailer, error) {
+func newMailer(c *cli.Context, logger *slog.Logger) (backend.Mailer, error) {
 	smtpServer := c.String("smtp-server")
 	if smtpServer == "" {
 		// Mail is optional - return nil if not configured
@@ -206,14 +208,12 @@ func newMailer(c *cli.Context, logger log.Logger) (backend.Mailer, error) {
 
 	auth := smtp.PlainAuth("", username, password, smtpServer)
 
-	logger = logger.New("module", "mail")
-
 	mailer := &backend.SMTPMailer{
 		ServerAddr: smtpServer + ":" + smtpPort,
 		Auth:       auth,
 		From:       fromAddr,
 		RootURL:    rootURL,
-		Logger:     logger,
+		Logger:     logger.With("module", "mail"),
 	}
 
 	return mailer, nil
@@ -243,7 +243,7 @@ func Serve(c *cli.Context) {
 		os.Exit(1)
 	}
 
-	feedUpdater := backend.NewFeedUpdater(pool, logger.New("module", "feedUpdater"))
+	feedUpdater := backend.NewFeedUpdater(pool, logger.With("module", "feedUpdater"))
 	go feedUpdater.KeepFeedsFresh()
 
 	server, err := backend.NewAppServer(httpConfig, pool, mailer, logger)

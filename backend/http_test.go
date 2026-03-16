@@ -12,14 +12,15 @@ import (
 	"testing"
 	"time"
 
-	log15adapter "github.com/jackc/pgx-log15"
+	"log/slog"
+
+	pgxslog "github.com/mcosta74/pgx-slog"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
 	"github.com/jackc/tpr/backend/data"
 	"github.com/jackc/tpr/test/testdata"
 	"github.com/stretchr/testify/require"
-	log "gopkg.in/inconshreveable/log15.v2"
 )
 
 func getEnvOrDefault(key, defaultValue string) string {
@@ -29,29 +30,24 @@ func getEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
-func setFilterHandler(level string, logger log.Logger, handler log.Handler) error {
-	if level == "none" {
-		logger.SetHandler(log.DiscardHandler())
-		return nil
-	}
-
-	lvl, err := log.LvlFromString(level)
-	if err != nil {
-		return fmt.Errorf("Bad log level: %v", err)
-	}
-	logger.SetHandler(log.LvlFilterHandler(lvl, handler))
-
-	return nil
-}
-
-func getLogger(t *testing.T) log.Logger {
+func testLogger() *slog.Logger {
 	level := getEnvOrDefault("LOG_LEVEL", "none")
+	if level == "none" {
+		return slog.New(slog.DiscardHandler)
+	}
 
-	logger := log.New()
-	err := setFilterHandler(level, logger, log.StdoutHandler)
-	require.NoError(t, err)
-
-	return logger
+	var lvl slog.Level
+	switch level {
+	case "debug":
+		lvl = slog.LevelDebug
+	case "info":
+		lvl = slog.LevelInfo
+	case "error":
+		lvl = slog.LevelError
+	default:
+		lvl = slog.LevelWarn
+	}
+	return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
 }
 
 var sharedPool *pgxpool.Pool
@@ -60,21 +56,30 @@ func newConnPool(t testing.TB) *pgxpool.Pool {
 	var err error
 
 	if sharedPool == nil {
-		level := getEnvOrDefault("LOG_LEVEL", "none")
-		logger := log.New()
-		err = setFilterHandler(level, logger, log.StdoutHandler)
-		require.NoError(t, err)
+		logger := testLogger()
+		pgxLogger := logger.With("module", "pgx")
 
-		pgxLogger := logger.New("module", "pgx")
+		pgxLogLevel := tracelog.LogLevelInfo
 		if pgxLevel := os.Getenv("PGX_LOG_LEVEL"); pgxLevel != "" {
-			setFilterHandler(pgxLevel, pgxLogger, log.StdoutHandler)
+			switch pgxLevel {
+			case "debug":
+				pgxLogLevel = tracelog.LogLevelDebug
+			case "info":
+				pgxLogLevel = tracelog.LogLevelInfo
+			case "warn":
+				pgxLogLevel = tracelog.LogLevelWarn
+			case "error":
+				pgxLogLevel = tracelog.LogLevelError
+			case "none":
+				pgxLogLevel = tracelog.LogLevelNone
+			}
 		}
 
 		databaseURL := getEnvOrDefault("DATABASE_URL", "postgres://tpr:secret@127.0.0.1:5432/tpr_test")
 		config, err := pgxpool.ParseConfig(databaseURL)
 		require.NoError(t, err)
 
-		config.ConnConfig.Tracer = &tracelog.TraceLog{Logger: log15adapter.NewLogger(pgxLogger), LogLevel: tracelog.LogLevelInfo}
+		config.ConnConfig.Tracer = &tracelog.TraceLog{Logger: pgxslog.NewLogger(pgxLogger), LogLevel: pgxLogLevel}
 		config.MaxConns = 10
 
 		pool, err := pgxpool.NewWithConfig(context.Background(), config)
@@ -267,7 +272,7 @@ func TestUpdateAccountHandler(t *testing.T) {
 			continue
 		}
 
-		env := &environment{user: user, pool: pool, logger: getLogger(t)}
+		env := &environment{user: user, pool: pool, logger: testLogger()}
 		w := httptest.NewRecorder()
 		UpdateAccountHandler(w, req, env)
 
@@ -345,7 +350,7 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 		}
 		req.RemoteAddr = tt.remoteAddr
 
-		env := &environment{user: user, pool: pool, logger: getLogger(t), mailer: tt.mailer}
+		env := &environment{user: user, pool: pool, logger: testLogger(), mailer: tt.mailer}
 		w := httptest.NewRecorder()
 		RequestPasswordResetHandler(w, req, env)
 

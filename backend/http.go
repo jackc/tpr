@@ -14,13 +14,14 @@ import (
 	"strconv"
 	"time"
 
+	"log/slog"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgxutil"
 	"github.com/jackc/tpr/backend/data"
-	log "gopkg.in/inconshreveable/log15.v2"
 )
 
 type HTTPConfig struct {
@@ -30,7 +31,7 @@ type HTTPConfig struct {
 
 type EnvHandlerFunc func(w http.ResponseWriter, req *http.Request, env *environment)
 
-func EnvHandler(pool *pgxpool.Pool, mailer Mailer, logger log.Logger, f EnvHandlerFunc) http.Handler {
+func EnvHandler(pool *pgxpool.Pool, mailer Mailer, logger *slog.Logger, f EnvHandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		user := getUserFromSession(req, pool)
 		env := &environment{user: user, pool: pool, mailer: mailer, logger: logger}
@@ -55,7 +56,7 @@ type AppServer struct {
 	server     *http.Server
 }
 
-func NewAppServer(httpConfig HTTPConfig, pool *pgxpool.Pool, mailer Mailer, logger log.Logger) (*AppServer, error) {
+func NewAppServer(httpConfig HTTPConfig, pool *pgxpool.Pool, mailer Mailer, logger *slog.Logger) (*AppServer, error) {
 	r := chi.NewRouter()
 
 	r.Get("/health", func(w http.ResponseWriter, req *http.Request) {
@@ -63,7 +64,7 @@ func NewAppServer(httpConfig HTTPConfig, pool *pgxpool.Pool, mailer Mailer, logg
 		fmt.Fprint(w, "ok")
 	})
 
-	apiHandler := NewAPIHandler(pool, mailer, logger.New("module", "http"))
+	apiHandler := NewAPIHandler(pool, mailer, logger.With("module", "http"))
 	r.Mount("/api", apiHandler)
 
 	return &AppServer{
@@ -106,11 +107,11 @@ func (s *AppServer) Shutdown(ctx context.Context) error {
 type environment struct {
 	user   *data.User
 	pool   *pgxpool.Pool
-	logger log.Logger
+	logger *slog.Logger
 	mailer Mailer
 }
 
-func NewAPIHandler(pool *pgxpool.Pool, mailer Mailer, logger log.Logger) chi.Router {
+func NewAPIHandler(pool *pgxpool.Pool, mailer Mailer, logger *slog.Logger) chi.Router {
 	router := chi.NewRouter()
 
 	router.Method("POST", "/register", EnvHandler(pool, mailer, logger, RegisterHandler))

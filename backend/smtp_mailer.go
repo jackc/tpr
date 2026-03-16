@@ -2,10 +2,9 @@ package backend
 
 import (
 	"bytes"
+	"log/slog"
 	"net/smtp"
 	"text/template"
-
-	log "gopkg.in/inconshreveable/log15.v2"
 )
 
 var passwordResetMailTmpl = template.Must(template.New("passwordResetMailTemplate").Parse("To: {{.To}}\r\nSubject: The Pithy Reader Password Reset\r\n\r\nClick the following link to reset password: {{.RootURL}}/#resetPassword?token={{.Token}}"))
@@ -15,7 +14,7 @@ type SMTPMailer struct {
 	Auth       smtp.Auth
 	From       string
 	RootURL    string
-	Logger     log.Logger
+	Logger     *slog.Logger
 }
 
 func (m *SMTPMailer) SendPasswordResetMail(to, token string) error {

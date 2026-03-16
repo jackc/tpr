@@ -8,11 +8,12 @@ import (
 	"net/http"
 	"sync/atomic"
 
+	"log/slog"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgxutil"
-	log "gopkg.in/inconshreveable/log15.v2"
 	"golang.org/x/crypto/scrypt"
 )
 
@@ -20,7 +21,7 @@ var counter atomic.Int64
 
 // RegisterTestEndpoints adds test-only endpoints to the API router
 // Only call this when TEST_ENDPOINTS environment variable is set
-func RegisterTestEndpoints(r chi.Router, pool *pgxpool.Pool, logger log.Logger) {
+func RegisterTestEndpoints(r chi.Router, pool *pgxpool.Pool, logger *slog.Logger) {
 	r.Post("/test/reset-db", func(w http.ResponseWriter, req *http.Request) {
 		ctx := context.Background()
 

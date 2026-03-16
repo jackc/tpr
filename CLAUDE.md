@@ -100,7 +100,7 @@ if err != nil {
 
 - Standard Go error handling
 - HTTP status codes set manually
-- Logging via log15: `env.logger.Error("message", "key", value)`
+- Logging via `log/slog`: `env.logger.Error("message", "key", value)`
 
 ### Frontend (React)
 
@@ -289,31 +289,28 @@ npm run test:e2e:ui      # Interactive mode
 
 ```bash
 # Using environment variables (set in .mise.toml for development)
-go run main.go server
+go run . server
 
 # Using CLI flags
-go run main.go server --db-host localhost --db-name tpr_dev --db-user tpr --db-password secret
+go run . server --db-host localhost --db-name tpr_dev --db-user tpr --db-password secret
 ```
 
 ### Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `TPR_ADDRESS` | Listen address | `127.0.0.1` |
-| `TPR_PORT` | Listen port | `8080` |
-| `TPR_DB_HOST` | PostgreSQL host | *required* |
-| `TPR_DB_PORT` | PostgreSQL port | `5432` |
-| `TPR_DB_NAME` | Database name | *required* |
-| `TPR_DB_USER` | Database user | |
-| `TPR_DB_PASSWORD` | Database password | |
-| `TPR_LOG_LEVEL` | Log level (debug/info/warn/error/crit/none) | `warn` |
-| `TPR_PGX_LOG_LEVEL` | PGX driver log level | `warn` |
-| `TPR_SMTP_SERVER` | SMTP server hostname | |
-| `TPR_SMTP_PORT` | SMTP port | `587` |
-| `TPR_SMTP_USERNAME` | SMTP username | |
-| `TPR_SMTP_PASSWORD` | SMTP password | |
-| `TPR_SMTP_FROM` | From email address | |
-| `TPR_ROOT_URL` | Root URL for email links | |
+| `BIND_ADDRESS` | Listen address | `127.0.0.1` |
+| `PORT` | Listen port | `8080` |
+| `DATABASE_URL` | PostgreSQL connection URL | *required* |
+| `LOG_LEVEL` | Log level (debug/info/warn/error/crit/none) | `warn` |
+| `LOG_FORMAT` | Log format (text/json/journal) | `text` |
+| `PGX_LOG_LEVEL` | PGX driver log level | `warn` |
+| `SMTP_SERVER` | SMTP server hostname | |
+| `SMTP_PORT` | SMTP port | `587` |
+| `SMTP_USERNAME` | SMTP username | |
+| `SMTP_PASSWORD` | SMTP password | |
+| `SMTP_FROM` | From email address | |
+| `ROOT_URL` | Root URL for email links | |
 
 CLI flags take the same names with `--` prefix (e.g., `--db-host`, `--log-level`).
 
@@ -399,7 +396,7 @@ Deployment uses [verna](https://github.com/jackc/verna) with Caddy as the revers
 - Follow standard Go conventions
 - Use `gofmt`
 - Error handling: explicit checks, no panic in library code
-- Logging: structured logging with log15
+- Logging: structured logging with `log/slog`. Supports `text`, `json`, and `journal` (systemd journald) output formats via `LOG_FORMAT`
 - Comments: godoc-style for exported functions
 
 ### JavaScript/React

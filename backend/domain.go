@@ -6,7 +6,7 @@ import (
 	"errors"
 	"io"
 
-	log "gopkg.in/inconshreveable/log15.v2"
+	"log/slog"
 )
 
 func validatePassword(password string) error {
@@ -38,7 +38,7 @@ func genSessionID() ([]byte, error) {
 	sessionID := make([]byte, 16)
 	_, err := io.ReadFull(rand.Reader, sessionID)
 	if err != nil {
-		log.Error("Unable to create session because unable to read random bytes", "error", err)
+		slog.Error("Unable to create session because unable to read random bytes", "error", err)
 		return nil, err
 	}
 

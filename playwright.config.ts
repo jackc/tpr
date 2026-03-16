@@ -41,7 +41,7 @@ export default defineConfig({
       stderr: 'pipe',
     },
     {
-      command: 'TEST_ENDPOINTS=true DATABASE_URL=postgres://tpr:secret@127.0.0.1:5432/tpr_test LOG_LEVEL=none go run main.go server --port 5000',
+      command: 'TEST_ENDPOINTS=true DATABASE_URL=postgres://tpr:secret@127.0.0.1:5432/tpr_test LOG_LEVEL=none go run . server --port 5000',
       port: 5000,
       reuseExistingServer: !process.env.CI,
       timeout: 120000,

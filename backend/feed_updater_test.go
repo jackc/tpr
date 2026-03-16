@@ -7,9 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"log/slog"
+
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/tpr/backend/data"
-	log "gopkg.in/inconshreveable/log15.v2"
 )
 
 var feedParsingTests = []struct {
@@ -342,7 +343,7 @@ func TestFetchFeed(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	u := NewFeedUpdater(pool, log.Root())
+	u := NewFeedUpdater(pool, slog.New(slog.DiscardHandler))
 	rawFeed, err := u.fetchFeed(ts.URL, pgtype.Text{})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
