@@ -17,6 +17,8 @@ import (
 	"log/slog"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/httplog/v3"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -29,11 +31,33 @@ type HTTPConfig struct {
 	ListenPort    string
 }
 
+type contextKey string
+
+const userContextKey contextKey = "user"
+
+func userFromContext(ctx context.Context) *data.User {
+	user, _ := ctx.Value(userContextKey).(*data.User)
+	return user
+}
+
+func loadSession(pool *pgxpool.Pool) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			user := getUserFromSession(r, pool)
+			if user != nil {
+				ctx := context.WithValue(r.Context(), userContextKey, user)
+				r = r.WithContext(ctx)
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 type EnvHandlerFunc func(w http.ResponseWriter, req *http.Request, env *environment)
 
 func EnvHandler(pool *pgxpool.Pool, mailer Mailer, logger *slog.Logger, f EnvHandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		user := getUserFromSession(req, pool)
+		user := userFromContext(req.Context())
 		env := &environment{user: user, pool: pool, mailer: mailer, logger: logger}
 		f(w, req, env)
 	})
@@ -56,8 +80,34 @@ type AppServer struct {
 	server     *http.Server
 }
 
-func NewAppServer(httpConfig HTTPConfig, pool *pgxpool.Pool, mailer Mailer, logger *slog.Logger) (*AppServer, error) {
+func NewAppServer(httpConfig HTTPConfig, pool *pgxpool.Pool, mailer Mailer, logger *slog.Logger, logLevel slog.Level) (*AppServer, error) {
 	r := chi.NewRouter()
+
+	r.Use(middleware.RequestID)
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if reqID := middleware.GetReqID(r.Context()); reqID != "" {
+				w.Header().Set(middleware.RequestIDHeader, reqID)
+			}
+			next.ServeHTTP(w, r)
+		})
+	})
+	r.Use(loadSession(pool))
+	r.Use(httplog.RequestLogger(logger, &httplog.Options{
+		Level:         logLevel,
+		RecoverPanics: true,
+		LogExtraAttrs: func(req *http.Request, _ string, _ int) []slog.Attr {
+			var attrs []slog.Attr
+			if reqID := middleware.GetReqID(req.Context()); reqID != "" {
+				attrs = append(attrs, slog.String("request_id", reqID))
+			}
+			if user := userFromContext(req.Context()); user != nil {
+				attrs = append(attrs, slog.String("user_id", fmt.Sprintf("%d", user.ID.Int32)))
+				attrs = append(attrs, slog.String("username", user.Name.String))
+			}
+			return attrs
+		},
+	}))
 
 	r.Get("/health", func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")

@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/go-chi/chi/v5 v5.2.4
+	github.com/go-chi/httplog/v3 v3.3.0
 	github.com/jackc/pgx/v5 v5.8.0
 	github.com/jackc/pgxutil v0.0.0-20231015020832-ec5434149869
 	github.com/jackc/testdb v0.0.0-20221015161059-a3705a386fe0

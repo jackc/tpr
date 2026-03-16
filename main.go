@@ -246,7 +246,13 @@ func Serve(c *cli.Context) {
 	feedUpdater := backend.NewFeedUpdater(pool, logger.With("module", "feedUpdater"))
 	go feedUpdater.KeepFeedsFresh()
 
-	server, err := backend.NewAppServer(httpConfig, pool, mailer, logger)
+	logLevel, err := parseSlogLevel(c.String("log-level"))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	server, err := backend.NewAppServer(httpConfig, pool, mailer, logger, logLevel)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Could not create web server: %v\n", err)
 		os.Exit(1)
