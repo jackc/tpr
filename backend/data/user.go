@@ -2,10 +2,12 @@ package data
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"strings"
 
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgxutil"
 )
@@ -59,11 +61,14 @@ func CreateUser(ctx context.Context, db pgxutil.DB, user *User) (int32, error) {
 		"email":           &user.Email,
 	}, "id", pgx.RowTo[pgtype.Int4])
 	if err != nil {
-		if strings.Contains(err.Error(), "users_name_unq") {
-			return 0, DuplicationError{Field: "name"}
-		}
-		if strings.Contains(err.Error(), "users_email_key") {
-			return 0, DuplicationError{Field: "email"}
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+			switch pgErr.ConstraintName {
+			case "users_name_unq":
+				return 0, DuplicationError{Field: "name"}
+			case "users_email_key":
+				return 0, DuplicationError{Field: "email"}
+			}
 		}
 		return 0, err
 	}
