@@ -4,7 +4,7 @@ This document provides context for AI assistants (like Claude) working with The 
 
 ## Project Overview
 
-**The Pithy Reader** is a self-hosted RSS/Atom feed aggregator built with Go and React. It allows users to subscribe to feeds, automatically fetches updates, and provides a keyboard-driven interface for reading articles.
+**The Pithy Reader** is a self-hosted RSS/Atom feed aggregator built with Go and Svelte. It allows users to subscribe to feeds, automatically fetches updates, and provides a keyboard-driven interface for reading articles.
 
 **Version**: 0.8.1
 **Author**: Jack Christensen
@@ -16,9 +16,9 @@ This document provides context for AI assistants (like Claude) working with The 
 
 ```
 ┌─────────────┐     HTTP/JSON     ┌──────────────┐
-│   React     │ ←──────────────→  │   Go HTTP    │
+│   Svelte    │ ←──────────────→  │   Go HTTP    │
 │   Frontend  │      /api/*       │   Server     │
-│   (Vite)    │                   │   (chi)      │
+│  (SvelteKit)│                   │   (chi)      │
 └─────────────┘                   └──────┬───────┘
                                          │
                       ┌──────────────────┼──────────────────┐
@@ -51,10 +51,10 @@ This document provides context for AI assistants (like Claude) working with The 
    - Each domain entity has its own file (user.go, feed.go, etc.)
    - Raw SQL queries (no ORM)
 
-6. **frontend/src/**: React application
-   - React 18.2.0 with modern hooks
-   - React Router v6
-   - Functional component architecture with hooks
+6. **src/**: Svelte SPA (Single Page Application)
+   - Svelte 5 with SvelteKit 2 (static adapter)
+   - SvelteKit file-based routing
+   - Svelte stores for state management
 
 ## Code Patterns and Conventions
 
@@ -102,48 +102,71 @@ if err != nil {
 - HTTP status codes set manually
 - Logging via `log/slog`: `env.logger.Error("message", "key", value)`
 
-### Frontend (React)
+### Frontend (Svelte)
 
 #### Component Structure
 
-```jsx
-import React, { useState, useEffect } from 'react'
+```svelte
+<script>
+  import { onMount } from 'svelte';
 
-function ComponentName() {
-  const [state, setState] = useState(/* initial state */)
+  let items = [];
+  let selected = null;
 
-  useEffect(() => {
-    // Setup
+  onMount(() => {
+    // Setup: fetch data, add event listeners
+    fetchData();
+
     return () => {
       // Cleanup
-    }
-  }, [])
+    };
+  });
+</script>
 
-  return <div>...</div>
-}
+<div>
+  {#each items as item (item.id)}
+    <li class:selected={item === selected}>{item.title}</li>
+  {/each}
+</div>
 ```
 
-Note: This is **React 18.2.0** - uses modern functional components with hooks.
+Note: This is **Svelte 5** with **SvelteKit 2** — uses `.svelte` components with reactive `let` declarations and `onMount` lifecycle.
 
 #### Routing
 
-Uses React Router v6:
-```jsx
-<HashRouter>
-  <Routes>
-    <Route path="/" element={<App />}>
-      <Route index element={<HomePage />} />
-      <Route path="login" element={<LoginPage />} />
-    </Route>
-  </Routes>
-</HashRouter>
+Uses SvelteKit file-based routing with route groups:
 ```
+src/routes/
+  +layout.svelte              # Root layout (header, footer)
+  +page.svelte                # Root redirect to /home
+  (auth)/
+    login/+page.svelte        # Login form
+    register/+page.svelte     # Registration
+    lostPassword/+page.svelte # Password reset request
+    resetPassword/+page.svelte
+  (protected)/
+    +layout.svelte            # Auth guard (redirects if not logged in)
+    home/+page.svelte         # Main feed reader
+    archive/+page.svelte      # Archived items
+    feeds/+page.svelte        # Feed management
+    account/+page.svelte      # Account settings
+```
+
+Navigation via `goto()` from `$app/navigation`.
 
 #### State Management
 
-- Component local state via `this.state`
-- Signal library for cross-component communication
-- No Redux or modern state management
+- **Svelte stores** (`writable`) for shared state (session, ajax pending indicator)
+- **Local `let` variables** for component state (reactive by default in Svelte)
+- **Model classes** (`UnreadItems`, `ArchivedItems`, `Item`) with internal `writable` stores for change notification
+- Session persisted to `localStorage` via custom store wrapper (`src/lib/session.js`)
+
+#### API Client
+
+`src/lib/api.js` — async/await Fetch API client:
+- Auth via `X-Authentication` header (reads session store)
+- Tracks pending requests via `ajaxPending` store
+- Auto-clears session on 403 responses
 
 ## Database Schema
 
@@ -224,32 +247,45 @@ Uses React Router v6:
    tern migrate
    ```
 
-### Adding a React Component
+### Adding a Svelte Component
 
-1. Create file: `frontend/src/components/ComponentName.jsx`
+1. Create file in `src/lib/components/ComponentName.svelte`
 
-2. Use functional component with hooks:
-   ```jsx
-   import React, { useState, useEffect } from 'react'
+2. Use standard Svelte component structure:
+   ```svelte
+   <script>
+     import { onMount } from 'svelte';
 
-   export default function ComponentName() {
-     const [state, setState] = useState(initialValue)
+     export let propName = 'default';
+     let localState = [];
 
-     useEffect(() => {
+     onMount(() => {
        // Side effects
        return () => {
          // Cleanup
-       }
-     }, [dependencies])
+       };
+     });
+   </script>
 
-     return <div>Component content</div>
-   }
+   <div>{propName}</div>
    ```
 
 3. Import where needed:
-   ```jsx
-   import ComponentName from './components/ComponentName.jsx';
+   ```svelte
+   <script>
+     import ComponentName from '$lib/components/ComponentName.svelte';
+   </script>
+
+   <ComponentName propName="value" />
    ```
+
+### Adding a New Page/Route
+
+1. Create directory and page file: `src/routes/(protected)/pagename/+page.svelte`
+   - Use `(auth)` group for unauthenticated pages
+   - Use `(protected)` group for authenticated pages
+
+2. The route is automatically available at `/pagename`
 
 ### Running Tests
 
@@ -281,7 +317,8 @@ npm run test:e2e:ui      # Interactive mode
 ### Development
 - `.devcontainer/` - VS Code devcontainer configuration
 - `.vscode/tasks.json` - VS Code tasks for auto-start
-- `frontend/vite.config.js` - Vite configuration
+- `vite.config.js` - Vite configuration
+- `svelte.config.js` - SvelteKit configuration (static adapter)
 
 ## CLI Usage
 
@@ -330,15 +367,15 @@ CLI flags take the same names with `--` prefix (e.g., `--db-host`, `--log-level`
 
 ### Frontend
 
-1. **Modern React 18**: Uses functional components with hooks. Always use useState, useEffect, useCallback, etc.
+1. **Svelte 5 + SvelteKit 2**: Uses `.svelte` components with reactive `let` declarations. Lifecycle via `onMount()`. Always clean up subscriptions and event listeners in `onMount` return functions.
 
-2. **React Router v6**: Uses `<HashRouter>`, `<Routes>`, and `element` prop. Navigation via `useNavigate()` hook.
+2. **SvelteKit File-Based Routing**: Routes in `src/routes/`. Route groups `(auth)` and `(protected)` for organization. Navigation via `goto()` from `$app/navigation`.
 
-3. **Signals Library**: Used for pub/sub between components (WorkingNotice, HomePage, ArchivePage). Always clean up signal listeners in useEffect return functions.
+3. **Svelte Stores**: `writable` stores for cross-component state (session, ajax pending). Model classes use internal stores for change notification. Use `$store` syntax for auto-subscription in templates.
 
-4. **Vite Build Tool**: Modern build tool with Fast Refresh. Run `npm run dev` for development server.
+4. **Vite Build Tool**: Run `npm run dev` for development server on port 5173. Proxies `/api/*` to Go backend.
 
-4. **Signals Library**: Used for pub/sub between components. Check before adding new state management.
+5. **Source Location**: Frontend source is in `src/`, NOT `frontend/src/`.
 
 ### Database
 
@@ -385,8 +422,8 @@ Deployment uses [verna](https://github.com/jackc/verna) with Caddy as the revers
 
 - [pgx Documentation](https://github.com/jackc/pgx)
 - [chi Router](https://github.com/go-chi/chi)
-- [React 18 Docs](https://react.dev/)
-- [React Router v6 Docs](https://reactrouter.com/)
+- [Svelte 5 Docs](https://svelte.dev/docs)
+- [SvelteKit Docs](https://svelte.dev/docs/kit)
 - [Tern Migrations](https://github.com/jackc/tern)
 - [Playwright](https://playwright.dev)
 
@@ -399,17 +436,18 @@ Deployment uses [verna](https://github.com/jackc/verna) with Caddy as the revers
 - Logging: structured logging with `log/slog`. Supports `text`, `json`, and `journal` (systemd journald) output formats via `LOG_FORMAT`
 - Comments: godoc-style for exported functions
 
-### JavaScript/React
+### JavaScript/Svelte
 - Use semicolons
 - Single quotes for strings
-- 2-space indentation
-- Follow existing patterns (pre-ES6 style due to old React)
+- Tab indentation in `.svelte` files (Svelte default)
+- 2-space indentation in `.js` files
+- Use `$lib/` alias for imports from `src/lib/`
 
 ## Contributing Guidelines
 
 When modifying this codebase:
 
-1. **Use modern patterns**: Use functional components with hooks (useState, useEffect, useCallback, etc.)
+1. **Use Svelte patterns**: Use `.svelte` components with reactive `let` declarations, `onMount` lifecycle, and Svelte stores for shared state
 2. **Write tests**: Add tests for new backend functionality
 3. **Migrations**: Always include both up and down migrations
 4. **Security**: Validate input, use prepared statements, hash passwords
@@ -440,11 +478,11 @@ When working on new features, consider:
 
 ## Security Notes
 
-- Passwords: bcrypt hashed with random salt
+- Passwords: scrypt hashed with random salt
 - Sessions: Random 32-byte tokens, hex-encoded
 - CSRF: Not currently implemented (session tokens in header)
 - SQL Injection: Prevented via prepared statements
-- XSS: React auto-escapes by default
+- XSS: Svelte auto-escapes by default
 - Email: SMTP with optional TLS
 - Input Validation: Check in handlers before database calls
 
@@ -452,7 +490,6 @@ When working on new features, consider:
 
 Potential areas for enhancement:
 
-- Upgrade React to modern version
 - Add real-time updates (WebSocket/SSE)
 - Implement full-text search
 - Add feed categories/tags
@@ -466,4 +503,4 @@ Potential areas for enhancement:
 
 ---
 
-Last updated: 2026-02-01
+Last updated: 2026-03-21
