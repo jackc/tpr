@@ -6,7 +6,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"time"
 
@@ -100,7 +100,7 @@ func (u *FeedUpdater) fetchFeed(feedURL string, etag pgtype.Text) (*rawFeed, err
 
 	switch resp.StatusCode {
 	case 200:
-		feed.body, err = ioutil.ReadAll(resp.Body)
+		feed.body, err = io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, fmt.Errorf("Unable to read response body: %v", err)
 		}
