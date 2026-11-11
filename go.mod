@@ -13,8 +13,8 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/systemd/slog-journal v0.1.2
 	github.com/urfave/cli v1.22.17
-	golang.org/x/crypto v0.47.0
-	golang.org/x/net v0.49.0
+	golang.org/x/crypto v0.59.0
+	golang.org/x/net v0.62.0
 )
 
 require (
