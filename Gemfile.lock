@@ -15,7 +15,7 @@ GEM
       coderay (~> 1.1)
       method_source (~> 1.0)
       reline (>= 0.6.0)
-    rake (13.3.1)
+    rake (13.4.2)
     reline (0.7.0)
       io-console (~> 0.5)
 
@@ -41,7 +41,7 @@ CHECKSUMS
   net-ssh (8.1.2) sha256=78ce245aba70b5b8dab6226b335a7f359e0ba062fef6a1bc57bad32bee22778e
   openssl (4.0.2) sha256=1037ad2868ae58df9ad917891c0c0f9815a1172f6846d4bcdd508e4c2ee747c2
   pry (0.16.1) sha256=d92d82c86e7f2dc34beec6d2892d5cf5ea517eea22eed3ceabb38ee62a98accc
-  rake (13.3.1) sha256=8c9e89d09f66a26a01264e7e3480ec0607f0c497a861ef16063604b1b08eb19c
+  rake (13.4.2) sha256=cb825b2bd5f1f8e91ca37bddb4b9aaf345551b4731da62949be002fa89283701
   reline (0.7.0) sha256=5b012d8e55dbf9d450f12bde2cf7d15ff546ae80b3f8f3b30e570d431815583d
 
 BUNDLED WITH
