@@ -3,7 +3,7 @@ module github.com/jackc/tpr
 go 1.27.4
 
 require (
-	github.com/go-chi/chi/v5 v5.2.4
+	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-chi/httplog/v3 v3.3.0
 	github.com/jackc/pgerrcode v0.0.0-20250907135507-afb5586c32a6
 	github.com/jackc/pgx/v5 v5.8.0
