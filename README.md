@@ -66,7 +66,7 @@ Key tables:
 ### Prerequisites
 
 - Go 1.27.4+
-- Node.js 24+
+- Node.js 26.13.1+
 - PostgreSQL 14+
 - Ruby 4+ (for Rake build tasks)
 
