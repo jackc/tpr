@@ -1,7 +1,7 @@
 <script>
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { session } from '$lib/session.js';
+	import { session } from '#lib/session.js';
 	import { get } from 'svelte/store';
 
 	onMount(() => {

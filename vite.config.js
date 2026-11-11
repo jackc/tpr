@@ -1,9 +1,22 @@
+import adapter from '@sveltejs/adapter-static';
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { compression } from 'vite-plugin-compression2';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  plugins: [sveltekit(), compression({ algorithms: ['gzip', 'brotliCompress'] })],
+  plugins: [
+    sveltekit({
+      preprocess: [vitePreprocess()],
+      adapter: adapter({
+        pages: 'build/assets',
+        assets: 'build/assets',
+        fallback: 'index.html',
+        precompress: false
+      })
+    }),
+    compression({ algorithms: ['gzip', 'brotliCompress'] })
+  ],
   server: {
     host: '127.0.0.1',
     port: 5173,

@@ -1,7 +1,7 @@
 <script>
 	import { onMount } from 'svelte';
-	import ArchivedItems from '$lib/models/ArchivedItems.js';
-	import { toTPRString } from '$lib/utils/date.js';
+	import ArchivedItems from '#lib/models/ArchivedItems.js';
+	import { toTPRString } from '#lib/utils/date.js';
 
 	let items = [];
 	let selected = null;

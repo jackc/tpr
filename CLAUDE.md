@@ -52,7 +52,7 @@ This document provides context for AI assistants (like Claude) working with The 
    - Raw SQL queries (no ORM)
 
 6. **src/**: Svelte SPA (Single Page Application)
-   - Svelte 5 with SvelteKit 2 (static adapter)
+   - Svelte 5 with SvelteKit 3 (static adapter)
    - SvelteKit file-based routing
    - Svelte stores for state management
 
@@ -130,7 +130,7 @@ if err != nil {
 </div>
 ```
 
-Note: This is **Svelte 5** with **SvelteKit 2** — uses `.svelte` components with reactive `let` declarations and `onMount` lifecycle.
+Note: This is **Svelte 5** with **SvelteKit 3** — uses `.svelte` components with reactive `let` declarations and `onMount` lifecycle.
 
 #### Routing
 
@@ -273,7 +273,7 @@ Navigation via `goto()` from `$app/navigation`.
 3. Import where needed:
    ```svelte
    <script>
-     import ComponentName from '$lib/components/ComponentName.svelte';
+     import ComponentName from '#lib/components/ComponentName.svelte';
    </script>
 
    <ComponentName propName="value" />
@@ -318,7 +318,6 @@ npm run test:e2e:ui      # Interactive mode
 - `.devcontainer/` - VS Code devcontainer configuration
 - `.vscode/tasks.json` - VS Code tasks for auto-start
 - `vite.config.js` - Vite configuration
-- `svelte.config.js` - SvelteKit configuration (static adapter)
 
 ## CLI Usage
 
@@ -367,7 +366,7 @@ CLI flags take the same names with `--` prefix (e.g., `--db-host`, `--log-level`
 
 ### Frontend
 
-1. **Svelte 5 + SvelteKit 2**: Uses `.svelte` components with reactive `let` declarations. Lifecycle via `onMount()`. Always clean up subscriptions and event listeners in `onMount` return functions.
+1. **Svelte 5 + SvelteKit 3**: Uses `.svelte` components with reactive `let` declarations. Lifecycle via `onMount()`. Always clean up subscriptions and event listeners in `onMount` return functions.
 
 2. **SvelteKit File-Based Routing**: Routes in `src/routes/`. Route groups `(auth)` and `(protected)` for organization. Navigation via `goto()` from `$app/navigation`.
 
@@ -441,7 +440,7 @@ Deployment uses [verna](https://github.com/jackc/verna) with Caddy as the revers
 - Single quotes for strings
 - Tab indentation in `.svelte` files (Svelte default)
 - 2-space indentation in `.js` files
-- Use `$lib/` alias for imports from `src/lib/`
+- Use `#lib/` alias for imports from `src/lib/`
 
 ## Contributing Guidelines
 

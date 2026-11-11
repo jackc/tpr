@@ -124,7 +124,6 @@ tpr-a/
 ├── test/                # Test utilities and fixtures
 ├── deploy/              # Verna deployment configuration
 ├── main.go              # Application entry point
-├── svelte.config.js     # SvelteKit configuration
 ├── vite.config.js       # Vite configuration
 └── Rakefile             # Build tasks
 ```

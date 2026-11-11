@@ -1,8 +1,8 @@
 <script>
 	import { onMount } from 'svelte';
-	import { api } from '$lib/api.js';
-	import { session } from '$lib/session.js';
-	import { toTPRString } from '$lib/utils/date.js';
+	import { api } from '#lib/api.js';
+	import { session } from '#lib/session.js';
+	import { toTPRString } from '#lib/utils/date.js';
 
 	let feeds = [];
 	let url = '';

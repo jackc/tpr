@@ -1,7 +1,7 @@
 <script>
 	import { onMount } from 'svelte';
-	import UnreadItems from '$lib/models/UnreadItems.js';
-	import { toTPRString } from '$lib/utils/date.js';
+	import UnreadItems from '#lib/models/UnreadItems.js';
+	import { toTPRString } from '#lib/utils/date.js';
 
 	let items = [];
 	let selected = null;

@@ -1,6 +1,6 @@
 <script>
-	import Header from '$lib/components/Header.svelte';
-	import WorkingNotice from '$lib/components/WorkingNotice.svelte';
+	import Header from '#lib/components/Header.svelte';
+	import WorkingNotice from '#lib/components/WorkingNotice.svelte';
 	import '../styles/main.scss';
 </script>
 

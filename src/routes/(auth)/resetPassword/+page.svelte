@@ -2,8 +2,8 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { api } from '$lib/api.js';
-	import { session } from '$lib/session.js';
+	import { api } from '#lib/api.js';
+	import { session } from '#lib/session.js';
 
 	let token = '';
 	let password = '';

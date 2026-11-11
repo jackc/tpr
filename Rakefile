@@ -20,7 +20,7 @@ BUILD_TARGETS = [
 ].freeze
 
 GO_SOURCES = FileList["Rakefile", "*.go", "go.*", "**/*.go"].exclude(/_test.go$/)
-ASSET_SOURCES = FileList["src/**/*", "package.json", "vite.config.js", "svelte.config.js"]
+ASSET_SOURCES = FileList["src/**/*", "package.json", "vite.config.js"]
 
 directory "tmp/test"
 
