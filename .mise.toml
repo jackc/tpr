@@ -27,6 +27,6 @@ TERN_MIGRATIONS = "postgresql/migrations"
 # PRODUCTION_HOST = "example.com"
 
 [tools]
-go = '1.25.6'
+go = '1.27.4'
 nodejs = '24.13.0'
 ruby = '4.0.1'

@@ -10,7 +10,7 @@
       "configureZshAsDefaultShell": true
     },
     "ghcr.io/devcontainers/features/go:1": {
-      "version": "1.25"
+      "version": "1.27.4"
     },
     "ghcr.io/rails/devcontainer/features/ruby:2.1.2": {
       "version": "4.0.1",

@@ -22,7 +22,7 @@ A lightweight, self-hosted RSS/Atom feed aggregator written in Go with a SvelteK
 ## Tech Stack
 
 ### Backend
-- **Language**: Go 1.25
+- **Language**: Go 1.27.4
 - **Web Framework**: [chi v5](https://github.com/go-chi/chi) for HTTP routing
 - **Database**: PostgreSQL with [pgx v5](https://github.com/jackc/pgx) driver
 - **Migrations**: [tern](https://github.com/jackc/tern) for database migrations
@@ -65,7 +65,7 @@ Key tables:
 
 ### Prerequisites
 
-- Go 1.25+
+- Go 1.27.4+
 - Node.js 24+
 - PostgreSQL 14+
 - Ruby 4+ (for Rake build tasks)
