@@ -2,7 +2,7 @@
 set -e
 
 # verna version
-VERNA_VERSION="0.5.1"
+VERNA_VERSION="0.8.0"
 
 # Detect architecture
 ARCH=$(uname -m)
