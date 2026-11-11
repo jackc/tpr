@@ -96,7 +96,9 @@ Run backend tests only:
 rake test:backend
 ```
 
-The rake task automatically sets up test databases before running Go tests.
+The rake task automatically sets up test databases before running Go tests. Backend tests use
+`postgres://tpr:secret@127.0.0.1:5432/tpr_test`; set `TEST_DATABASE_URL` to override it.
+The development `DATABASE_URL` is not used by backend tests.
 
 Run E2E tests:
 ```bash

@@ -75,7 +75,7 @@ func newConnPool(t testing.TB) *pgxpool.Pool {
 			}
 		}
 
-		databaseURL := getEnvOrDefault("DATABASE_URL", "postgres://tpr:secret@127.0.0.1:5432/tpr_test")
+		databaseURL := getEnvOrDefault("TEST_DATABASE_URL", "postgres://tpr:secret@127.0.0.1:5432/tpr_test")
 		config, err := pgxpool.ParseConfig(databaseURL)
 		require.NoError(t, err)
 
