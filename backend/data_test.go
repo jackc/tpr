@@ -261,7 +261,7 @@ func TestDataUpdateFeedWithFetchSuccess(t *testing.T) {
 	require.NoError(t, err)
 
 	type UnreadItemsFromJSON struct {
-		ID int32 `json:id`
+		ID int32 `json:"id"`
 	}
 
 	var unreadItems []UnreadItemsFromJSON
@@ -321,7 +321,7 @@ func TestDataUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testing.T) {
 	require.NoError(t, err)
 
 	type UnreadItemsFromJSON struct {
-		ID int32 `json:id`
+		ID int32 `json:"id"`
 	}
 
 	var unreadItems []UnreadItemsFromJSON
