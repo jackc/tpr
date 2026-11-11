@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
@@ -38,4 +39,15 @@ func TestResetPasswordCommandFlags(t *testing.T) {
 	}
 	require.NoError(t, cmd.Run(context.Background(), []string{"tpr", "reset-password", "-p", "new-password", "reader"}))
 	require.True(t, called)
+}
+
+func TestResetPasswordMissingUsername(t *testing.T) {
+	var output bytes.Buffer
+	cmd := newCommand()
+	cmd.Writer = &output
+	cmd.ExitErrHandler = func(context.Context, *cli.Command, error) {}
+	err := cmd.Run(context.Background(), []string{"tpr", "reset-password"})
+	require.ErrorContains(t, err, "expected exactly one username")
+	require.Contains(t, output.String(), "reset-password")
+	require.Contains(t, output.String(), "--password")
 }

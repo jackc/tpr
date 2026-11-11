@@ -277,8 +277,10 @@ func Serve(ctx context.Context, c *cli.Command) error {
 
 func ResetPassword(ctx context.Context, c *cli.Command) error {
 	if c.Args().Len() != 1 {
-		cli.ShowCommandHelp(ctx, c, c.Name)
-		os.Exit(1)
+		if err := cli.ShowCommandHelp(ctx, c.Root(), c.Name); err != nil {
+			return err
+		}
+		return cli.Exit("expected exactly one username", 1)
 	}
 
 	name := c.Args().Get(0)
