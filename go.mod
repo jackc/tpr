@@ -6,7 +6,7 @@ require (
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-chi/httplog/v3 v3.5.0
 	github.com/jackc/pgerrcode v0.0.0-20250907135507-afb5586c32a6
-	github.com/jackc/pgx/v5 v5.8.0
+	github.com/jackc/pgx/v5 v5.13.0
 	github.com/jackc/pgxutil v0.0.0-20231015020832-ec5434149869
 	github.com/jackc/testdb v0.0.0-20221015161059-a3705a386fe0
 	github.com/mcosta74/pgx-slog v0.4.1
