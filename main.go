@@ -8,118 +8,127 @@ import (
 	"net/smtp"
 	"os"
 
-	pgxslog "github.com/mcosta74/pgx-slog"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
 	"github.com/jackc/tpr/backend"
 	"github.com/jackc/tpr/backend/data"
-	"github.com/urfave/cli"
+	pgxslog "github.com/mcosta74/pgx-slog"
+	"github.com/urfave/cli/v3"
 )
 
 const version = "0.8.1"
 
 // Shared database flags for both commands
 var databaseFlags = []cli.Flag{
-	cli.StringFlag{
-		Name:   "database-url",
-		EnvVar: "DATABASE_URL",
-		Usage:  "PostgreSQL connection URL (e.g. postgres://user:pass@host:port/dbname)",
+	&cli.StringFlag{
+		Name:    "database-url",
+		Sources: cli.EnvVars("DATABASE_URL"),
+		Usage:   "PostgreSQL connection URL (e.g. postgres://user:pass@host:port/dbname)",
 	},
 }
 
 // Shared log flags for both commands
 var logFlags = []cli.Flag{
-	cli.StringFlag{
-		Name:   "log-level",
-		Value:  "warn",
-		EnvVar: "LOG_LEVEL",
-		Usage:  "Log level (debug, info, warn, error, crit, none)",
+	&cli.StringFlag{
+		Name:    "log-level",
+		Value:   "warn",
+		Sources: cli.EnvVars("LOG_LEVEL"),
+		Usage:   "Log level (debug, info, warn, error, crit, none)",
 	},
-	cli.StringFlag{
-		Name:   "log-format",
-		Value:  "text",
-		EnvVar: "LOG_FORMAT",
-		Usage:  "Log format (text, json, journal)",
+	&cli.StringFlag{
+		Name:    "log-format",
+		Value:   "text",
+		Sources: cli.EnvVars("LOG_FORMAT"),
+		Usage:   "Log format (text, json, journal)",
 	},
-	cli.StringFlag{
-		Name:   "pgx-log-level",
-		Value:  "warn",
-		EnvVar: "PGX_LOG_LEVEL",
-		Usage:  "PGX (database driver) log level",
+	&cli.StringFlag{
+		Name:    "pgx-log-level",
+		Value:   "warn",
+		Sources: cli.EnvVars("PGX_LOG_LEVEL"),
+		Usage:   "PGX (database driver) log level",
 	},
 }
 
 func main() {
-	app := cli.NewApp()
+	if err := newCommand().Run(context.Background(), os.Args); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func newCommand() *cli.Command {
+	app := &cli.Command{}
 	app.Name = "tpr"
 	app.Usage = "The Pithy Reader RSS Aggregator"
 	app.Version = version
-	app.Author = "Jack Christensen"
-	app.Email = "jack@jackchristensen.com"
+	app.Authors = []any{"Jack Christensen <jack@jackchristensen.com>"}
 
 	serverFlags := []cli.Flag{
-		cli.StringFlag{
-			Name:   "bind-address, a",
-			Value:  "127.0.0.1",
-			EnvVar: "BIND_ADDRESS",
-			Usage:  "address to listen on",
+		&cli.StringFlag{
+			Name:    "bind-address",
+			Aliases: []string{"a"},
+			Value:   "127.0.0.1",
+			Sources: cli.EnvVars("BIND_ADDRESS"),
+			Usage:   "address to listen on",
 		},
-		cli.StringFlag{
-			Name:   "port, p",
-			Value:  "8080",
-			EnvVar: "PORT",
-			Usage:  "port to listen on",
+		&cli.StringFlag{
+			Name:    "port",
+			Aliases: []string{"p"},
+			Value:   "8080",
+			Sources: cli.EnvVars("PORT"),
+			Usage:   "port to listen on",
 		},
-		cli.StringFlag{
-			Name:   "smtp-server",
-			EnvVar: "SMTP_SERVER",
-			Usage:  "SMTP server hostname",
+		&cli.StringFlag{
+			Name:    "smtp-server",
+			Sources: cli.EnvVars("SMTP_SERVER"),
+			Usage:   "SMTP server hostname",
 		},
-		cli.StringFlag{
-			Name:   "smtp-port",
-			Value:  "587",
-			EnvVar: "SMTP_PORT",
-			Usage:  "SMTP server port",
+		&cli.StringFlag{
+			Name:    "smtp-port",
+			Value:   "587",
+			Sources: cli.EnvVars("SMTP_PORT"),
+			Usage:   "SMTP server port",
 		},
-		cli.StringFlag{
-			Name:   "smtp-username",
-			EnvVar: "SMTP_USERNAME",
-			Usage:  "SMTP username",
+		&cli.StringFlag{
+			Name:    "smtp-username",
+			Sources: cli.EnvVars("SMTP_USERNAME"),
+			Usage:   "SMTP username",
 		},
-		cli.StringFlag{
-			Name:   "smtp-password",
-			EnvVar: "SMTP_PASSWORD",
-			Usage:  "SMTP password",
+		&cli.StringFlag{
+			Name:    "smtp-password",
+			Sources: cli.EnvVars("SMTP_PASSWORD"),
+			Usage:   "SMTP password",
 		},
-		cli.StringFlag{
-			Name:   "smtp-from",
-			EnvVar: "SMTP_FROM",
-			Usage:  "From address for emails",
+		&cli.StringFlag{
+			Name:    "smtp-from",
+			Sources: cli.EnvVars("SMTP_FROM"),
+			Usage:   "From address for emails",
 		},
-		cli.StringFlag{
-			Name:   "root-url",
-			EnvVar: "ROOT_URL",
-			Usage:  "Root URL for email links (e.g., https://example.com)",
+		&cli.StringFlag{
+			Name:    "root-url",
+			Sources: cli.EnvVars("ROOT_URL"),
+			Usage:   "Root URL for email links (e.g., https://example.com)",
 		},
 	}
 	serverFlags = append(serverFlags, databaseFlags...)
 	serverFlags = append(serverFlags, logFlags...)
 
 	resetPasswordFlags := []cli.Flag{
-		cli.StringFlag{
-			Name:  "password, p",
-			Value: "",
-			Usage: "password to set",
+		&cli.StringFlag{
+			Name:    "password",
+			Aliases: []string{"p"},
+			Value:   "",
+			Usage:   "password to set",
 		},
 	}
 	resetPasswordFlags = append(resetPasswordFlags, databaseFlags...)
 	resetPasswordFlags = append(resetPasswordFlags, logFlags...)
 
-	app.Commands = []cli.Command{
+	app.Commands = []*cli.Command{
 		{
 			Name:        "server",
-			ShortName:   "s",
+			Aliases:     []string{"s"},
 			Usage:       "run the server",
 			Description: "run the tpr server",
 			Flags:       serverFlags,
@@ -134,10 +143,10 @@ func main() {
 		},
 	}
 
-	app.Run(os.Args)
+	return app
 }
 
-func newLogger(c *cli.Context) (*slog.Logger, error) {
+func newLogger(c *cli.Command) (*slog.Logger, error) {
 	level := c.String("log-level")
 	if level == "" {
 		level = "warn"
@@ -158,7 +167,7 @@ func newLogger(c *cli.Context) (*slog.Logger, error) {
 	return logger, nil
 }
 
-func newPool(c *cli.Context, logger *slog.Logger) (*pgxpool.Pool, error) {
+func newPool(c *cli.Command, logger *slog.Logger) (*pgxpool.Pool, error) {
 	pgxLogger := logger.With("module", "pgx")
 
 	pgxLogLevel := c.String("pgx-log-level")
@@ -181,7 +190,7 @@ func newPool(c *cli.Context, logger *slog.Logger) (*pgxpool.Pool, error) {
 	return pgxpool.NewWithConfig(context.Background(), config)
 }
 
-func newMailer(c *cli.Context, logger *slog.Logger) (backend.Mailer, error) {
+func newMailer(c *cli.Command, logger *slog.Logger) (backend.Mailer, error) {
 	smtpServer := c.String("smtp-server")
 	if smtpServer == "" {
 		// Mail is optional - return nil if not configured
@@ -219,7 +228,7 @@ func newMailer(c *cli.Context, logger *slog.Logger) (backend.Mailer, error) {
 	return mailer, nil
 }
 
-func Serve(c *cli.Context) {
+func Serve(ctx context.Context, c *cli.Command) error {
 	httpConfig := backend.HTTPConfig{
 		ListenAddress: c.String("bind-address"),
 		ListenPort:    c.String("port"),
@@ -263,15 +272,16 @@ func Serve(c *cli.Context) {
 		os.Stderr.WriteString("Could not start web server!\n")
 		os.Exit(1)
 	}
+	return nil
 }
 
-func ResetPassword(c *cli.Context) {
-	if len(c.Args()) != 1 {
-		cli.ShowCommandHelp(c, c.Command.Name)
+func ResetPassword(ctx context.Context, c *cli.Command) error {
+	if c.Args().Len() != 1 {
+		cli.ShowCommandHelp(ctx, c, c.Name)
 		os.Exit(1)
 	}
 
-	name := c.Args()[0]
+	name := c.Args().Get(0)
 
 	logger, err := newLogger(c)
 	if err != nil {
@@ -311,4 +321,5 @@ func ResetPassword(c *cli.Context) {
 
 	fmt.Println("User:", name)
 	fmt.Println("Password:", password)
+	return nil
 }
