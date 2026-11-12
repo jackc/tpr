@@ -10,7 +10,7 @@ import (
 
 	"log/slog"
 
-	"github.com/go-chi/chi/v5"
+	"github.com/jackc/manifest/httpregistry"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgxutil"
@@ -19,10 +19,13 @@ import (
 
 var counter atomic.Int64
 
-// RegisterTestEndpoints adds test-only endpoints to the API router
-// Only call this when TEST_ENDPOINTS environment variable is set
-func RegisterTestEndpoints(r chi.Router, pool *pgxpool.Pool, logger *slog.Logger) {
-	r.Post("/test/reset-db", func(w http.ResponseWriter, req *http.Request) {
+// registerTestEndpoints declares test-only routes, including disabled entries.
+func registerTestEndpoints(r *httpregistry.Registry[HTTPMetadata], pool *pgxpool.Pool, logger *slog.Logger, enabled bool, prefix string) {
+	post := func(path string, h http.HandlerFunc) {
+		r.Handle(httpregistry.Spec[HTTPMetadata]{Method: "POST", Path: prefix + path, Metadata: HTTPMetadata{Public: true}, When: &httpregistry.Condition{Name: "test-endpoints", Enabled: enabled}}, httpregistry.Custom(h))
+	}
+
+	post("/test/reset-db", func(w http.ResponseWriter, req *http.Request) {
 		ctx := context.Background()
 
 		// Get database name from the pool config
@@ -52,7 +55,7 @@ func RegisterTestEndpoints(r chi.Router, pool *pgxpool.Pool, logger *slog.Logger
 		w.WriteHeader(204)
 	})
 
-	r.Post("/test/users", func(w http.ResponseWriter, req *http.Request) {
+	post("/test/users", func(w http.ResponseWriter, req *http.Request) {
 		var attrs map[string]any
 		if err := json.NewDecoder(req.Body).Decode(&attrs); err != nil {
 			http.Error(w, fmt.Sprintf("Error decoding request: %v", err), 400)
@@ -95,7 +98,7 @@ func RegisterTestEndpoints(r chi.Router, pool *pgxpool.Pool, logger *slog.Logger
 		json.NewEncoder(w).Encode(user)
 	})
 
-	r.Post("/test/feeds", func(w http.ResponseWriter, req *http.Request) {
+	post("/test/feeds", func(w http.ResponseWriter, req *http.Request) {
 		var attrs map[string]any
 		if err := json.NewDecoder(req.Body).Decode(&attrs); err != nil {
 			http.Error(w, fmt.Sprintf("Error decoding request: %v", err), 400)
@@ -127,7 +130,7 @@ func RegisterTestEndpoints(r chi.Router, pool *pgxpool.Pool, logger *slog.Logger
 		json.NewEncoder(w).Encode(feed)
 	})
 
-	r.Post("/test/items", func(w http.ResponseWriter, req *http.Request) {
+	post("/test/items", func(w http.ResponseWriter, req *http.Request) {
 		var attrs map[string]any
 		if err := json.NewDecoder(req.Body).Decode(&attrs); err != nil {
 			http.Error(w, fmt.Sprintf("Error decoding request: %v", err), 400)
@@ -168,7 +171,7 @@ func RegisterTestEndpoints(r chi.Router, pool *pgxpool.Pool, logger *slog.Logger
 		json.NewEncoder(w).Encode(item)
 	})
 
-	r.Post("/test/query", func(w http.ResponseWriter, req *http.Request) {
+	post("/test/query", func(w http.ResponseWriter, req *http.Request) {
 		var query struct {
 			SQL    string `json:"sql"`
 			Params []any  `json:"params"`

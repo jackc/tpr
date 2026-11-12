@@ -51,3 +51,21 @@ func TestResetPasswordMissingUsername(t *testing.T) {
 	require.Contains(t, output.String(), "reset-password")
 	require.Contains(t, output.String(), "--password")
 }
+
+func TestInventoryCommandsWithoutDatabase(t *testing.T) {
+	t.Setenv("DATABASE_URL", "")
+	for _, kind := range []string{"actions", "http"} {
+		t.Run(kind, func(t *testing.T) {
+			var output bytes.Buffer
+			cmd := newCommand()
+			cmd.Writer = &output
+			require.NoError(t, cmd.Run(context.Background(), []string{"tpr", "inventory", kind}))
+			require.Contains(t, output.String(), `"schema_version": 1`)
+			if kind == "actions" {
+				require.Contains(t, output.String(), `"name": "register"`)
+			} else {
+				require.Contains(t, output.String(), `"path": "/api/register"`)
+			}
+		})
+	}
+}

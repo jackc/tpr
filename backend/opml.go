@@ -1,27 +1,8 @@
 package backend
 
-import (
-	"encoding/xml"
-)
+import "github.com/jackc/tpr/backend/core"
 
-type OpmlDocument struct {
-	XMLName xml.Name `xml:"opml"`
-	Version string   `xml:"version,attr"`
-	Head    OpmlHead `xml:"head"`
-	Body    OpmlBody `xml:"body"`
-}
-
-type OpmlHead struct {
-	Title string `xml:"title"`
-}
-
-type OpmlBody struct {
-	Outlines []OpmlOutline `xml:"outline"`
-}
-
-type OpmlOutline struct {
-	Text  string `xml:"text,attr"`
-	Title string `xml:"title,attr"`
-	Type  string `xml:"type,attr"`
-	URL   string `xml:"xmlUrl,attr"`
-}
+type OpmlDocument = core.OpmlDocument
+type OpmlHead = core.OpmlHead
+type OpmlBody = core.OpmlBody
+type OpmlOutline = core.OpmlOutline

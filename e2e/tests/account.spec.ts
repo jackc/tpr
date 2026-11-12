@@ -23,12 +23,18 @@ test.describe('Account Management', () => {
     await page.getByLabel('New Password').fill('bigsecret');
     await page.getByLabel('Password Confirmation').fill('bigsecret');
 
-    // Handle the dialog and click update
+    // Wait for the account operation before navigating away.
+    const updated = page.waitForResponse(response =>
+      response.url().includes('/api/account') && response.request().method() === 'PATCH'
+    );
     page.once('dialog', dialog => dialog.accept());
     await page.getByRole('button', { name: 'Update' }).click();
+    expect((await updated).status()).toBe(200);
 
-    // Logout
+    // Let logout finish before the helper starts another navigation.
     await page.getByRole('link', { name: 'Logout' }).click();
+    await page.waitForURL('/login');
+    await expect(page.getByRole('link', { name: 'Logout' })).toBeHidden();
 
     // Login with new password
     await login(page, 'john', 'bigsecret');
@@ -53,12 +59,18 @@ test.describe('Account Management', () => {
     await page.getByLabel('New Password').fill('bigsecret');
     await page.getByLabel('Password Confirmation').fill('bigsecret');
 
-    // Handle the dialog and click update
+    // Wait for the account operation before navigating away.
+    const updated = page.waitForResponse(response =>
+      response.url().includes('/api/account') && response.request().method() === 'PATCH'
+    );
     page.once('dialog', dialog => dialog.accept());
     await page.getByRole('button', { name: 'Update' }).click();
+    expect((await updated).status()).toBe(422);
 
-    // Logout
+    // Let logout finish before the helper starts another navigation.
     await page.getByRole('link', { name: 'Logout' }).click();
+    await page.waitForURL('/login');
+    await expect(page.getByRole('link', { name: 'Logout' })).toBeHidden();
 
     // Should still be able to login with OLD password (change failed)
     await login(page, 'john', 'secret');

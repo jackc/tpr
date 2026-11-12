@@ -26,3 +26,10 @@ func DeleteSession(ctx context.Context, db pgxutil.DB,
 
 	return nil
 }
+
+// DeleteSessionByUserID only revokes sessions owned by the authenticated reader.
+// A missing or foreign session is a no-op.
+func DeleteSessionByUserID(ctx context.Context, db pgxutil.DB, id []byte, userID int32) error {
+	_, err := db.Exec(ctx, `delete from sessions where id=$1 and user_id=$2`, id, userID)
+	return err
+}

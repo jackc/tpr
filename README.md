@@ -23,10 +23,10 @@ A lightweight, self-hosted RSS/Atom feed aggregator written in Go with a SvelteK
 
 ### Backend
 - **Language**: Go 1.27.4
-- **Web Framework**: [chi v5](https://github.com/go-chi/chi) for HTTP routing
+- **Application foundation**: Manifest typed actions and HTTP registry (backed by chi)
 - **Database**: PostgreSQL with [pgx v5](https://github.com/jackc/pgx) driver
 - **Migrations**: [tern](https://github.com/jackc/tern) for database migrations
-- **Logging**: log15
+- **Logging**: `log/slog`
 - **Email**: SMTP for password reset
 
 ### Frontend
@@ -42,7 +42,35 @@ A lightweight, self-hosted RSS/Atom feed aggregator written in Go with a SvelteK
 
 ## Architecture
 
-The application follows a traditional client-server architecture:
+Application operations live in `backend/core`, using the same Manifest action
+catalog and HTTP registry foundation as Logger4Life and FAM:
+
+- `backend/core`: typed parameters/results, business rules, and a shared dispatcher.
+  Action metadata declares public access and mutations; the dispatcher requires a
+  user for every private action, including calls made without HTTP. Mutation
+  metadata is descriptive; it does not introduce an audit log or transaction layer.
+- `backend/handlers.go`: HTTP decoding, error/status mapping, JSON and OPML output.
+  The existing URLs and lenient `encoding/json` request decoding remain in place.
+  Direct `Core.InvokeJSON` calls use Manifest's strict decoder.
+- `backend/http_registry.go`: the serving route declarations and named middleware
+  stages, including session loading, authentication, request IDs and logging.
+  Test routes have an explicit `test-endpoints` condition.
+- `backend/data`: PostgreSQL queries shared by the core and feed updater.
+
+Inspect the declarations without starting a server or connecting to PostgreSQL:
+
+```sh
+go run . inventory actions
+go run . inventory http
+TEST_ENDPOINTS=true go run . inventory http
+```
+
+The HTTP inventory describes custom adapters and explicitly reports that their
+internal action calls are not inspected. TPR has no MCP transport; this migration
+does not introduce one. Session revocation is now scoped to the authenticated
+reader's sessions.
+
+Runtime components:
 
 - **HTTP API** (`/api/*`) handles all client requests
 - **Session-based authentication** using PostgreSQL-backed sessions

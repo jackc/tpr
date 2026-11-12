@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
 	"github.com/jackc/tpr/backend"
+	"github.com/jackc/tpr/backend/core"
 	"github.com/jackc/tpr/backend/data"
 	pgxslog "github.com/mcosta74/pgx-slog"
 	"github.com/urfave/cli/v3"
@@ -143,6 +145,26 @@ func newCommand() *cli.Command {
 		},
 	}
 
+	app.Commands = append(app.Commands, &cli.Command{
+		Name: "inventory", Usage: "print actions or HTTP routes as JSON",
+		Action: func(ctx context.Context, c *cli.Command) error {
+			if c.Args().Len() != 1 {
+				return fmt.Errorf("expected inventory actions|http")
+			}
+			var inventory any
+			switch c.Args().First() {
+			case "actions":
+				inventory = core.Inventory()
+			case "http":
+				inventory = backend.HTTPInventory(os.Getenv("TEST_ENDPOINTS") == "true")
+			default:
+				return fmt.Errorf("expected inventory actions|http")
+			}
+			encoder := json.NewEncoder(c.Root().Writer)
+			encoder.SetIndent("", "  ")
+			return encoder.Encode(inventory)
+		},
+	})
 	return app
 }
 

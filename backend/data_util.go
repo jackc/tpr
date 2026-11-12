@@ -1,45 +1,23 @@
 package backend
 
 import (
-	"bytes"
-	"crypto/rand"
 	"errors"
-
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/tpr/backend/core"
 	"github.com/jackc/tpr/backend/data"
-	"golang.org/x/crypto/scrypt"
 )
 
 var notFound = errors.New("not found")
 
-func SetPassword(u *data.User, password string) error {
-	salt := make([]byte, 8)
-	_, err := rand.Read(salt)
-	if err != nil {
-		return err
-	}
-
-	digest, err := scrypt.Key([]byte(password), salt, 16384, 8, 1, 32)
-	if err != nil {
-		return err
-	}
-
-	u.PasswordDigest = digest
-	u.PasswordSalt = salt
-
-	return nil
-}
-
-func IsPassword(u *data.User, password string) bool {
-	digest, err := scrypt.Key([]byte(password), u.PasswordSalt, 16384, 8, 1, 32)
-	if err != nil {
-		return false
-	}
-
-	return bytes.Equal(digest, u.PasswordDigest)
-}
+func SetPassword(u *data.User, password string) error { return core.SetPassword(u, password) }
+func IsPassword(u *data.User, password string) bool   { return core.IsPassword(u, password) }
 
 type staleFeed struct {
 	id   int32
 	url  string
 	etag string
+}
+
+func newStringFallback(value string) pgtype.Text {
+	return pgtype.Text{String: value, Valid: value != ""}
 }

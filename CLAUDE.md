@@ -35,12 +35,20 @@ This document provides context for AI assistants (like Claude) working with The 
    - `server`: Starts HTTP server
    - `reset-password`: Resets user password
 
-2. **backend/http.go**: HTTP server setup and routing
-   - Chi router handling `/api/*` endpoints
-   - Environment-based handler pattern for dependency injection
-   - Session-based authentication
+2. **backend/http_registry.go** and **backend/handlers.go**: HTTP transport
+   - Manifest HTTP registry declares every route and its authentication policy
+   - Named stages handle session loading, request IDs, logging and authentication
+   - Handlers decode requests, call typed core actions, and serialize responses
+   - Existing browser URLs and lenient JSON decoding remain supported
 
-3. **backend/domain.go**: Core business logic and domain types
+3. **backend/core/**: Manifest application action catalog
+   - Typed parameters/results and business logic independent of HTTP
+   - `Core` owns dependencies and the Manifest dispatcher
+   - `ActionMetadata{Public, Mutating}` declares action policies
+   - Core middleware requires an identity on all private calls
+   - `core.WithUser` supplies a trusted identity; never accept identity from JSON
+   - `Mutating` is descriptive, not automatic auditing or transactions
+   - `tpr inventory actions|http` prints declarations without database access
 
 4. **backend/feed_updater.go**: Background service
    - Continuously polls feeds for new items
@@ -60,26 +68,20 @@ This document provides context for AI assistants (like Claude) working with The 
 
 ### Backend (Go)
 
-#### Handler Pattern
+#### Action and Handler Pattern
 
-```go
-type EnvHandlerFunc func(w http.ResponseWriter, req *http.Request, env *environment)
-
-// Handlers receive environment with user, pool, mailer, logger
-func someHandler(w http.ResponseWriter, req *http.Request, env *environment) {
-    // env.user - Current authenticated user (may be nil)
-    // env.pool - Database connection pool
-    // env.mailer - Email sender
-    // env.logger - Structured logger
-}
-```
+Define application operations in `backend/core` using `Define(ActionDef[P, R])`.
+Pass `context.Context` through database calls. Transport adapters in
+`backend/handlers.go` call `Action.Call` via the shared `call` helper, which maps
+core errors to HTTP responses. Keep HTTP request/response objects out of core.
 
 #### Authentication
 
-- Session-based using `X-Authentication` header
-- Sessions stored in PostgreSQL `sessions` table
-- `AuthenticatedHandler()` wrapper enforces authentication
-- `getUserFromSession()` extracts user from session
+- PostgreSQL sessions arrive through `X-Authentication` or the OPML `session` form value
+- The registry compiles private route metadata into `require-session-user`
+- The core dispatcher independently enforces private action authentication
+- `core.WithUser` is for trusted in-process callers and the session loader
+- Session deletion is scoped to the authenticated user's ID
 
 #### Database Access
 
@@ -204,22 +206,12 @@ Navigation via `goto()` from `$app/navigation`.
 
 ### Adding a New API Endpoint
 
-1. Add route in `backend/http.go` (in `NewAPIHandler`):
-   ```go
-   r.Get("/new-endpoint", EnvHandler(pool, mailer, logger, newEndpointHandler))
-   ```
-
-2. Create handler function:
-   ```go
-   func newEndpointHandler(w http.ResponseWriter, req *http.Request, env *environment) {
-       // Implementation
-   }
-   ```
-
-3. Add authentication if needed:
-   ```go
-   r.Get("/protected", EnvHandler(pool, mailer, logger, AuthenticatedHandler(protectedHandler)))
-   ```
+1. Define the typed operation in `backend/core`, with public/mutation metadata.
+2. Add a thin adapter in `backend/handlers.go`; preserve the existing HTTP JSON
+   conventions rather than using strict Manifest bindings implicitly.
+3. Declare its route in `backend/http_registry.go` with an explicit public policy.
+4. Test the core behavior and transport policy. Update inventory assertions when
+   adding routes or actions. Test-only routes belong behind the named condition.
 
 ### Adding a Database Migration
 
