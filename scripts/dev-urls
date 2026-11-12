@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Print this worktree's project URLs, allocating its port group if necessary.
+# This intentionally does not load the rest of the development environment, so
+# inspecting ports does not require PostgreSQL to be installed.
+
+set -euo pipefail
+cd "$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+port-tamer allocate
+. .port-tamer.env
+
+printf '%s -- port group %s\n\n' "${PWD##*/}" "$PORT_BASE"
+printf '  %-16s %s\n' "Frontend:" "http://127.0.0.1:$VITE_PORT"
+printf '  %-16s %s\n' "Backend:" "http://127.0.0.1:$BACKEND_PORT"
+printf '  %-16s %s\n' "PostgreSQL:" "127.0.0.1:$PGPORT"
+printf '  %-16s %s\n' "process-compose:" "127.0.0.1:$PC_PORT_NUM"
+printf '\n'
+printf '  %-16s %s\n' "Test backend:" "http://127.0.0.1:$TEST_BACKEND_PORT"
+printf '  %-16s %s\n' "Test frontend:" "http://127.0.0.1:$TEST_VITE_PORT"
+printf '  %-16s %s\n' "Test report:" "http://127.0.0.1:$PLAYWRIGHT_REPORT_PORT"

@@ -283,26 +283,28 @@ Navigation via `goto()` from `$app/navigation`.
 
 Backend:
 ```bash
-rake                    # Run all Go tests
+mise run dev -- -D      # Start this worktree's services
+mise run dev:wait
+mise run test:backend   # Prepare databases and run all Go tests
 go test ./backend/...  # Test specific package
 ```
 
 E2E:
 ```bash
-npm run test:e2e         # Headless
-npm run test:e2e:headed  # With browser
-npm run test:e2e:ui      # Interactive mode
+mise run test:browser         # Headless
+mise run test:browser:headed  # With browser
+mise run test:browser:ui      # Interactive mode
 ```
 
 ## Important Files
 
 ### Configuration
-- `.mise.toml` - Development environment variables (TPR_* settings)
+- `.mise.toml` - Development tools, tasks, and worktree environment
 - `.mise.local.toml` - Local overrides (gitignored)
 - Configuration via CLI flags or environment variables (see CLI Usage below)
 
 ### Build
-- `Rakefile` - Build tasks (build, test, deploy)
+- `.mise.toml` - Tool versions and build, run, and test tasks
 - `package.json` - Frontend dependencies and scripts
 - `go.mod` - Go dependencies
 
@@ -364,7 +366,7 @@ CLI flags take the same names with `--` prefix (e.g., `--db-host`, `--log-level`
 
 3. **Svelte Stores**: `writable` stores for cross-component state (session, ajax pending). Model classes use internal stores for change notification. Use `$store` syntax for auto-subscription in templates.
 
-4. **Vite Build Tool**: Run `npm run dev` for development server on port 5173. Proxies `/api/*` to Go backend.
+4. **Vite Build Tool**: `mise run dev` starts Vite on this worktree's assigned port and proxies `/api/*` to its backend.
 
 5. **Source Location**: Frontend source is in `src/`, NOT `frontend/src/`.
 
@@ -378,13 +380,13 @@ CLI flags take the same names with `--` prefix (e.g., `--db-host`, `--log-level`
 
 ### Development
 
-1. **First Run**: Devcontainer tasks fail on first run. Manually restart them.
+1. **First Run**: Use `scripts/setup-host` once per native host, then `mise trust`, `mise install`, and `mise run dev:init` in each checkout/worktree. The devcontainer runs initialization automatically.
 
-2. **Two Servers**: Must run both Go server (8080) and Vite (5173) in development.
+2. **Service Lifecycle**: `mise run dev` owns PostgreSQL, migrations, the backend, and Vite through process-compose. Use `dev:wait`, `dev:urls`, and `dev:down` to manage it; tests require the running stack.
 
-3. **Static URL**: Go server proxies to Vite in dev via `--static-url` flag.
+3. **Worktree Isolation**: Ports live in `.port-tamer.env`; PostgreSQL data lives in `.dev/<os>-<architecture>/postgres/data`. Never copy these between worktrees. Vite proxies API requests to `BACKEND_URL`.
 
-4. **Ruby Dependency**: Rake requires Ruby. Bundler manages gems.
+4. **Task Runner**: Use `mise run <task>`; `mise tasks` lists available tasks.
 
 ## Testing Strategy
 
@@ -398,13 +400,13 @@ CLI flags take the same names with `--` prefix (e.g., `--db-host`, `--log-level`
 - Playwright tests in `e2e/` directory
 - Test against full stack (backend + frontend)
 - Use TypeScript for test definitions
-- Reports served on `0.0.0.0` for devcontainer access
+- Reports use the worktree's `PLAYWRIGHT_REPORT_PORT` on `127.0.0.1` (forward it in a devcontainer)
 
 ## Deployment
 
 Deployment uses [verna](https://github.com/jackc/verna) with Caddy as the reverse proxy.
 
-1. **Build**: `rake build/linux_amd64.tar.gz` creates a deployment tarball
+1. **Build**: `mise run build:linux-amd64` creates a deployment tarball
 2. **Deploy**: `verna app deploy build/linux_amd64.tar.gz`
 3. **Config**: Set `VERNA_SSH_HOST` and `VERNA_APP` in `.mise.local.toml`
 4. **Caddy**: Reverse proxy template in `deploy/caddy-handle-template.json`

@@ -9,6 +9,9 @@ create database :primary_test_database_name;
 -- Do setup here...
 \setenv PGDATABASE :primary_test_database_name
 \! tern migrate -c postgresql/tern.conf -m postgresql/migrations
+\if :SHELL_ERROR
+  DO $$ BEGIN RAISE EXCEPTION 'Test database migration failed'; END $$;
+\endif
 
 \o /dev/null
 \i test/testdata/pgundolog.sql

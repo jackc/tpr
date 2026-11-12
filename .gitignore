@@ -17,3 +17,9 @@
 /test-results/
 /playwright-report/
 /playwright/.cache/
+
+# Per-worktree development state
+/.dev/
+/.port-tamer.env
+/.port-tamer.env.lock
+/.mise.local.toml

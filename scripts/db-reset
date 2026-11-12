@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+#
+# Drop this worktree's databases and rebuild them from the migrations. The
+# cluster itself is kept; deleting .dev/<platform>/postgres is how to discard
+# it while the service supervisor is down.
+
+set -euo pipefail
+cd "$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+. scripts/dev-env.sh
+
+# The parallel test copies are rebuilt from the new primary by the next test
+# preparation run. Invalidate its file-task marker even when no SQL changed.
+rm -f tmp/test/.databases-prepared
+
+for database in "$PGDATABASE" "$TEST_DATABASE"; do
+	echo "==> dropping $database"
+	dropdb --force --if-exists --maintenance-db=postgres "$database"
+done
+
+exec scripts/db-bootstrap

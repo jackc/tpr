@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Open this worktree's frontend in the platform's default browser.
+
+set -euo pipefail
+cd "$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+
+[ -f .port-tamer.env ] || {
+    echo "The development environment has not been initialized." >&2
+    echo "Run: mise run dev:init" >&2
+    exit 1
+}
+
+. .port-tamer.env
+VITE_URL="http://127.0.0.1:$VITE_PORT"
+
+case "$(uname -s)" in
+    Darwin)
+        open "$VITE_URL"
+        ;;
+    Linux)
+        if command -v xdg-open >/dev/null 2>&1; then
+            xdg-open "$VITE_URL"
+        elif command -v wslview >/dev/null 2>&1; then
+            wslview "$VITE_URL"
+        elif command -v powershell.exe >/dev/null 2>&1; then
+            powershell.exe -NoProfile -Command "Start-Process '$VITE_URL'"
+        else
+            echo "Cannot find xdg-open, wslview, or powershell.exe to open $VITE_URL" >&2
+            exit 1
+        fi
+        ;;
+    MINGW*|MSYS*|CYGWIN*)
+        cmd.exe /c start "" "$VITE_URL"
+        ;;
+    *)
+        echo "Cannot open a browser on $(uname -s); open $VITE_URL manually." >&2
+        exit 1
+        ;;
+esac

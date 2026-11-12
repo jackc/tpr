@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+# Install the host packages used by the native Ubuntu development environment.
+
+set -euo pipefail
+
+if [ ! -r /etc/os-release ]; then
+    echo "setup-host-ubuntu: cannot identify this Linux distribution" >&2
+    exit 1
+fi
+
+# shellcheck disable=SC1091
+. /etc/os-release
+if [ "${ID:-}" != ubuntu ]; then
+    echo "setup-host-ubuntu: Ubuntu is required (found ${PRETTY_NAME:-unknown})" >&2
+    exit 1
+fi
+if [ -z "${VERSION_CODENAME:-}" ]; then
+    echo "setup-host-ubuntu: VERSION_CODENAME is missing from /etc/os-release" >&2
+    exit 1
+fi
+
+if [ "$(id -u)" -eq 0 ]; then
+    SUDO=()
+elif command -v sudo >/dev/null 2>&1; then
+    SUDO=(sudo)
+else
+    echo "setup-host-ubuntu: run as root or install sudo" >&2
+    exit 1
+fi
+
+echo "==> installing Ubuntu host dependencies"
+"${SUDO[@]}" apt-get update
+"${SUDO[@]}" env DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    ca-certificates \
+    curl \
+    git
+
+# Configure PGDG exactly as a normal signed APT source. PostgreSQL's Debian
+# packages normally create a machine-wide cluster; this project instead runs
+# one checkout-local cluster under process-compose.
+"${SUDO[@]}" install -d -m 0755 /usr/share/postgresql-common/pgdg
+"${SUDO[@]}" curl -fsSLo \
+    /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+    https://www.postgresql.org/media/keys/ACCC4CF8.asc
+
+sources_file="$(mktemp)"
+cluster_override_dir="/etc/postgresql-common/createcluster.d"
+cluster_override_dir_created=false
+cluster_override=""
+remove_cluster_override() {
+    if [ -n "$cluster_override" ]; then
+        "${SUDO[@]}" rm -f "$cluster_override"
+        cluster_override=""
+    fi
+    if [ "$cluster_override_dir_created" = true ]; then
+        if "${SUDO[@]}" rmdir "$cluster_override_dir" 2>/dev/null; then
+            cluster_override_dir_created=false
+        fi
+    fi
+}
+cleanup() {
+    remove_cluster_override
+    rm -f "$sources_file"
+}
+trap cleanup EXIT
+
+architecture="$(dpkg --print-architecture)"
+cat >"$sources_file" <<EOF
+Types: deb
+URIs: https://apt.postgresql.org/pub/repos/apt
+Suites: ${VERSION_CODENAME}-pgdg
+Architectures: ${architecture}
+Components: main
+Signed-By: /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+EOF
+"${SUDO[@]}" install -m 0644 "$sources_file" /etc/apt/sources.list.d/pgdg.sources
+
+"${SUDO[@]}" apt-get update
+"${SUDO[@]}" env DEBIAN_FRONTEND=noninteractive apt-get \
+    -o Dpkg::Options::=--force-confdef \
+    -o Dpkg::Options::=--force-confold \
+    install -y postgresql-common
+
+# The server package normally creates a system-wide "main" cluster. Install
+# postgresql-common first, then use its supported include directory for a
+# temporary policy override. The EXIT trap removes the override on success or
+# failure; the package-owned createcluster.conf is never edited.
+if ! "${SUDO[@]}" test -d "$cluster_override_dir"; then
+    "${SUDO[@]}" install -d -m 0755 "$cluster_override_dir"
+    cluster_override_dir_created=true
+fi
+cluster_override="$(
+    "${SUDO[@]}" mktemp \
+        --suffix=.conf \
+        "$cluster_override_dir/zzzz-tpr-setup.XXXXXX"
+)"
+printf '%s\n' 'create_main_cluster = false' \
+    | "${SUDO[@]}" tee "$cluster_override" >/dev/null
+
+if [ "$(
+    "${SUDO[@]}" pg_conftool \
+        /etc/postgresql-common/createcluster.conf \
+        show -bs create_main_cluster
+)" != off ]; then
+    echo "setup-host-ubuntu: temporary PostgreSQL cluster policy was not applied" >&2
+    exit 1
+fi
+
+"${SUDO[@]}" env DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    postgresql-18
+
+remove_cluster_override
+
+# Chromium itself is downloaded as the development user by dev:init. These
+# host libraries and fonts match Playwright's Ubuntu Chromium dependencies.
+time64_suffix=""
+if dpkg --compare-versions "${VERSION_ID}" ge 24.04; then
+    time64_suffix=t64
+fi
+"${SUDO[@]}" env DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    xvfb fonts-noto-color-emoji fonts-unifont libfontconfig1 libfreetype6 \
+    xfonts-cyrillic xfonts-scalable fonts-liberation fonts-ipafont-gothic \
+    fonts-wqy-zenhei fonts-tlwg-loma-otf fonts-freefont-ttf \
+    "libasound2${time64_suffix}" "libatk-bridge2.0-0${time64_suffix}" \
+    "libatk1.0-0${time64_suffix}" "libatspi2.0-0${time64_suffix}" \
+    libcairo2 "libcups2${time64_suffix}" libdbus-1-3 libdrm2 libgbm1 \
+    "libglib2.0-0${time64_suffix}" libnspr4 libnss3 libpango-1.0-0 \
+    libx11-6 libxcb1 libxcomposite1 libxdamage1 libxext6 libxfixes3 \
+    libxkbcommon0 libxrandr2

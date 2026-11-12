@@ -91,49 +91,103 @@ Key tables:
 
 ## Development
 
-### Prerequisites
+### Host setup
 
-- Go 1.27.4+
-- Node.js 26.13.1+
-- PostgreSQL 14+
-- Ruby 4+ (for Rake build tasks)
+On native macOS (with Homebrew installed) or Ubuntu, run once per machine as your
+development user (the script requests sudo for system packages when needed):
 
-### Setup
-
-The preferred development environment is the provided devcontainer, which includes all dependencies pre-configured.
-
-The following two servers need to run in development:
-
-- `rake rerun` - run Go server on port 4000, automatically rebuilds on change.
-- `npm run dev` - run Vite dev server on port 5173, proxies `/api` to Go server.
-
-If using VS Code, they automatically run via VS Code tasks. When you first open the devcontainer, VS Code tasks will
-auto-start but may fail. Manually restart them:
-- Restart the "Go HTTP Server" task
-- Restart the "Vite Dev" task
-
-### Running Tests
-
-Run all tests (backend + E2E):
-```bash
-rake
+```sh
+scripts/setup-host
 ```
 
-Run backend tests only:
-```bash
-rake test:backend
+This installs PostgreSQL 18 server/client binaries and mise if missing. On Ubuntu it
+also installs Chromium's system libraries. It does not start a machine-wide database
+or install this checkout's project dependencies. Existing system databases are left alone.
+Go, Node.js, process-compose, port-tamer, tern, and verna are managed by `.mise.toml`.
+If mise was newly installed, add `$HOME/.local/bin` to your shell's `PATH` before
+running the commands below.
+
+### Initialize a checkout or worktree
+
+Run these commands in each new checkout, including each `git worktree`:
+
+```sh
+mise trust
+mise install
+mise run dev:init
+mise run dev
 ```
 
-The rake task automatically sets up test databases before running Go tests. Backend tests use
-`postgres://tpr:secret@127.0.0.1:5432/tpr_test`; set `TEST_DATABASE_URL` to override it.
-The development `DATABASE_URL` is not used by backend tests.
+`dev:init` allocates stable ports, installs npm dependencies and Playwright Chromium,
+and creates `postgresql/tern.conf` from its example if missing. Run it again after
+pulling dependency changes. Do not copy `.port-tamer.env`, `.dev/`, or `node_modules/`
+from another worktree.
 
-Run E2E tests:
-```bash
-npm run test:e2e          # Headless mode
-npm run test:e2e:headed   # With browser
-npm run test:e2e:ui       # Interactive UI mode
+`dev` starts PostgreSQL, creates and migrates the development/test databases, then
+starts the Go backend and Vite under process-compose. The backend restarts when Go
+sources change; Vite handles frontend updates. `mise run dev` is the service launcher;
+tests and database tasks require the running stack. The earlier `run` and `rerun`
+task names are aliases for `dev`.
+
+Each worktree gets its own port group and PostgreSQL cluster under
+`.dev/<os>-<architecture>/postgres/data`. The cluster is initialized on first startup
+and persists across stops. Local connections use TCP on `127.0.0.1` with trust
+authentication; the application connects as the `tpr` role and administration uses
+`postgres`. These settings are for local development only.
+
+For a detached stack (useful for agents and automation):
+
+```sh
+mise run dev -- -D
+mise run dev:wait
+mise run test
+mise run dev:down
 ```
+
+| Command | Purpose |
+|---------|---------|
+| `mise run dev:urls` | Show this worktree's frontend, backend, database, supervisor, and test ports |
+| `mise run dev:browser` | Open the frontend in your browser |
+| `mise run dev:wait` | Wait for startup; report failed services and their logs |
+| `mise run dev:down` | Stop this worktree's stack, keeping its database files |
+| `mise run db:psql` | Open a PostgreSQL session in the development database |
+| `mise run db:migrate` | Apply development database migrations |
+| `mise run db:reset` | Drop and rebuild development/test databases; invalidate test preparation |
+| `mise run dev:ports:reset` | Allocate a new port group after stopping the stack |
+
+Use `mise exec -- scripts/dev-exec process-compose process list` to inspect services,
+and `mise exec -- scripts/dev-exec process-compose process logs backend` for backend
+logs. Logs are also saved in `.dev/logs/`. Database repair commands require only
+PostgreSQL to be healthy, so they remain usable if migrations prevent the rest of
+the stack from starting. To discard the entire local cluster, stop the stack first,
+then remove its `.dev/<os>-<architecture>/postgres` directory.
+
+### Devcontainer
+
+The container installs PostgreSQL binaries and mise, then runs the same `dev:init`
+workflow. It has no separate database service. VS Code's **Development Stack** task
+starts process-compose; if it runs before initial setup finishes, restart that task.
+Ports vary by worktree, so VS Code forwards detected listeners instead of fixed ports.
+Use `mise run dev:urls` to find them. Native and container environments use separate
+cluster directories when their operating system or architecture differs.
+
+### Running tests
+
+Start the stack first, then run:
+
+```sh
+mise run test                 # Backend followed by browser tests
+mise run test:backend         # Go tests
+mise run test:browser         # Headless Playwright tests
+mise run test:browser:headed  # Visible browser
+mise run test:browser:ui      # Interactive Playwright UI
+mise run test:browser:report  # View the HTML report on the assigned report port
+```
+
+Test preparation builds `tpr_test` and its parallel copies in this worktree's cluster.
+Backend tests use `TEST_DATABASE_URL`; browser tests start their own backend and Vite
+on reserved test ports, separate from the development servers. Test preparation is
+repeated when SQL, database configuration, or allocated ports change.
 
 ### Project Structure
 
@@ -155,14 +209,14 @@ tpr-a/
 ├── deploy/              # Verna deployment configuration
 ├── main.go              # Application entry point
 ├── vite.config.js       # Vite configuration
-└── Rakefile             # Build tasks
+└── .mise.toml           # Tool versions, environment, and tasks
 ```
 
 ## Building for Production
 
 Build a deployment tarball:
 ```bash
-rake build/linux_amd64.tar.gz
+mise run build:linux-amd64
 ```
 
 This creates a tarball containing:
@@ -170,7 +224,10 @@ This creates a tarball containing:
 - `assets/` - Frontend static assets
 - `VERSION` - Git commit hash
 
-Other targets: `linux_arm64`, `darwin_amd64`, `darwin_arm64`.
+Other release tasks: `build:linux-arm64`, `build:darwin-amd64`, `build:darwin-arm64`.
+
+Use `mise run build` for a local binary and assets, `mise run clean` to remove build artifacts,
+and `mise tasks` to list all available tasks.
 
 ## Deployment
 
@@ -185,7 +242,7 @@ Deployment uses [verna](https://github.com/jackc/verna) with Caddy as the revers
 
 2. Build and deploy:
    ```bash
-   rake build/linux_amd64.tar.gz && verna app deploy build/linux_amd64.tar.gz
+   mise run build:linux-amd64 && verna app deploy build/linux_amd64.tar.gz
    ```
 
 The Caddy reverse proxy template is in `deploy/caddy-handle-template.json`.

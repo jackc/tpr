@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Make the roles, databases, and schemas ready after PostgreSQL is healthy.
+# This is idempotent and is shared by process-compose startup and db:reset.
+
+set -euo pipefail
+cd "$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+. scripts/dev-env.sh
+
+echo "==> creating roles and databases"
+# A developer's ~/.psqlrc may set session defaults unsuitable for scripts.
+psql --no-psqlrc \
+    --dbname=postgres \
+    --quiet \
+    --set=ON_ERROR_STOP=1 \
+    --file=postgresql/prepare.sql >/dev/null
+
+echo "==> migrating $PGDATABASE"
+tern migrate
+echo "==> migrating $TEST_DATABASE"
+PGDATABASE="$TEST_DATABASE" tern migrate

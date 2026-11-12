@@ -1,0 +1,85 @@
+# The development stack for one worktree. `mise run dev` is its sole launcher;
+# tests and database commands connect to this running stack but never start or
+# stop its services.
+#
+# Nothing here is worktree-specific: every port and path arrives through the
+# environment, so the same file serves every worktree, macOS, and the dev
+# container.
+
+version: "0.5"
+is_strict: true
+ordered_shutdown: true
+
+processes:
+  postgres:
+    command: scripts/postgres
+    readiness_probe:
+      exec:
+        command: scripts/postgres-ready
+      initial_delay_seconds: 1
+      period_seconds: 1
+      failure_threshold: 30
+    # SIGINT is PostgreSQL's fast shutdown: roll back open transactions and
+    # exit, rather than waiting for clients to disconnect.
+    shutdown:
+      signal: 2
+      timeout_seconds: 20
+    availability:
+      restart: on_failure
+      max_restarts: 3
+    log_location: .dev/logs/postgres.log
+
+  database-ready:
+    command: scripts/db-bootstrap
+    depends_on:
+      postgres:
+        condition: process_healthy
+    availability:
+      restart: "no"
+    log_location: .dev/logs/database-ready.log
+
+  backend:
+    command: >
+      go run . server
+      --bind-address "$BIND_ADDRESS"
+      --port "$BACKEND_PORT"
+    watch:
+      paths:
+        - path: main.go
+        - path: logging.go
+        - path: backend
+        - path: go.mod
+        - path: go.sum
+    depends_on:
+      database-ready:
+        condition: process_completed_successfully
+    readiness_probe:
+      http_get:
+        host: 127.0.0.1
+        port: ${BACKEND_PORT}
+        path: /health
+      initial_delay_seconds: 2
+      period_seconds: 2
+      failure_threshold: 60
+    availability:
+      restart: on_failure
+      max_restarts: 3
+    log_location: .dev/logs/backend.log
+
+  vite:
+    command: npm run dev
+    depends_on:
+      backend:
+        condition: process_healthy
+    readiness_probe:
+      http_get:
+        host: 127.0.0.1
+        port: ${VITE_PORT}
+        path: /
+      initial_delay_seconds: 1
+      period_seconds: 2
+      failure_threshold: 30
+    availability:
+      restart: on_failure
+      max_restarts: 3
+    log_location: .dev/logs/vite.log

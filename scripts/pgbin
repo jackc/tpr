@@ -1,0 +1,48 @@
+#!/bin/sh
+# pgbin -- print the directory holding the PostgreSQL server binaries.
+#
+# The client tools (psql, pg_isready) are normally on PATH, but the server
+# binaries this project needs to run its own per-worktree cluster (initdb,
+# postgres, pg_ctl) usually are not: Debian keeps them under
+# /usr/lib/postgresql/<major>/bin, and Homebrew keeps postgresql@<major>
+# keg-only. Set PGBIN to override.
+
+set -e
+
+PG_MAJOR="${PG_MAJOR:-18}"
+
+if [ -n "${PGBIN:-}" ]; then
+	echo "$PGBIN"
+	exit 0
+fi
+
+if command -v initdb >/dev/null 2>&1; then
+	dirname "$(command -v initdb)"
+	exit 0
+fi
+
+brew_prefix=""
+if command -v brew >/dev/null 2>&1; then
+	brew_prefix="$(brew --prefix "postgresql@$PG_MAJOR" 2>/dev/null || true)"
+fi
+
+for dir in \
+	"/usr/lib/postgresql/$PG_MAJOR/bin" \
+	"$brew_prefix/bin" \
+	"/opt/homebrew/opt/postgresql@$PG_MAJOR/bin" \
+	"/usr/local/opt/postgresql@$PG_MAJOR/bin"; do
+	if [ -x "$dir/initdb" ]; then
+		echo "$dir"
+		exit 0
+	fi
+done
+
+cat >&2 <<EOF
+pgbin: cannot find the PostgreSQL $PG_MAJOR server binaries (initdb).
+
+  macOS:  brew install postgresql@$PG_MAJOR
+  Debian: apt-get install postgresql-$PG_MAJOR
+
+Or set PGBIN to the directory containing initdb.
+EOF
+exit 1

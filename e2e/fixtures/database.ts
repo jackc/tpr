@@ -1,4 +1,4 @@
-const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:5000';
+const BASE_URL = process.env.TEST_BACKEND_URL || process.env.BASE_URL || 'http://127.0.0.1:5000';
 
 /**
  * Reset the database to a clean state using pgundolog.undo()

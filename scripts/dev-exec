@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Run a command with this worktree's complete, freshly loaded environment.
+#
+# Sourcing dev-env.sh here keeps commands correct when the saved port group or
+# another local environment value changed after the calling shell started.
+
+set -euo pipefail
+cd "$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+. scripts/dev-env.sh
+
+exec "$@"

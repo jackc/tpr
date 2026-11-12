@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Report ready only when the PostgreSQL answering on this worktree's port is
+# the exact postmaster launched by this process-compose supervisor.
+
+set -euo pipefail
+cd "$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+. scripts/dev-env.sh
+
+[ -r "$PC_POSTGRES_PID_FILE" ]
+[ -r "$PGDATA/postmaster.pid" ]
+
+expected_pid="$(sed -n '1p' "$PC_POSTGRES_PID_FILE")"
+actual_pid="$(sed -n '1p' "$PGDATA/postmaster.pid")"
+[ -n "$expected_pid" ]
+[ "$actual_pid" = "$expected_pid" ]
+
+exec pg_isready --quiet --host="$PGHOST" --port="$PGPORT" --dbname=postgres

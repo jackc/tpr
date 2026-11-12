@@ -1,0 +1,35 @@
+version = 1
+
+[allocation]
+minimum = 10000
+maximum = 44999
+bind_address = "127.0.0.1"
+
+# Keep PORT_BASE as the first assignment so a group is easy to identify when
+# reading logs or comparing worktrees. Services consume the following ports.
+[[ports]]
+name = "PORT_BASE"
+
+[[ports]]
+name = "BACKEND_PORT"
+
+[[ports]]
+name = "VITE_PORT"
+
+[[ports]]
+name = "PGPORT"
+
+[[ports]]
+name = "PC_PORT_NUM"
+
+[[ports]]
+name = "DEBUG_PORT"
+
+[[ports]]
+name = "TEST_BACKEND_PORT"
+
+[[ports]]
+name = "TEST_VITE_PORT"
+
+[[ports]]
+name = "PLAYWRIGHT_REPORT_PORT"

@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Stop this worktree's process-compose development stack if it is running.
+
+set -euo pipefail
+cd "$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+
+if [ ! -f .port-tamer.env ]; then
+    exit 0
+fi
+
+. scripts/dev-env.sh
+if process-compose list --output json >/dev/null 2>&1; then
+    exec process-compose down
+fi

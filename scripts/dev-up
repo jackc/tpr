@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+#
+# Start this worktree's complete development stack under process-compose.
+#
+# The worktree's stable port group is allocated lazily before the environment
+# is read. Existing assignments do not move merely because a service is
+# listening on them; that service may be this worktree's own process.
+
+set -euo pipefail
+cd "$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+
+scripts/dev-urls
+echo
+. scripts/dev-env.sh
+
+exec process-compose \
+    --log-file "$PC_SERVER_LOG_FILE" \
+    --log-no-color \
+    up "$@"

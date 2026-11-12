@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+set -euo pipefail
+exec npx playwright show-report --host 127.0.0.1 --port "$PLAYWRIGHT_REPORT_PORT" "$@"

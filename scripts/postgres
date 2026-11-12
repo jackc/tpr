@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Initialize this platform's cluster if needed, then run PostgreSQL in the
+# foreground. This is the only normal service-start path in the project.
+
+set -euo pipefail
+cd "$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+. scripts/dev-env.sh
+
+if [ ! -f "$PGDATA/PG_VERSION" ]; then
+    echo "==> initdb $PGDATA"
+    mkdir -p "$(dirname "$PGDATA")"
+    "$PGBIN/initdb" \
+        --pgdata="$PGDATA" \
+        --username=postgres \
+        --auth=trust \
+        --encoding=UTF8 \
+        --locale-provider=builtin \
+        --builtin-locale=C.UTF-8 \
+        --no-sync >/dev/null
+    rm -f tmp/test/.databases-prepared
+fi
+
+# The readiness probe compares this PID with postmaster.pid. A PostgreSQL
+# instance started by anything else can answer pg_isready, but cannot satisfy
+# this ownership check.
+mkdir -p "$(dirname "$PC_POSTGRES_PID_FILE")"
+printf '%s\n' "$$" > "$PC_POSTGRES_PID_FILE"
+
+# No Unix-domain socket (-k ''): every client in this project connects over
+# TCP to 127.0.0.1, and a socket path under a deeply nested worktree, such as
+# .claude/worktrees/<name>/.dev/..., exceeds the 103-byte limit macOS places
+# on socket paths, so PostgreSQL would refuse to start there.
+exec "$PGBIN/postgres" \
+    -D "$PGDATA" \
+    -p "$PGPORT" \
+    -k '' \
+    -h "$PGHOST"

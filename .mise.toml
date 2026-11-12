@@ -1,33 +1,234 @@
 [env]
-_.path = ["{{config_root}}/bin"]
-
-# Database configuration
-PGDATABASE = "tpr_dev"
-TEST_DATABASE = "tpr_test"
-
-# TPR Application Configuration
-BIND_ADDRESS = "127.0.0.1"
-PORT = "4000"
-DATABASE_URL = "postgres://tpr:secret@127.0.0.1:5432/tpr_dev"
+_.path = ["/opt/homebrew/opt/postgresql@18/bin", "/usr/local/opt/postgresql@18/bin", "/usr/lib/postgresql/18/bin"]
+LANG = "{{env.LANG | default(value='en_US.UTF-8')}}"
 LOG_LEVEL = "info"
 PGX_LOG_LEVEL = "warn"
 
-# TEST_DATABASE_COUNT is how many test databases to use. Each database test has exclusive use of a database while it is
-# executing so this number is also the maximum number of database tests that can execute in parallel.
+# This worktree's named ports, allocated by port-tamer. Until the first task
+# needs them the file is simply absent, and the defaults compiled into each
+# service apply. TPR-specific URLs and connection strings are derived
+# here and by scripts/dev-env.sh rather than stored in port-tamer's state.
+_.file = ".port-tamer.env"
+PORT = "{{env.BACKEND_PORT | default(value='4000')}}"
+
+BIND_ADDRESS = "127.0.0.1"
+BACKEND_URL = "http://127.0.0.1:{{env.BACKEND_PORT | default(value='4000')}}"
+VITE_URL = "http://127.0.0.1:{{env.VITE_PORT | default(value='5173')}}"
+TEST_BACKEND_URL = "http://127.0.0.1:{{env.TEST_BACKEND_PORT | default(value='5000')}}"
+TEST_VITE_URL = "http://127.0.0.1:{{env.TEST_VITE_PORT | default(value='5174')}}"
+PGHOST = "127.0.0.1"
+DATABASE_URL = "postgres://tpr@127.0.0.1:{{env.PGPORT | default(value='5432')}}/tpr_dev"
+TEST_DATABASE_URL = "postgres://tpr@127.0.0.1:{{env.PGPORT | default(value='5432')}}/tpr_test"
+
+# Database configuration. PGDATA is deliberately not set here: a PostgreSQL
+# data directory is specific to the platform that created it, and one worktree
+# may be opened both natively and in the dev container, so scripts/dev-env.sh
+# places the cluster under a platform-specific path.
+PGDATABASE = "tpr_dev"
+PGUSER = "postgres"
+
+# Parallel test databases: the primary is migrated once, then copied
+# TEST_DATABASE_COUNT times; each PostgreSQL test acquires an exclusive copy.
+TEST_DATABASE = "tpr_test"
 TEST_DATABASE_COUNT = "8"
 
-# Test browser configuration
-TESTBROWSER_MAX_CONCURRENT_TESTS = "4"
+# Client commands use PC_LOG_FILE; `mise run dev` overrides it for the server.
+# Keeping them separate prevents a client invocation from truncating the
+# running development supervisor's log.
+PC_SERVER_LOG_FILE = "{{config_root}}/.dev/process-compose.log"
+PC_LOG_FILE = "{{config_root}}/.dev/process-compose-client.log"
+PC_ADDRESS = "127.0.0.1"
 
 # Tern migration configuration
 TERN_CONFIG = "postgresql/tern.conf"
 TERN_MIGRATIONS = "postgresql/migrations"
 
-# Production configuration
-# PRODUCTION_HOST = "example.com"
-
 [tools]
-"github:jackc/verna" = '0.8.0'
 go = '1.27.4'
 nodejs = '26.13.1'
-ruby = '4.0.9'
+process-compose = "1.122.0"
+"github:jackc/port-tamer" = "0.1.0"
+"github:jackc/tern" = "2.4.3"
+"github:jackc/verna" = "0.8.0"
+"go:golang.org/x/tools/cmd/goimports" = "latest"
+
+[tasks."dev:init"]
+description = "Prepare this worktree: ports and dependencies"
+dir = "{{config_root}}"
+run = "scripts/dev-init"
+
+[tasks.dev]
+alias = ["run", "rerun"]
+description = "Run PostgreSQL, the backend, and Vite under process-compose"
+dir = "{{config_root}}"
+run = "scripts/dev-up"
+
+[tasks."dev:down"]
+description = "Stop this worktree's development stack"
+dir = "{{config_root}}"
+run = "scripts/dev-down"
+
+[tasks."dev:wait"]
+description = "Wait for a detached development stack to become ready"
+dir = "{{config_root}}"
+run = "scripts/dev-ready --wait"
+
+[tasks."dev:ready"]
+description = "Require the development stack to be ready"
+dir = "{{config_root}}"
+run = "scripts/dev-ready"
+hide = true
+
+# Repairing the database must stay possible while the rest of the stack is
+# down: the migration that can break it runs inside the stack's own startup.
+[tasks."db:ready"]
+description = "Require this worktree's PostgreSQL to be running"
+dir = "{{config_root}}"
+run = "scripts/dev-ready --database"
+hide = true
+
+[tasks."dev:urls"]
+description = "Print this worktree's ports and URLs"
+dir = "{{config_root}}"
+run = "scripts/dev-urls"
+
+[tasks."dev:browser"]
+description = "Open this worktree's frontend in the default browser"
+dir = "{{config_root}}"
+depends = ["dev:ready"]
+run = "scripts/dev-browser"
+
+[tasks."dev:ports:reset"]
+description = "Choose a new port group for this worktree (stop its services first)"
+dir = "{{config_root}}"
+run = ["port-tamer allocate --overwrite", "scripts/dev-urls"]
+
+[tasks."db:reset"]
+description = "Drop and rebuild this worktree's databases"
+dir = "{{config_root}}"
+depends = ["db:ready"]
+run = "scripts/db-reset"
+
+[tasks."db:migrate"]
+description = "Run pending migrations against the development database"
+dir = "{{config_root}}"
+depends = ["db:ready"]
+run = "scripts/dev-exec tern migrate"
+
+[tasks."db:psql"]
+description = "Open psql against the development database"
+dir = "{{config_root}}"
+depends = ["db:ready"]
+run = "scripts/dev-exec psql"
+interactive = true
+
+[tasks."build:binary"]
+description = "Build the tpr binary for the current platform"
+dir = "{{config_root}}"
+sources = ["*.go", "**/*.go", "!**/*_test.go", "go.mod", "go.sum"]
+outputs = ["build/tpr"]
+run = ["mkdir -p build", "go build -o build/tpr"]
+
+[tasks."build:assets"]
+description = "Build the frontend assets"
+dir = "{{config_root}}"
+sources = [
+  "src/**/*",
+  "static/**/*",
+  "package.json",
+  "package-lock.json",
+  "vite.config.js",
+]
+outputs = ["build/assets/.built"]
+run = ["npm run build", "touch build/assets/.built"]
+
+[tasks.build]
+description = "Build the frontend assets and the Go binary"
+dir = "{{config_root}}"
+run = [{ tasks = ["build:binary", "build:assets"] }]
+
+[tasks."build:linux-amd64"]
+description = "Build the linux/amd64 release archive"
+dir = "{{config_root}}"
+depends = ["build:assets"]
+run = "scripts/build-release linux amd64"
+
+[tasks."build:linux-arm64"]
+description = "Build the linux/arm64 release archive"
+dir = "{{config_root}}"
+depends = ["build:assets"]
+run = "scripts/build-release linux arm64"
+
+[tasks."build:darwin-amd64"]
+description = "Build the darwin/amd64 release archive"
+dir = "{{config_root}}"
+depends = ["build:assets"]
+run = "scripts/build-release darwin amd64"
+
+[tasks."build:darwin-arm64"]
+description = "Build the darwin/arm64 release archive"
+dir = "{{config_root}}"
+depends = ["build:assets"]
+run = "scripts/build-release darwin arm64"
+
+[tasks.clean]
+alias = "clobber"
+description = "Remove build artifacts"
+dir = "{{config_root}}"
+run = "rm -rf build"
+
+[tasks."test:prepare"]
+depends = ["dev:ready"]
+description = "Prepare the PostgreSQL test databases"
+dir = "{{config_root}}"
+sources = [
+  "postgresql/**/*.sql",
+  "postgresql/tern.conf",
+  "test/*.sql",
+  "test/testdata/*.sql",
+  "scripts/dev-env.sh",
+  "scripts/dev-exec",
+  "port-tamer.toml",
+  ".port-tamer.env",
+]
+outputs = ["tmp/test/.databases-prepared"]
+run = [
+  "mkdir -p tmp/test",
+  "scripts/dev-exec psql --no-psqlrc -v ON_ERROR_STOP=1 -f test/setup_test_databases.sql > /dev/null",
+  "touch tmp/test/.databases-prepared",
+]
+
+[tasks.test]
+description = "Run the backend and browser test suites"
+dir = "{{config_root}}"
+run = [{ task = "test:backend" }, { task = "test:browser" }]
+
+[tasks."test:backend"]
+description = "Run Go tests"
+dir = "{{config_root}}"
+depends = ["test:prepare"]
+run = "scripts/dev-exec go test ./..."
+
+[tasks."test:browser"]
+description = "Run Playwright browser tests"
+dir = "{{config_root}}"
+depends = ["test:prepare"]
+run = "scripts/dev-exec npm run test:e2e"
+
+[tasks.default]
+description = "Run all tests"
+depends = ["test"]
+
+[tasks."test:browser:headed"]
+description = "Run browser tests with a visible browser"
+depends = ["test:prepare"]
+run = "scripts/dev-exec npm run test:e2e:headed"
+
+[tasks."test:browser:ui"]
+description = "Open the Playwright test UI"
+depends = ["test:prepare"]
+run = "scripts/dev-exec npm run test:e2e:ui"
+
+[tasks."test:browser:report"]
+description = "Open the Playwright HTML report"
+run = "scripts/dev-exec scripts/test-report"

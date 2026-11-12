@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+# Require this worktree's process-compose development stack to be ready.
+# This is a precondition only: it never starts services.
+#
+# Without arguments it answers immediately. With --wait it polls until the
+# project is ready, but gives up as soon as a service has stopped for good
+# (exited non-zero with no restart pending, or skipped because a dependency
+# failed), printing the exited service's last output, and after
+# DEV_READY_TIMEOUT seconds (default 300) in any case. A broken stack
+# therefore fails fast in CI or under an agent instead of blocking until an
+# outer timeout fires.
+#
+# --database narrows the requirement to PostgreSQL alone and ignores every
+# other service. The database commands are what repairs the database, and the
+# migration that can break it runs inside this project's own startup, so
+# requiring a ready project would withhold db:reset in exactly the situation
+# that calls for it.
+
+set -euo pipefail
+cd "$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+
+scope=project
+wait=false
+for argument in "$@"; do
+    case "$argument" in
+        --wait)
+            wait=true
+            ;;
+        --database)
+            scope=database
+            ;;
+        *)
+            echo "usage: scripts/dev-ready [--database] [--wait]" >&2
+            exit 2
+            ;;
+    esac
+done
+
+timeout="${DEV_READY_TIMEOUT:-300}"
+
+not_ready() {
+    if [ "$scope" = database ]; then
+        echo "This worktree's PostgreSQL is not running." >&2
+    else
+        echo "The development environment is not running and ready." >&2
+    fi
+    cat >&2 <<'EOF2'
+
+Start it in another terminal with:
+    mise run dev
+EOF2
+    exit 1
+}
+
+[ -f .port-tamer.env ] || not_ready
+. scripts/dev-env.sh
+
+# is-ready cannot tell an absent supervisor from a project that is still
+# starting; listing processes can.
+reachable() {
+    process-compose process list -o json >/dev/null 2>&1
+}
+
+# The project has its own readiness gate; PostgreSQL alone is read from the
+# process list, since no gate covers a single service.
+ready() {
+    if [ "$scope" = database ]; then
+        process-compose process list -o json 2>/dev/null | node -e '
+            const processes = JSON.parse(require("fs").readFileSync(0, "utf8"));
+            const postgres = processes.find((p) => p.name === "postgres");
+            process.exit(postgres && postgres.is_running && postgres.is_ready === "Ready" ? 0 : 1);'
+    else
+        process-compose project is-ready >/dev/null 2>&1
+    fi
+}
+
+# One "exited NAME" line per process that stopped and will not run again --
+# process-compose reports Restarting while a restart is pending -- and one
+# "skipped NAME" line per process it never started because a dependency failed.
+# Only PostgreSQL can fail the --database requirement: a failed migration
+# stopping every other service is the state that requirement tolerates.
+failed_processes() {
+    process-compose process list -o json 2>/dev/null | DEV_READY_SCOPE="$scope" node -e '
+        const processes = JSON.parse(require("fs").readFileSync(0, "utf8"));
+        const database = process.env.DEV_READY_SCOPE === "database";
+        for (const p of processes) {
+            if (database && p.name !== "postgres") continue;
+            if (p.status === "Error" || (p.status === "Completed" && p.exit_code !== 0)) {
+                console.log("exited", p.name);
+            } else if (p.status === "Skipped") {
+                console.log("skipped", p.name);
+            }
+        }'
+}
+
+report_failed() {
+    local kind name skipped
+    echo "The development environment failed to start." >&2
+    while read -r kind name; do
+        [ "$kind" = exited ] || continue
+        echo >&2
+        echo "==> $name exited; its last 20 lines (process-compose process logs $name):" >&2
+        process-compose process logs "$name" -n 20 >&2 || true
+    done <<<"$1"
+    skipped="$(awk '$1 == "skipped" { printf "%s%s", sep, $2; sep = ", " }' <<<"$1")"
+    if [ -n "$skipped" ]; then
+        echo >&2
+        echo "Skipped because a dependency failed: $skipped" >&2
+    fi
+    cat >&2 <<'EOF2'
+
+Fix the failure, then restart the stack:
+    mise run dev:down
+    mise run dev
+EOF2
+    exit 1
+}
+
+report_timeout() {
+    echo "The development environment was not ready after ${timeout}s (DEV_READY_TIMEOUT)." >&2
+    echo >&2
+    process-compose process list -o wide >&2 || true
+    echo >&2
+    echo "Inspect a service with 'process-compose process logs <name>'." >&2
+    exit 1
+}
+
+if ! $wait; then
+    if reachable; then
+        failed="$(failed_processes)"
+        [ -z "$failed" ] || report_failed "$failed"
+        ready && exit 0
+    fi
+    not_ready
+fi
+
+# A detached `mise run dev -- -D` returns before its supervisor listens, so the
+# supervisor is allowed a moment to appear; once seen, its disappearance is
+# final.
+start="$(date +%s)"
+deadline="$((start + timeout))"
+grace="$((start + 15))"
+seen=false
+previous=""
+echo "Waiting for the development environment (timeout ${timeout}s)..."
+while :; do
+    now="$(date +%s)"
+    if reachable; then
+        seen=true
+        ready && exit 0
+        # The same failure on two consecutive polls is conclusive; a single
+        # observation is not trusted to have caught a settled state.
+        failed="$(failed_processes)"
+        if [ -n "$failed" ] && [ "$failed" = "$previous" ]; then
+            report_failed "$failed"
+        fi
+        previous="$failed"
+    elif $seen || [ "$now" -ge "$grace" ]; then
+        not_ready
+    fi
+    [ "$now" -lt "$deadline" ] || report_timeout
+    sleep 1
+done

@@ -2,21 +2,9 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Go HTTP Server",
+      "label": "Development Stack",
       "type": "shell",
-      // 'mise exec' is necessary because the mise extension may not be loaded when the startup tasks run. Without it,
-      // the wrong tool versions could be used.
-      "command": "mise exec -- rake rerun",
-      "isBackground": true,
-      "problemMatcher": [],
-      "runOptions": { "runOn": "folderOpen" }
-    },
-    {
-      "label": "Vite Dev",
-      "type": "shell",
-      // 'mise exec' is necessary because the mise extension may not be loaded when the startup tasks run. Without it,
-      // the wrong tool versions could be used.
-      "command": "mise exec -- npm run dev",
+      "command": "mise run dev",
       "isBackground": true,
       "problemMatcher": [],
       "runOptions": { "runOn": "folderOpen" }

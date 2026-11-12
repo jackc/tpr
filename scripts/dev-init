@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+#
+# Prepare this worktree to run `mise run dev`: allocate ports, install
+# dependencies. The cluster is initialized and migrated by `mise run dev` the
+# first time it starts. Idempotent, and identical on macOS and inside the dev
+# container.
+
+set -euo pipefail
+cd "$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+. scripts/dev-env.sh
+
+echo "==> installing dependencies"
+npm ci --silent
+npx playwright install chromium
+
+echo
+scripts/dev-urls
+echo
+echo "Run 'mise run dev' to start the stack."
