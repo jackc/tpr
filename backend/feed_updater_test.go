@@ -2,13 +2,17 @@ package backend
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"log/slog"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/tpr/backend/data"
 )
@@ -356,5 +360,51 @@ func TestFetchFeed(t *testing.T) {
 	}
 	if rawFeed.etag.Valid {
 		t.Errorf("Expected no ETag to be null but instead it was: %v", rawFeed.etag)
+	}
+}
+
+// Simulate a database failure after HTTP fetching and parsing have succeeded.
+type failingFeedDB struct{ data.DB }
+
+func (failingFeedDB) WithinTx(context.Context, func(data.DB) error) error {
+	return errors.New("database write rejected")
+}
+
+func (failingFeedDB) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
+	return pgconn.CommandTag{}, errors.New("database write rejected")
+}
+
+func TestRefreshFeedLogsPersistenceErrors(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		status  int
+		body    string
+		message string
+	}{
+		{"new items", http.StatusOK, `<rss><channel><title>News</title><item><title>New</title><link>https://example.com/new</link></item></channel></rss>`, "save fetched feed failed"},
+		{"unchanged", http.StatusNotModified, "", "save unchanged feed failed"},
+		{"http failure", http.StatusServiceUnavailable, "", "save feed failure failed"},
+		{"parse failure", http.StatusOK, "invalid XML", "save feed failure failed"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tt.status)
+				w.Write([]byte(tt.body))
+			}))
+			defer server.Close()
+			var logs bytes.Buffer
+			updater := NewFeedUpdater(failingFeedDB{}, slog.New(slog.NewTextHandler(&logs, nil)))
+			updater.RefreshFeed(data.Feed{ID: "feed-id", URL: server.URL})
+			for _, want := range []string{"level=ERROR", tt.message, "database write rejected", "feed-id", server.URL} {
+				if !strings.Contains(logs.String(), want) {
+					t.Errorf("missing %q in logs: %s", want, &logs)
+				}
+			}
+			for _, misleading := range []string{"refreshFeed succeeded", "fetchFeed 304 unchanged"} {
+				if strings.Contains(logs.String(), misleading) {
+					t.Errorf("reported success despite failed persistence: %s", &logs)
+				}
+			}
+		})
 	}
 }

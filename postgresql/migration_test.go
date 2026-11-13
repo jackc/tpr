@@ -15,6 +15,16 @@ import (
 )
 
 func TestUUIDMigrationRoundTrip(t *testing.T) {
+	for _, legacyNames := range []bool{false, true} {
+		name := "current constraint names"
+		if legacyNames {
+			name = "legacy constraint names"
+		}
+		t.Run(name, func(t *testing.T) { testUUIDMigrationRoundTrip(t, legacyNames) })
+	}
+}
+
+func testUUIDMigrationRoundTrip(t *testing.T, legacyNames bool) {
 	url := os.Getenv("TEST_DATABASE_URL")
 	if url == "" {
 		t.Skip("TEST_DATABASE_URL required")
@@ -75,6 +85,11 @@ func TestUUIDMigrationRoundTrip(t *testing.T) {
  insert into sessions(id,user_id) values('session',1);
  insert into password_resets(token,email,request_time,user_id) values('known','a@example.com',now(),1),('unknown','b@example.com',now(),null);`)
 	require.NoError(t, err)
+	if legacyNames {
+		_, err = conn.Exec(ctx, `alter table unread_items rename constraint unread_items_user_id_feed_id_fkey to unread_items_user_id_fkey;
+   alter table unread_items rename constraint unread_items_feed_id_item_id_fkey to unread_items_feed_id_fkey;`)
+		require.NoError(t, err)
+	}
 	migration := "migrations/012_uuid_identifiers.sql"
 	apply(migration, false)
 	var count int

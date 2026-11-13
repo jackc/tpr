@@ -3,8 +3,11 @@ drop function create_subscription(integer, varchar);
 alter table items drop constraint items_feed_id_fkey;
 alter table subscriptions drop constraint subscriptions_user_id_fkey;
 alter table subscriptions drop constraint subscriptions_feed_id_fkey;
-alter table unread_items drop constraint unread_items_user_id_feed_id_fkey;
-alter table unread_items drop constraint unread_items_feed_id_item_id_fkey;
+-- Older PostgreSQL versions named composite foreign keys after the first column.
+alter table unread_items drop constraint if exists unread_items_user_id_fkey;
+alter table unread_items drop constraint if exists unread_items_feed_id_fkey;
+alter table unread_items drop constraint if exists unread_items_user_id_feed_id_fkey;
+alter table unread_items drop constraint if exists unread_items_feed_id_item_id_fkey;
 alter table sessions drop constraint sessions_user_id_fkey;
 alter table password_resets drop constraint password_resets_user_id_fkey;
 alter table users add column legacy_id integer;

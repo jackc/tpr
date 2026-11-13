@@ -117,25 +117,37 @@ func (u *FeedUpdater) RefreshFeed(staleFeed data.Feed) {
 	rawFeed, err := u.fetchFeed(staleFeed.URL, staleFeed.ETag)
 	if err != nil {
 		u.logger.Error("fetchFeed failed", "url", staleFeed.URL, "error", err)
-		data.UpdateFeedWithFetchFailure(context.Background(), u.pool, staleFeed.ID, err.Error(), time.Now())
+		u.recordFetchFailure(staleFeed, err.Error())
 		return
 	}
 	// 304 unchanged
 	if rawFeed == nil {
+		if err := data.UpdateFeedWithFetchUnchanged(context.Background(), u.pool, staleFeed.ID, time.Now()); err != nil {
+			u.logger.Error("save unchanged feed failed", "url", staleFeed.URL, "id", staleFeed.ID, "error", err)
+			return
+		}
 		u.logger.Info("fetchFeed 304 unchanged", "url", staleFeed.URL)
-		data.UpdateFeedWithFetchUnchanged(context.Background(), u.pool, staleFeed.ID, time.Now())
 		return
 	}
 
 	feed, err := parseFeed(rawFeed.body)
 	if err != nil {
 		u.logger.Error("parseFeed failed", "url", staleFeed.URL, "error", err)
-		data.UpdateFeedWithFetchFailure(context.Background(), u.pool, staleFeed.ID, fmt.Sprintf("Unable to parse feed: %v", err), time.Now())
+		u.recordFetchFailure(staleFeed, fmt.Sprintf("Unable to parse feed: %v", err))
 		return
 	}
 
+	if err := data.UpdateFeedWithFetchSuccess(context.Background(), u.pool, staleFeed.ID, feed, rawFeed.etag, time.Now()); err != nil {
+		u.logger.Error("save fetched feed failed", "url", staleFeed.URL, "id", staleFeed.ID, "error", err)
+		return
+	}
 	u.logger.Info("refreshFeed succeeded", "url", staleFeed.URL, "id", staleFeed.ID)
-	data.UpdateFeedWithFetchSuccess(context.Background(), u.pool, staleFeed.ID, feed, rawFeed.etag, time.Now())
+}
+
+func (u *FeedUpdater) recordFetchFailure(feed data.Feed, failure string) {
+	if err := data.UpdateFeedWithFetchFailure(context.Background(), u.pool, feed.ID, failure, time.Now()); err != nil {
+		u.logger.Error("save feed failure failed", "url", feed.URL, "id", feed.ID, "error", err)
+	}
 }
 
 func parseFeed(body []byte) (f *data.ParsedFeed, err error) {
