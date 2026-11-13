@@ -1,7 +1,7 @@
 <script>
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { api } from '#lib/api.js';
 	import { session } from '#lib/session.js';
 
@@ -9,7 +9,7 @@
 	let password = '';
 
 	onMount(() => {
-		token = $page.url.searchParams.get('token') || '';
+		token = page.url.searchParams.get('token') || '';
 	});
 
 	async function resetPassword() {

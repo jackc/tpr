@@ -1,12 +1,11 @@
 <script>
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
-	import { get } from 'svelte/store';
+	import { page } from '$app/state';
 
 	onMount(() => {
 		// Only redirect if we're actually on the root path
-		const currentPath = get(page).url.pathname;
+		const currentPath = page.url.pathname;
 		if (currentPath === '/') {
 			goto('/home', { replaceState: true });
 		}
