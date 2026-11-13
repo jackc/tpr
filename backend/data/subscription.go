@@ -2,15 +2,13 @@ package data
 
 import (
 	"context"
+	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/jackc/pgxutil"
 )
 
 type Subscription struct {
-	FeedID              pgtype.Int4
+	FeedID              pgtype.Text
 	Name                pgtype.Text
 	URL                 pgtype.Text
 	LastFetchTime       pgtype.Timestamptz
@@ -21,11 +19,15 @@ type Subscription struct {
 	LastPublicationTime pgtype.Timestamptz
 }
 
-const createSubscriptionSQL = `select create_subscription($1::integer, $2::varchar)`
-
-func InsertSubscription(ctx context.Context, db pgxutil.DB, userID int32, feedURL string) error {
-	_, err := db.Exec(ctx, createSubscriptionSQL, userID, feedURL)
-	return err
+func InsertSubscription(ctx context.Context, db DB, userID string, feedURL string) error {
+	return WithinTx(ctx, db, func(tx DB) error {
+		_, err := tx.Exec(ctx, `insert into feeds(id, name, url, creation_time) values ($1,$2,$2,$3) on conflict (url) do nothing`, NewID(), feedURL, time.Now().UTC().Truncate(time.Microsecond))
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `insert into subscriptions(user_id, feed_id) select $1, id from feeds where url=$2`, userID, feedURL)
+		return err
+	})
 }
 
 const getSubscriptionsSQL = `select feeds.id as feed_id,
@@ -41,15 +43,21 @@ from feeds
   join subscriptions on feeds.id=subscriptions.feed_id
   left join items on feeds.id=items.feed_id
 where user_id=$1
-group by feeds.id
-order by name`
+group by feeds.id, name, feeds.url, last_fetch_time, last_failure, last_failure_time, failure_count
+order by name, feeds.id`
 
-func SelectSubscriptions(ctx context.Context, db pgxutil.DB, userID int32) ([]Subscription, error) {
+func SelectSubscriptions(ctx context.Context, db DB, userID string) ([]Subscription, error) {
 	subs := make([]Subscription, 0, 16)
-	rows, _ := db.Query(ctx, getSubscriptionsSQL, userID)
+	rows, err := db.Query(ctx, getSubscriptionsSQL, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 	for rows.Next() {
 		var s Subscription
-		rows.Scan(&s.FeedID, &s.Name, &s.URL, &s.LastFetchTime, &s.LastFailure, &s.LastFailureTime, &s.FailureCount, &s.ItemCount, &s.LastPublicationTime)
+		if err := rows.Scan(&s.FeedID, &s.Name, &s.URL, &s.LastFetchTime, &s.LastFailure, &s.LastFailureTime, &s.FailureCount, &s.ItemCount, &s.LastPublicationTime); err != nil {
+			return nil, err
+		}
 		subs = append(subs, s)
 	}
 
@@ -61,22 +69,12 @@ const deleteFeedIfOrphanedSQL = `delete from feeds
 where id=$1
   and not exists(select 1 from subscriptions where feed_id=id)`
 
-func DeleteSubscription(ctx context.Context, db *pgxpool.Pool, userID, feedID int32) error {
-	tx, err := db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
-	if err != nil {
+func DeleteSubscription(ctx context.Context, db DB, userID, feedID string) error {
+	return WithinTx(ctx, db, func(tx DB) error {
+		if _, err := tx.Exec(ctx, deleteSubscriptionSQL, userID, feedID); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, deleteFeedIfOrphanedSQL, feedID)
 		return err
-	}
-	defer tx.Rollback(ctx)
-
-	_, err = tx.Exec(ctx, deleteSubscriptionSQL, userID, feedID)
-	if err != nil {
-		return err
-	}
-
-	_, err = tx.Exec(ctx, deleteFeedIfOrphanedSQL, feedID)
-	if err != nil {
-		return err
-	}
-
-	return tx.Commit(ctx)
+	})
 }

@@ -7,19 +7,18 @@ import (
 	"log/slog"
 
 	"github.com/jackc/manifest/action"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/tpr/backend/data"
 )
 
 type Mailer interface{ SendPasswordResetMail(to, token string) error }
 type Core struct {
-	pool    *pgxpool.Pool
+	pool    data.DB
 	mailer  Mailer
 	logger  *slog.Logger
 	actions *action.Dispatcher[*Core, ActionMetadata]
 }
 
-func New(pool *pgxpool.Pool, mailer Mailer, logger *slog.Logger) *Core {
+func New(pool data.DB, mailer Mailer, logger *slog.Logger) *Core {
 	if logger == nil {
 		logger = slog.Default()
 	}

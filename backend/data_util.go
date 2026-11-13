@@ -2,6 +2,7 @@ package backend
 
 import (
 	"errors"
+
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/tpr/backend/core"
 	"github.com/jackc/tpr/backend/data"
@@ -13,7 +14,7 @@ func SetPassword(u *data.User, password string) error { return core.SetPassword(
 func IsPassword(u *data.User, password string) bool   { return core.IsPassword(u, password) }
 
 type staleFeed struct {
-	id   int32
+	id   string
 	url  string
 	etag string
 }

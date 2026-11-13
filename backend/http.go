@@ -4,12 +4,10 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 
-	"log/slog"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/tpr/backend/core"
 	"github.com/jackc/tpr/backend/data"
 )
@@ -21,7 +19,7 @@ type HTTPConfig struct {
 
 func userFromContext(ctx context.Context) *data.User { return core.User(ctx) }
 
-func loadSession(pool *pgxpool.Pool) func(http.Handler) http.Handler {
+func loadSession(pool data.DB) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			user := getUserFromSession(r, pool)
@@ -36,7 +34,7 @@ func loadSession(pool *pgxpool.Pool) func(http.Handler) http.Handler {
 
 type EnvHandlerFunc func(w http.ResponseWriter, req *http.Request, env *environment)
 
-func EnvHandler(pool *pgxpool.Pool, mailer Mailer, logger *slog.Logger, f EnvHandlerFunc) http.Handler {
+func EnvHandler(pool data.DB, mailer Mailer, logger *slog.Logger, f EnvHandlerFunc) http.Handler {
 	c := core.New(pool, mailer, logger)
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		user := userFromContext(req.Context())
@@ -51,7 +49,7 @@ type AppServer struct {
 	server     *http.Server
 }
 
-func NewAppServer(httpConfig HTTPConfig, pool *pgxpool.Pool, mailer Mailer, logger *slog.Logger, logLevel slog.Level) (*AppServer, error) {
+func NewAppServer(httpConfig HTTPConfig, pool data.DB, mailer Mailer, logger *slog.Logger, logLevel slog.Level) (*AppServer, error) {
 	r := newHTTPRegistry(pool, mailer, logger, logLevel, os.Getenv("TEST_ENDPOINTS") == "true", "", true).Handler()
 
 	return &AppServer{
@@ -94,16 +92,16 @@ func (s *AppServer) Shutdown(ctx context.Context) error {
 type environment struct {
 	core   *core.Core
 	user   *data.User
-	pool   *pgxpool.Pool
+	pool   data.DB
 	logger *slog.Logger
 	mailer Mailer
 }
 
-func NewAPIHandler(pool *pgxpool.Pool, mailer Mailer, logger *slog.Logger) http.Handler {
+func NewAPIHandler(pool data.DB, mailer Mailer, logger *slog.Logger) http.Handler {
 	return newHTTPRegistry(pool, mailer, logger, slog.LevelWarn, os.Getenv("TEST_ENDPOINTS") == "true", "/api", false).Handler()
 }
 
-func getUserFromSession(req *http.Request, pool *pgxpool.Pool) *data.User {
+func getUserFromSession(req *http.Request, pool data.DB) *data.User {
 	token := req.Header.Get("X-Authentication")
 	if token == "" {
 		token = req.FormValue("session")

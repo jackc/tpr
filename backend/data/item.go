@@ -1,14 +1,13 @@
 package data
 
 import (
-	"bytes"
 	"context"
+	"encoding/json"
 	"io"
-	"strconv"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgxutil"
 )
 
@@ -16,14 +15,12 @@ const markItemReadSQL = `delete from unread_items
 where user_id=$1
   and item_id=$2`
 
-func MarkItemRead(ctx context.Context, db pgxutil.DB, userID, itemID int32) error {
+func MarkItemRead(ctx context.Context, db DB, userID, itemID string) error {
 	_, err := pgxutil.ExecRow(ctx, db, markItemReadSQL, userID, itemID)
 	return err
 }
 
-const getFeedsForUserSQL = `select coalesce(json_agg(row_to_json(t)), '[]'::json)
-from (
-  select feeds.id as feed_id,
+const getFeedsForUserSQL = `select feeds.id::text as feed_id,
     name,
     feeds.url,
     extract(epoch from last_fetch_time::timestamptz(0)) as last_fetch_time,
@@ -36,26 +33,16 @@ from (
     join subscriptions on feeds.id=subscriptions.feed_id
     left join items on feeds.id=items.feed_id
   where user_id=$1
-  group by feeds.id
-  order by name
-) t`
+  group by feeds.id, name, feeds.url, last_fetch_time, last_failure, last_failure_time, failure_count
+  order by name, feeds.id`
 
-func CopySubscriptionsForUserAsJSON(ctx context.Context, db pgxutil.DB, w io.Writer, userID int32) error {
-	var b []byte
-	err := db.QueryRow(ctx, getFeedsForUserSQL, userID).Scan(&b)
-	if err != nil {
-		return err
-	}
-
-	_, err = w.Write(b)
-	return err
+func CopySubscriptionsForUserAsJSON(ctx context.Context, db DB, w io.Writer, userID string) error {
+	return copyJSON(ctx, db, w, getFeedsForUserSQL, userID)
 }
 
-const getUnreadItemsSQL = `select coalesce(json_agg(row_to_json(t)), '[]'::json)
-from (
-  select
-    items.id,
-    feeds.id as feed_id,
+const getUnreadItemsSQL = `select
+    items.id::text as id,
+    feeds.id::text as feed_id,
     feeds.name as feed_name,
     items.title,
     items.url,
@@ -64,25 +51,15 @@ from (
     join items on feeds.id=items.feed_id
     join unread_items on items.id=unread_items.item_id
   where user_id=$1
-  order by publication_time asc
-) t`
+  order by publication_time asc, items.id`
 
-func CopyUnreadItemsAsJSONByUserID(ctx context.Context, db pgxutil.DB, w io.Writer, userID int32) error {
-	var b []byte
-	err := db.QueryRow(ctx, getUnreadItemsSQL, userID).Scan(&b)
-	if err != nil {
-		return err
-	}
-
-	_, err = w.Write(b)
-	return err
+func CopyUnreadItemsAsJSONByUserID(ctx context.Context, db DB, w io.Writer, userID string) error {
+	return copyJSON(ctx, db, w, getUnreadItemsSQL, userID)
 }
 
-const getArchivedItemsSQL = `select coalesce(json_agg(row_to_json(t)), '[]'::json)
-from (
-  select
-    items.id,
-    feeds.id as feed_id,
+const getArchivedItemsSQL = `select
+    items.id::text as id,
+    feeds.id::text as feed_id,
     feeds.name as feed_name,
     items.title,
     items.url,
@@ -91,19 +68,11 @@ from (
     join subscriptions on feeds.id=subscriptions.feed_id
     join items on feeds.id=items.feed_id
   where user_id=$1
-  order by publication_time desc
-  limit $2
-) t`
+  order by publication_time desc, items.id
+  limit $2`
 
-func CopyArchivedItemsAsJSONByUserID(ctx context.Context, db pgxutil.DB, w io.Writer, userID int32) error {
-	var b []byte
-	err := db.QueryRow(ctx, getArchivedItemsSQL, userID, 250).Scan(&b)
-	if err != nil {
-		return err
-	}
-
-	_, err = w.Write(b)
-	return err
+func CopyArchivedItemsAsJSONByUserID(ctx context.Context, db DB, w io.Writer, userID string) error {
+	return copyJSON(ctx, db, w, getArchivedItemsSQL, userID, 250)
 }
 
 type ParsedItem struct {
@@ -145,32 +114,29 @@ const updateFeedWithFetchSuccessSQL = `
         failure_count=0
       where id=$4`
 
-func UpdateFeedWithFetchSuccess(ctx context.Context, db *pgxpool.Pool, feedID int32, update *ParsedFeed, etag pgtype.Text, fetchTime time.Time) error {
-	tx, err := db.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-
-	_, err = tx.Exec(ctx,
-		updateFeedWithFetchSuccessSQL,
-		update.Name,
-		fetchTime,
-		&etag,
-		feedID)
-	if err != nil {
-		return err
-	}
-
-	if len(update.Items) > 0 {
-		insertSQL, insertArgs := buildNewItemsSQL(feedID, update.Items)
-		_, err = tx.Exec(ctx, insertSQL, insertArgs...)
+func UpdateFeedWithFetchSuccess(ctx context.Context, db DB, feedID string, update *ParsedFeed, etag pgtype.Text, fetchTime time.Time) error {
+	return WithinTx(ctx, db, func(tx DB) error {
+		_, err := tx.Exec(ctx, updateFeedWithFetchSuccessSQL, update.Name, fetchTime, &etag, feedID)
 		if err != nil {
 			return err
 		}
-	}
-
-	return tx.Commit(ctx)
+		for _, item := range update.Items {
+			id := NewID()
+			tag, err := tx.Exec(ctx, `insert into items(id, feed_id, url, title, publication_time, creation_time)
+    values ($1,$2,$3,$4,$5,$6) on conflict (feed_id,url) do nothing`, id, feedID, item.URL, item.Title, item.PublicationTime, fetchTime.UTC().Truncate(time.Microsecond))
+			if err != nil {
+				return err
+			}
+			if tag.RowsAffected() == 0 {
+				continue
+			}
+			_, err = tx.Exec(ctx, `insert into unread_items(user_id,feed_id,item_id) select user_id,feed_id,$1 from subscriptions where feed_id=$2`, id, feedID)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 const updateFeedWithFetchUnchangedSQL = `update feeds
@@ -180,7 +146,7 @@ set last_fetch_time=$1,
   failure_count=0
 where id=$2`
 
-func UpdateFeedWithFetchUnchanged(ctx context.Context, db pgxutil.DB, feedID int32, fetchTime time.Time) (err error) {
+func UpdateFeedWithFetchUnchanged(ctx context.Context, db DB, feedID string, fetchTime time.Time) (err error) {
 	_, err = db.Exec(ctx, updateFeedWithFetchUnchangedSQL, fetchTime, feedID)
 	return
 }
@@ -191,78 +157,45 @@ set last_failure=$1,
   failure_count=failure_count+1
 where id=$3`
 
-func UpdateFeedWithFetchFailure(ctx context.Context, db pgxutil.DB, feedID int32, failure string, fetchTime time.Time) (err error) {
+func UpdateFeedWithFetchFailure(ctx context.Context, db DB, feedID string, failure string, fetchTime time.Time) (err error) {
 	_, err = db.Exec(ctx, updateFeedWithFetchFailureSQL, failure, fetchTime, feedID)
 	return err
 }
 
-func buildNewItemsSQL(feedID int32, items []ParsedItem) (sql string, args []interface{}) {
-	var buf bytes.Buffer
-	args = append(args, feedID)
-
-	buf.WriteString(`
-      with new_items as (
-        insert into items(feed_id, url, title, publication_time)
-        select $1, url, title, publication_time
-        from (values
-    `)
-
-	for i, item := range items {
-		if i > 0 {
-			buf.WriteString(",")
-		}
-
-		buf.WriteString("($")
-		args = append(args, item.URL)
-		buf.WriteString(strconv.FormatInt(int64(len(args)), 10))
-
-		buf.WriteString(",$")
-		args = append(args, item.Title)
-		buf.WriteString(strconv.FormatInt(int64(len(args)), 10))
-
-		buf.WriteString(",$")
-		if item.PublicationTime.Valid {
-			args = append(args, item.PublicationTime.Time)
-		} else {
-			args = append(args, nil)
-		}
-		buf.WriteString(strconv.FormatInt(int64(len(args)), 10))
-		buf.WriteString("::timestamptz)")
-	}
-
-	buf.WriteString(`
-      ) t(url, title, publication_time)
-      where not exists(
-        select 1
-        from items
-        where feed_id=$1
-          and url=t.url
-      )
-      returning id
-    )
-    insert into unread_items(user_id, feed_id, item_id)
-    select user_id, $1, new_items.id
-    from subscriptions
-      cross join new_items
-    where subscriptions.feed_id=$1
-  `)
-
-	return buf.String(), args
-}
-
 const getFeedsUncheckedSinceSQL = `select id, url, etag
 from feeds
-where greatest(last_fetch_time, last_failure_time, '-Infinity'::timestamptz) < $1`
+where greatest(last_fetch_time, last_failure_time, '-Infinity'::timestamptz) < $1 order by id`
 
-func GetFeedsUncheckedSince(ctx context.Context, db pgxutil.DB, since time.Time) ([]Feed, error) {
+func GetFeedsUncheckedSince(ctx context.Context, db DB, since time.Time) ([]Feed, error) {
 	feeds := make([]Feed, 0, 8)
-	rows, _ := db.Query(ctx, getFeedsUncheckedSinceSQL, since)
+	rows, err := db.Query(ctx, getFeedsUncheckedSinceSQL, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 
 	for rows.Next() {
 		var feed Feed
-		rows.Scan(&feed.ID, &feed.URL, &feed.ETag)
+		if err := rows.Scan(&feed.ID, &feed.URL, &feed.ETag); err != nil {
+			return nil, err
+		}
 		feeds = append(feeds, feed)
 	}
 
 	return feeds, rows.Err()
+}
+
+func copyJSON(ctx context.Context, db DB, w io.Writer, sql string, args ...any) error {
+	rows, err := db.Query(ctx, sql, args...)
+	if err != nil {
+		return err
+	}
+	records, err := pgx.CollectRows(rows, pgx.RowToMap)
+	if err != nil {
+		return err
+	}
+	if records == nil {
+		records = []map[string]any{}
+	}
+	return json.NewEncoder(w).Encode(records)
 }

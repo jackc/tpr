@@ -37,7 +37,7 @@ func TestDataUsersLifeCycle(t *testing.T) {
 
 	user, err := data.SelectUserByName(context.Background(), pool, input.Name.String)
 	require.NoError(t, err)
-	if user.ID.Int32 != userID {
+	if user.ID.String != userID {
 		t.Errorf("Expected %v, got %v", userID, user.ID)
 	}
 	if user.Name != input.Name {
@@ -55,7 +55,7 @@ func TestDataUsersLifeCycle(t *testing.T) {
 
 	user, err = data.SelectUserByEmail(context.Background(), pool, input.Email.String)
 	require.NoError(t, err)
-	if user.ID.Int32 != userID {
+	if user.ID.String != userID {
 		t.Errorf("Expected %v, got %v", userID, user.ID)
 	}
 	if user.Name != input.Name {
@@ -73,7 +73,7 @@ func TestDataUsersLifeCycle(t *testing.T) {
 
 	user, err = data.SelectUserByPK(context.Background(), pool, userID)
 	require.NoError(t, err)
-	if user.ID.Int32 != userID {
+	if user.ID.String != userID {
 		t.Errorf("Expected %v, got %v", userID, user.ID)
 	}
 	if user.Name != input.Name {
@@ -112,7 +112,7 @@ func TestDataCreateUserHandlesEmailUniqueness(t *testing.T) {
 	_, err := data.CreateUser(context.Background(), pool, u)
 	require.NoError(t, err)
 
-	u.ID = pgtype.Int4{}
+	u.ID = pgtype.Text{}
 	u.Name = pgtype.Text{String: "othername", Valid: true}
 	_, err = data.CreateUser(context.Background(), pool, u)
 	if err != (data.DuplicationError{Field: "email"}) {
@@ -241,7 +241,7 @@ func TestDataUpdateFeedWithFetchSuccess(t *testing.T) {
 	if len(subscriptions) != 1 {
 		t.Fatalf("Found %d subscriptions, expected 1", len(subscriptions))
 	}
-	feedID := subscriptions[0].FeedID.Int32
+	feedID := subscriptions[0].FeedID.String
 
 	update := &data.ParsedFeed{Name: "baz", Items: []data.ParsedItem{
 		{
@@ -261,7 +261,7 @@ func TestDataUpdateFeedWithFetchSuccess(t *testing.T) {
 	require.NoError(t, err)
 
 	type UnreadItemsFromJSON struct {
-		ID int32 `json:"id"`
+		ID string `json:"id"`
 	}
 
 	var unreadItems []UnreadItemsFromJSON
@@ -305,7 +305,7 @@ func TestDataUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testing.T) {
 	if len(subscriptions) != 1 {
 		t.Fatalf("Found %d subscriptions, expected 1", len(subscriptions))
 	}
-	feedID := subscriptions[0].FeedID.Int32
+	feedID := subscriptions[0].FeedID.String
 
 	update := &data.ParsedFeed{Name: "baz", Items: []data.ParsedItem{
 		{URL: "http://baz/bar", Title: "Baz"},
@@ -321,7 +321,7 @@ func TestDataUpdateFeedWithFetchSuccessWithoutPublicationTime(t *testing.T) {
 	require.NoError(t, err)
 
 	type UnreadItemsFromJSON struct {
-		ID int32 `json:"id"`
+		ID string `json:"id"`
 	}
 
 	var unreadItems []UnreadItemsFromJSON
@@ -380,7 +380,7 @@ func TestDataDeleteSubscription(t *testing.T) {
 	if len(subscriptions) != 1 {
 		t.Fatalf("Found %d subscriptions, expected 1", len(subscriptions))
 	}
-	feedID := subscriptions[0].FeedID.Int32
+	feedID := subscriptions[0].FeedID.String
 
 	update := &data.ParsedFeed{Name: "baz", Items: []data.ParsedItem{
 		{URL: "http://baz/bar",
@@ -452,7 +452,7 @@ func TestDataSessions(t *testing.T) {
 
 	user, err := data.SelectUserBySessionID(context.Background(), pool, sessionID)
 	require.NoError(t, err)
-	if user.ID.Int32 != userID {
+	if user.ID.String != userID {
 		t.Errorf("Expected %v, got %v", userID, user.ID)
 	}
 

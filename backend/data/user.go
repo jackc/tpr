@@ -20,7 +20,7 @@ func (e DuplicationError) Error() string {
 	return fmt.Sprintf("%s is already taken", e.Field)
 }
 
-func selectUser(ctx context.Context, db pgxutil.DB, name, sql string, arg interface{}) (*User, error) {
+func selectUser(ctx context.Context, db DB, name, sql string, arg interface{}) (*User, error) {
 	user := User{}
 
 	err := db.QueryRow(ctx, sql, arg).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordDigest, &user.PasswordSalt)
@@ -33,13 +33,13 @@ func selectUser(ctx context.Context, db pgxutil.DB, name, sql string, arg interf
 
 const getUserByNameSQL = `select id, name, email, password_digest, password_salt from users where name=$1`
 
-func SelectUserByName(ctx context.Context, db pgxutil.DB, name string) (*User, error) {
+func SelectUserByName(ctx context.Context, db DB, name string) (*User, error) {
 	return selectUser(ctx, db, "getUserByName", getUserByNameSQL, name)
 }
 
 const getUserByEmailSQL = `select id, name, email, password_digest, password_salt from users where email=$1`
 
-func SelectUserByEmail(ctx context.Context, db pgxutil.DB, email string) (*User, error) {
+func SelectUserByEmail(ctx context.Context, db DB, email string) (*User, error) {
 	return selectUser(ctx, db, "getUserByEmail", getUserByEmailSQL, email)
 }
 
@@ -48,30 +48,31 @@ from sessions
   join users on sessions.user_id=users.id
 where sessions.id=$1`
 
-func SelectUserBySessionID(ctx context.Context, db pgxutil.DB, id []byte) (*User, error) {
+func SelectUserBySessionID(ctx context.Context, db DB, id []byte) (*User, error) {
 	return selectUser(ctx, db, "getUserBySessionID", getUserBySessionIDSQL, id)
 }
 
-func CreateUser(ctx context.Context, db pgxutil.DB, user *User) (int32, error) {
+func CreateUser(ctx context.Context, db DB, user *User) (string, error) {
 	var err error
 	user.ID, err = pgxutil.InsertRowReturning(ctx, db, pgx.Identifier{"users"}, map[string]any{
+		"id":              NewID(),
 		"name":            &user.Name,
 		"password_digest": &user.PasswordDigest,
 		"password_salt":   &user.PasswordSalt,
 		"email":           &user.Email,
-	}, "id", pgx.RowTo[pgtype.Int4])
+	}, "id", pgx.RowTo[pgtype.Text])
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
 			switch pgErr.ConstraintName {
 			case "users_name_unq":
-				return 0, DuplicationError{Field: "name"}
+				return "", DuplicationError{Field: "name"}
 			case "users_email_key":
-				return 0, DuplicationError{Field: "email"}
+				return "", DuplicationError{Field: "email"}
 			}
 		}
-		return 0, err
+		return "", err
 	}
 
-	return user.ID.Int32, nil
+	return user.ID.String, nil
 }

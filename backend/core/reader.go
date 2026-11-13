@@ -19,18 +19,18 @@ var CreateSubscription = Define(ActionDef[Subscription, Empty]{Name: "create_sub
 	if p.URL == "" {
 		return Empty{}, invalid(`Request must include the attribute "url"`)
 	}
-	if err := data.InsertSubscription(ctx, c.pool, User(ctx).ID.Int32, p.URL); err != nil {
+	if err := data.InsertSubscription(ctx, c.pool, User(ctx).ID.String, p.URL); err != nil {
 		return Empty{}, invalid("Bad user name or password")
 	}
 	return Empty{}, nil
 }})
 
 type ID struct {
-	ID int32 `json:"id"`
+	ID string `json:"id"`
 }
 
 var DeleteSubscription = Define(ActionDef[ID, Empty]{Name: "delete_subscription", Description: "Unsubscribe from a feed", Metadata: ActionMetadata{Mutating: true}, Handler: func(ctx context.Context, c *Core, p ID) (Empty, error) {
-	err := data.DeleteSubscription(ctx, c.pool, User(ctx).ID.Int32, p.ID)
+	err := data.DeleteSubscription(ctx, c.pool, User(ctx).ID.String, p.ID)
 	if err != nil {
 		return Empty{}, invalid(fmt.Sprintf("Error deleting subscription: %v", err))
 	}
@@ -38,21 +38,21 @@ var DeleteSubscription = Define(ActionDef[ID, Empty]{Name: "delete_subscription"
 }})
 var GetFeeds = Define(ActionDef[Empty, json.RawMessage]{Name: "get_feeds", Description: "List the reader's feeds", Handler: func(ctx context.Context, c *Core, p Empty) (json.RawMessage, error) {
 	var b bytes.Buffer
-	err := data.CopySubscriptionsForUserAsJSON(ctx, c.pool, &b, User(ctx).ID.Int32)
+	err := data.CopySubscriptionsForUserAsJSON(ctx, c.pool, &b, User(ctx).ID.String)
 	return json.RawMessage(b.Bytes()), err
 }})
 var GetUnreadItems = Define(ActionDef[Empty, json.RawMessage]{Name: "get_unread_items", Description: "List unread articles", Handler: func(ctx context.Context, c *Core, p Empty) (json.RawMessage, error) {
 	var b bytes.Buffer
-	err := data.CopyUnreadItemsAsJSONByUserID(ctx, c.pool, &b, User(ctx).ID.Int32)
+	err := data.CopyUnreadItemsAsJSONByUserID(ctx, c.pool, &b, User(ctx).ID.String)
 	return json.RawMessage(b.Bytes()), err
 }})
 var GetArchivedItems = Define(ActionDef[Empty, json.RawMessage]{Name: "get_archived_items", Description: "List recent archived articles", Handler: func(ctx context.Context, c *Core, p Empty) (json.RawMessage, error) {
 	var b bytes.Buffer
-	err := data.CopyArchivedItemsAsJSONByUserID(ctx, c.pool, &b, User(ctx).ID.Int32)
+	err := data.CopyArchivedItemsAsJSONByUserID(ctx, c.pool, &b, User(ctx).ID.String)
 	return json.RawMessage(b.Bytes()), err
 }})
 var MarkItemRead = Define(ActionDef[ID, Empty]{Name: "mark_item_read", Description: "Mark an article read", Metadata: ActionMetadata{Mutating: true}, Handler: func(ctx context.Context, c *Core, p ID) (Empty, error) {
-	err := data.MarkItemRead(ctx, c.pool, User(ctx).ID.Int32, p.ID)
+	err := data.MarkItemRead(ctx, c.pool, User(ctx).ID.String, p.ID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = ErrNotFound
 	}
@@ -60,12 +60,12 @@ var MarkItemRead = Define(ActionDef[ID, Empty]{Name: "mark_item_read", Descripti
 }})
 
 type ItemIDs struct {
-	ItemIDs []int32 `json:"itemIDs"`
+	ItemIDs []string `json:"itemIDs"`
 }
 
 var MarkMultipleItemsRead = Define(ActionDef[ItemIDs, Empty]{Name: "mark_multiple_items_read", Description: "Mark multiple articles read", Metadata: ActionMetadata{Mutating: true}, Handler: func(ctx context.Context, c *Core, p ItemIDs) (Empty, error) {
 	for _, id := range p.ItemIDs {
-		if err := data.MarkItemRead(ctx, c.pool, User(ctx).ID.Int32, id); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		if err := data.MarkItemRead(ctx, c.pool, User(ctx).ID.String, id); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return Empty{}, err
 		}
 	}
@@ -81,14 +81,14 @@ type ImportResult struct {
 var ImportFeeds = Define(ActionDef[OpmlDocument, []ImportResult]{Name: "import_feeds", Description: "Subscribe to feeds from an OPML document", Metadata: ActionMetadata{Mutating: true}, Handler: func(ctx context.Context, c *Core, p OpmlDocument) ([]ImportResult, error) {
 	results := make([]ImportResult, 0, len(p.Body.Outlines))
 	for _, o := range p.Body.Outlines {
-		err := data.InsertSubscription(ctx, c.pool, User(ctx).ID.Int32, o.URL)
+		err := data.InsertSubscription(ctx, c.pool, User(ctx).ID.String, o.URL)
 		results = append(results, ImportResult{o.Title, o.URL, err == nil})
 	}
 	return results, nil
 }})
 var ExportFeeds = Define(ActionDef[Empty, OpmlDocument]{Name: "export_feeds", Description: "Export subscriptions as an OPML document", Handler: func(ctx context.Context, c *Core, p Empty) (OpmlDocument, error) {
 	u := User(ctx)
-	subs, err := data.SelectSubscriptions(ctx, c.pool, u.ID.Int32)
+	subs, err := data.SelectSubscriptions(ctx, c.pool, u.ID.String)
 	if err != nil {
 		return OpmlDocument{}, err
 	}

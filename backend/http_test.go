@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
@@ -12,14 +13,12 @@ import (
 	"testing"
 	"time"
 
-	"log/slog"
-
-	pgxslog "github.com/mcosta74/pgx-slog"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
 	"github.com/jackc/tpr/backend/data"
 	"github.com/jackc/tpr/test/testdata"
+	pgxslog "github.com/mcosta74/pgx-slog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -124,7 +123,7 @@ func TestExportOPML(t *testing.T) {
 	require.NoError(t, err)
 
 	env := &environment{pool: pool}
-	env.user = &data.User{ID: pgtype.Int4{Int32: userID, Valid: true}, Name: pgtype.Text{String: "test", Valid: true}}
+	env.user = &data.User{ID: pgtype.Text{String: userID, Valid: true}, Name: pgtype.Text{String: "test", Valid: true}}
 
 	w := httptest.NewRecorder()
 
@@ -168,7 +167,7 @@ func TestGetAccountHandler(t *testing.T) {
 	}
 
 	var resp struct {
-		ID    int32  `json:"id"`
+		ID    string `json:"id"`
 		Name  string `json:"name"`
 		Email string `json:"email"`
 	}
@@ -176,8 +175,8 @@ func TestGetAccountHandler(t *testing.T) {
 	err = json.NewDecoder(w.Body).Decode(&resp)
 	require.NoError(t, err)
 
-	if user.ID.Int32 != resp.ID {
-		t.Errorf("Expected id %d, instead received %d", user.ID.Int32, resp.ID)
+	if user.ID.String != resp.ID {
+		t.Errorf("Expected id %s, instead received %s", user.ID.String, resp.ID)
 	}
 
 	if user.Name.String != resp.Name {
@@ -379,8 +378,8 @@ func TestRequestPasswordResetHandler(t *testing.T) {
 		if pwr.RequestIP.String() != tt.remoteHost {
 			t.Errorf("%s: PasswordReset.RequestIP should be %s, but instead is %v", tt.descr, tt.remoteHost, pwr.RequestIP.String())
 		}
-		if tt.reqEmail == tt.userEmail && userID != pwr.UserID.Int32 {
-			t.Errorf("%s: PasswordReset.UserID should be %d, but instead is %v", tt.descr, userID, pwr.UserID)
+		if tt.reqEmail == tt.userEmail && userID != pwr.UserID.String {
+			t.Errorf("%s: PasswordReset.UserID should be %s, but instead is %v", tt.descr, userID, pwr.UserID)
 		}
 		if tt.reqEmail != tt.userEmail && pwr.UserID.Valid {
 			t.Errorf("%s: PasswordReset.UserID should be nil, but instead is %v", tt.descr, pwr.UserID)

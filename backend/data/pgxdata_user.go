@@ -9,7 +9,7 @@ import (
 )
 
 type User struct {
-	ID             pgtype.Int4
+	ID             pgtype.Text
 	Name           pgtype.Text
 	PasswordDigest []byte
 	PasswordSalt   []byte
@@ -27,8 +27,8 @@ where "id"=$1`
 
 func SelectUserByPK(
 	ctx context.Context,
-	db pgxutil.DB,
-	id int32,
+	db DB,
+	id string,
 ) (*User, error) {
 	var row User
 	err := db.QueryRow(ctx, selectUserByPKSQL, id).Scan(
@@ -45,8 +45,8 @@ func SelectUserByPK(
 	return &row, nil
 }
 
-func UpdateUser(ctx context.Context, db pgxutil.DB,
-	id int32,
+func UpdateUser(ctx context.Context, db DB,
+	id string,
 	row *User,
 ) error {
 	return pgxutil.UpdateRow(ctx, db, pgx.Identifier{"users"}, map[string]any{

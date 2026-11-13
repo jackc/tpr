@@ -5,22 +5,22 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sync/atomic"
-
-	"log/slog"
 
 	"github.com/jackc/manifest/httpregistry"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgxutil"
+	"github.com/jackc/tpr/backend/data"
 	"golang.org/x/crypto/scrypt"
 )
 
 var counter atomic.Int64
 
 // registerTestEndpoints declares test-only routes, including disabled entries.
-func registerTestEndpoints(r *httpregistry.Registry[HTTPMetadata], pool *pgxpool.Pool, logger *slog.Logger, enabled bool, prefix string) {
+func registerTestEndpoints(r *httpregistry.Registry[HTTPMetadata], pool data.DB, logger *slog.Logger, enabled bool, prefix string) {
 	post := func(path string, h http.HandlerFunc) {
 		r.Handle(httpregistry.Spec[HTTPMetadata]{Method: "POST", Path: prefix + path, Metadata: HTTPMetadata{Public: true}, When: &httpregistry.Condition{Name: "test-endpoints", Enabled: enabled}}, httpregistry.Custom(h))
 	}
@@ -29,7 +29,7 @@ func registerTestEndpoints(r *httpregistry.Registry[HTTPMetadata], pool *pgxpool
 		ctx := context.Background()
 
 		// Get database name from the pool config
-		config := pool.Config()
+		config := pool.(*pgxpool.Pool).Config()
 		dbName := config.ConnConfig.Database
 
 		// Connect as postgres superuser for pgundolog.undo()
@@ -95,7 +95,7 @@ func registerTestEndpoints(r *httpregistry.Registry[HTTPMetadata], pool *pgxpool
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(user)
+		json.NewEncoder(w).Encode(data.CanonicalValue(user))
 	})
 
 	post("/test/feeds", func(w http.ResponseWriter, req *http.Request) {
@@ -127,7 +127,7 @@ func registerTestEndpoints(r *httpregistry.Registry[HTTPMetadata], pool *pgxpool
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(feed)
+		json.NewEncoder(w).Encode(data.CanonicalValue(feed))
 	})
 
 	post("/test/items", func(w http.ResponseWriter, req *http.Request) {
@@ -168,7 +168,7 @@ func registerTestEndpoints(r *httpregistry.Registry[HTTPMetadata], pool *pgxpool
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(item)
+		json.NewEncoder(w).Encode(data.CanonicalValue(item))
 	})
 
 	post("/test/query", func(w http.ResponseWriter, req *http.Request) {
@@ -198,6 +198,9 @@ func registerTestEndpoints(r *httpregistry.Registry[HTTPMetadata], pool *pgxpool
 		}
 
 		w.Header().Set("Content-Type", "application/json")
+		for i := range results {
+			results[i] = data.CanonicalValue(results[i]).(map[string]any)
+		}
 		json.NewEncoder(w).Encode(results)
 	})
 }

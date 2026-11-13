@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/httplog/v3"
 	"github.com/jackc/manifest/httpregistry"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/tpr/backend/data"
 )
 
 type HTTPMetadata struct {
@@ -20,7 +20,7 @@ type HTTPMetadata struct {
 func HTTPInventory(testEndpoints bool) httpregistry.Inventory[HTTPMetadata] {
 	return newHTTPRegistry(nil, nil, slog.New(slog.DiscardHandler), slog.LevelWarn, testEndpoints, "", true).Inventory()
 }
-func newHTTPRegistry(pool *pgxpool.Pool, mailer Mailer, logger *slog.Logger, logLevel slog.Level, testEndpoints bool, stripPrefix string, full bool) *httpregistry.Registry[HTTPMetadata] {
+func newHTTPRegistry(pool data.DB, mailer Mailer, logger *slog.Logger, logLevel slog.Level, testEndpoints bool, stripPrefix string, full bool) *httpregistry.Registry[HTTPMetadata] {
 	compiler := func(spec httpregistry.Spec[HTTPMetadata]) ([]httpregistry.Stage, error) {
 		if spec.Metadata.Public {
 			return nil, nil
@@ -58,7 +58,7 @@ func newHTTPRegistry(pool *pgxpool.Pool, mailer Mailer, logger *slog.Logger, log
 						attrs = append(attrs, slog.String("request_id", reqID))
 					}
 					if user := userFromContext(req.Context()); user != nil {
-						attrs = append(attrs, slog.String("user_id", fmt.Sprintf("%d", user.ID.Int32)))
+						attrs = append(attrs, slog.String("user_id", user.ID.String))
 						attrs = append(attrs, slog.String("username", user.Name.String))
 					}
 					return attrs

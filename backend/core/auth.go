@@ -34,7 +34,7 @@ func (c *Core) session(ctx context.Context, user *data.User) (Session, error) {
 	if err != nil {
 		return Session{}, err
 	}
-	err = data.InsertSession(ctx, c.pool, &data.Session{ID: id, UserID: user.ID.Int32})
+	err = data.InsertSession(ctx, c.pool, &data.Session{ID: id, UserID: user.ID.String})
 	return Session{Name: user.Name.String, SessionID: hex.EncodeToString(id)}, err
 }
 
@@ -60,7 +60,7 @@ var Register = Define(ActionDef[Registration, Session]{Name: "register", Descrip
 		}
 		return Session{}, err
 	}
-	u.ID = pgtype.Int4{Int32: id, Valid: true}
+	u.ID = pgtype.Text{String: id, Valid: true}
 	return c.session(ctx, u)
 }})
 var CreateSession = Define(ActionDef[Credentials, Session]{Name: "create_session", Description: "Authenticate a reader and create a session", Metadata: ActionMetadata{Public: true, Mutating: true}, Handler: func(ctx context.Context, c *Core, p Credentials) (Session, error) {
@@ -92,19 +92,19 @@ var DeleteSession = Define(ActionDef[SessionID, Empty]{Name: "delete_session", D
 	if err != nil {
 		return Empty{}, err
 	}
-	err = data.DeleteSessionByUserID(ctx, c.pool, id, User(ctx).ID.Int32)
+	err = data.DeleteSessionByUserID(ctx, c.pool, id, User(ctx).ID.String)
 	return Empty{}, err
 }})
 
 type Account struct {
-	ID    int32  `json:"id"`
+	ID    string `json:"id"`
 	Name  string `json:"name"`
 	Email string `json:"email"`
 }
 
 var GetAccount = Define(ActionDef[Empty, Account]{Name: "get_account", Description: "Read the current reader's account", Handler: func(ctx context.Context, c *Core, p Empty) (Account, error) {
 	u := User(ctx)
-	return Account{u.ID.Int32, u.Name.String, u.Email.String}, nil
+	return Account{u.ID.String, u.Name.String, u.Email.String}, nil
 }})
 
 type AccountUpdate struct {
@@ -117,7 +117,7 @@ var UpdateAccount = Define(ActionDef[AccountUpdate, Empty]{Name: "update_account
 	if !IsPassword(User(ctx), p.ExistingPassword) {
 		return Empty{}, invalid("Bad existing password")
 	}
-	u, err := data.SelectUserByPK(ctx, c.pool, User(ctx).ID.Int32)
+	u, err := data.SelectUserByPK(ctx, c.pool, User(ctx).ID.String)
 	if err != nil {
 		return Empty{}, err
 	}
@@ -127,7 +127,7 @@ var UpdateAccount = Define(ActionDef[AccountUpdate, Empty]{Name: "update_account
 			return Empty{}, err
 		}
 	}
-	return Empty{}, data.UpdateUser(ctx, c.pool, u.ID.Int32, u)
+	return Empty{}, data.UpdateUser(ctx, c.pool, u.ID.String, u)
 }})
 
 type PasswordResetRequest struct {
@@ -183,14 +183,14 @@ var ResetPassword = Define(ActionDef[PasswordReset, Session]{Name: "reset_passwo
 	if !reset.UserID.Valid || reset.CompletionTime.Valid {
 		return Session{}, ErrNotFound
 	}
-	u, err := data.SelectUserByPK(ctx, c.pool, reset.UserID.Int32)
+	u, err := data.SelectUserByPK(ctx, c.pool, reset.UserID.String)
 	if err != nil {
 		return Session{}, err
 	}
 	if err := SetPassword(u, p.Password); err != nil {
 		return Session{}, err
 	}
-	if err := data.UpdateUser(ctx, c.pool, u.ID.Int32, u); err != nil {
+	if err := data.UpdateUser(ctx, c.pool, u.ID.String, u); err != nil {
 		return Session{}, err
 	}
 	return c.session(ctx, u)

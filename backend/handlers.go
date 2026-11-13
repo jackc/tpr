@@ -8,8 +8,8 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
-	"strconv"
 	"time"
+	"uuid"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/tpr/backend/core"
@@ -120,12 +120,12 @@ func rawAction(w http.ResponseWriter, r *http.Request, e *environment, a *core.A
 	}
 }
 func idAction(w http.ResponseWriter, r *http.Request, e *environment, a *core.Action[core.ID, core.Empty]) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 32)
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
-	call(w, r, e, a, core.ID{ID: int32(id)})
+	call(w, r, e, a, core.ID{ID: id.String()})
 }
 func DeleteSubscriptionHandler(w http.ResponseWriter, r *http.Request, e *environment) {
 	idAction(w, r, e, core.DeleteSubscription)

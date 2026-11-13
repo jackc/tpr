@@ -7,13 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
 
-	"log/slog"
-
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/tpr/backend/data"
 	"golang.org/x/net/html/charset"
 )
@@ -21,11 +19,11 @@ import (
 type FeedUpdater struct {
 	client                   *http.Client
 	maxConcurrentFeedFetches int
-	pool                     *pgxpool.Pool
+	pool                     data.DB
 	logger                   *slog.Logger
 }
 
-func NewFeedUpdater(pool *pgxpool.Pool, logger *slog.Logger) *FeedUpdater {
+func NewFeedUpdater(pool data.DB, logger *slog.Logger) *FeedUpdater {
 	feedUpdater := &FeedUpdater{}
 	feedUpdater.pool = pool
 	feedUpdater.logger = logger

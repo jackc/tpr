@@ -497,3 +497,18 @@ Potential areas for enhancement:
 ---
 
 Last updated: 2026-03-21
+
+## Storage backends (2026-11)
+
+- `backend/data.DB` is the small SQL interface accepted by core, HTTP, and feed
+  updating. A pgx pool, `backend/jedstore.Store`, or `backend/dualstore.Store`
+  supplies it. `data.WithinTx` preserves transaction boundaries across adapters.
+- JED uses one shared database file for the entire installation, never per user.
+- User/feed/item IDs are UUID strings, generated in Go before SQL execution.
+  PostgreSQL migration 012 preserves legacy integer IDs for rollback.
+- JSON response assembly is in Go. SQL must work on both engines; the known
+  exceptions and workarounds are documented in `docs/storage.md`.
+- Dual mode serializes calls, compares both stores, and disables itself on
+  divergence. It is a validation harness, not distributed atomic replication.
+- CLI: `--store postgres|jed|dual`, `--jed-path`; `copy-to-jed` copies and verifies
+  a stopped installation. Browser fixture endpoints remain PostgreSQL-only.

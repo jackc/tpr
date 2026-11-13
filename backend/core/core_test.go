@@ -26,13 +26,13 @@ func TestTypedAndDynamicCallsShareIdentity(t *testing.T) {
 	c := New(nil, nil, nil)
 	_, err := GetAccount.Call(context.Background(), c, Empty{})
 	require.ErrorIs(t, err, ErrUnauthenticated)
-	ctx := WithUser(context.Background(), &data.User{ID: pgtype.Int4{Int32: 42, Valid: true}, Name: pgtype.Text{String: "reader", Valid: true}})
+	ctx := WithUser(context.Background(), &data.User{ID: pgtype.Text{String: "00000000-0000-0000-0000-000000000042", Valid: true}, Name: pgtype.Text{String: "reader", Valid: true}})
 	typed, err := GetAccount.Call(ctx, c, Empty{})
 	require.NoError(t, err)
 	dynamic, err := c.InvokeJSON(ctx, "get_account", []byte(`{}`))
 	require.NoError(t, err)
 	require.Equal(t, typed, dynamic)
-	require.Equal(t, int32(42), typed.ID)
+	require.Equal(t, "00000000-0000-0000-0000-000000000042", typed.ID)
 }
 func TestPublicActionValidationWithoutStore(t *testing.T) {
 	_, err := Register.Call(context.Background(), New(nil, nil, nil), Registration{Name: "reader", Password: "short"})

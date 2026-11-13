@@ -5,6 +5,7 @@ go 1.27.4
 require (
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-chi/httplog/v3 v3.5.0
+	github.com/jackc/jed/impl/go v0.2.1-0.20261113022601-b48cba26e8a6
 	github.com/jackc/manifest v0.0.0-20261013230058-167b050916f1
 	github.com/jackc/pgerrcode v0.0.0-20250907135507-afb5586c32a6
 	github.com/jackc/pgx/v5 v5.13.0

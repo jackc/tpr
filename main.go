@@ -9,7 +9,6 @@ import (
 	"net/smtp"
 	"os"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
 	"github.com/jackc/tpr/backend"
@@ -23,6 +22,8 @@ const version = "0.8.1"
 
 // Shared database flags for both commands
 var databaseFlags = []cli.Flag{
+	&cli.StringFlag{Name: "store", Value: "postgres", Sources: cli.EnvVars("TPR_STORE"), Usage: "Storage backend: postgres, jed, or dual"},
+	&cli.StringFlag{Name: "jed-path", Sources: cli.EnvVars("TPR_JED_PATH"), Usage: "Path to the single shared JED database file"},
 	&cli.StringFlag{
 		Name:    "database-url",
 		Sources: cli.EnvVars("DATABASE_URL"),
@@ -145,6 +146,8 @@ func newCommand() *cli.Command {
 		},
 	}
 
+	app.Commands = append(app.Commands, &cli.Command{Name: "copy-to-jed", Usage: "Copy a stopped PostgreSQL installation to an empty shared JED database", Flags: append(append([]cli.Flag{}, databaseFlags...), logFlags...), Action: copyToJED})
+
 	app.Commands = append(app.Commands, &cli.Command{
 		Name: "inventory", Usage: "print actions or HTTP routes as JSON",
 		Action: func(ctx context.Context, c *cli.Command) error {
@@ -258,20 +261,19 @@ func Serve(ctx context.Context, c *cli.Command) error {
 
 	logger, err := newLogger(c)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
 
-	pool, err := newPool(c, logger)
+	pool, closeStore, err := openStore(c, logger)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
+
+	defer closeStore()
 
 	mailer, err := newMailer(c, logger)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
 
 	feedUpdater := backend.NewFeedUpdater(pool, logger.With("module", "feedUpdater"))
@@ -279,20 +281,17 @@ func Serve(ctx context.Context, c *cli.Command) error {
 
 	logLevel, err := parseSlogLevel(c.String("log-level"))
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
 
 	server, err := backend.NewAppServer(httpConfig, pool, mailer, logger, logLevel)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Could not create web server: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("create web server: %w", err)
 	}
 
 	err = server.Serve()
 	if err != nil {
-		os.Stderr.WriteString("Could not start web server!\n")
-		os.Exit(1)
+		return fmt.Errorf("serve: %w", err)
 	}
 	return nil
 }
@@ -309,38 +308,37 @@ func ResetPassword(ctx context.Context, c *cli.Command) error {
 
 	logger, err := newLogger(c)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
 
-	pool, err := newPool(c, logger)
+	pool, closeStore, err := openStore(c, logger)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
+
+	defer closeStore()
 
 	user, err := data.SelectUserByName(context.Background(), pool, name)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
 
 	password := c.String("password")
 	if password == "" {
 		password, err = backend.GenRandPassword()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			return err
 		}
 	}
 
-	update := &data.User{Name: pgtype.Text{String: name, Valid: true}}
-	backend.SetPassword(update, password)
+	update := user
+	if err := backend.SetPassword(update, password); err != nil {
+		return err
+	}
 
-	err = data.UpdateUser(context.Background(), pool, user.ID.Int32, update)
+	err = data.UpdateUser(context.Background(), pool, user.ID.String, update)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
 
 	fmt.Println("User:", name)

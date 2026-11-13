@@ -7,7 +7,7 @@ import (
 )
 
 type Feed struct {
-	ID              int32
+	ID              string
 	Name            string
 	URL             string
 	LastFetchTime   pgtype.Timestamptz

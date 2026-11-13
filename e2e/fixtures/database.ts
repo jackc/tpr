@@ -93,7 +93,7 @@ export async function createFeed(attrs?: {
  * @returns Created item object
  */
 export async function createItem(attrs: {
-  feed_id?: number;
+  feed_id?: string;
   title?: string;
   url?: string;
   [key: string]: any;

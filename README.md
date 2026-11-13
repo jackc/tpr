@@ -294,3 +294,12 @@ For development, environment variables are set in `.mise.toml`. Create `.mise.lo
 ## License
 
 MIT
+
+## Storage backends
+
+TPR supports PostgreSQL (default), a single shared JED database, and dual mode
+that compares PostgreSQL with JED. Select with `--store postgres|jed|dual`
+(`TPR_STORE`) and set `--jed-path` (`TPR_JED_PATH`) for JED/dual mode.
+Migration 012 converts identifiers to UUIDs. `tpr copy-to-jed` seeds an empty JED
+file from an existing PostgreSQL installation. See [storage setup and migration](docs/storage.md)
+for commands, dual-mode behavior, validation, and confirmed upstream JED limitations.
