@@ -31,8 +31,7 @@
 		}
 	}
 
-	async function unsubscribe(feed, e) {
-		e.preventDefault();
+	async function unsubscribe(feed) {
 		if (confirm('Are you sure you want to unsubscribe from ' + feed.name + '?')) {
 			await api.deleteSubscription(feed.feed_id);
 			feeds = feeds.filter((f) => f !== feed);
@@ -95,7 +94,7 @@
 					<div class="error">{feed.last_failure}</div>
 				{/if}
 				<div class="actions">
-					<a href="#" on:click={(e) => unsubscribe(feed, e)}>Unsubscribe</a>
+					<button type="button" class="link" on:click={() => unsubscribe(feed)}>Unsubscribe</button>
 				</div>
 			</li>
 		{/each}

@@ -43,11 +43,11 @@ test.describe('Reader Functionality', () => {
     );
 
     // Mark all read - should show second item
-    await page.getByRole('link', { name: 'Mark All Read' }).click();
+    await page.getByRole('button', { name: 'Mark All Read' }).click();
     await expect(page.locator('body')).toContainText('Second Post');
 
     // Mark all read again - should show no items
-    await page.getByRole('link', { name: 'Mark All Read' }).click();
+    await page.getByRole('button', { name: 'Mark All Read' }).click();
     await expect(page.locator('body')).toContainText('Refresh');
 
     // Add a third item
@@ -61,7 +61,7 @@ test.describe('Reader Functionality', () => {
     );
 
     // Refresh and verify third item appears
-    await page.getByRole('link', { name: 'Refresh' }).click();
+    await page.getByRole('button', { name: 'Refresh' }).click();
     await expect(page.locator('body')).toContainText('Third Post');
   });
 
@@ -111,7 +111,7 @@ test.describe('Reader Functionality', () => {
     await page.getByRole('link', { name: 'Feeds' }).click();
     await expect(page.getByLabel('Feed URL')).toBeVisible();
     await page.getByRole('link', { name: 'Home' }).click();
-    await expect(page.getByRole('link', { name: 'Mark All Read' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Mark All Read' })).toBeVisible();
 
     // First post should be gone (was auto-marked as read), second should still be there
     await expect(page.locator('body')).not.toContainText('First Post');
@@ -150,7 +150,7 @@ test.describe('Reader Functionality', () => {
     await expect(page.locator('body')).toContainText('February 6th, 2014 at 10:34 am');
 
     // Mark all read
-    await page.getByRole('link', { name: 'Mark All Read' }).click();
+    await page.getByRole('button', { name: 'Mark All Read' }).click();
     await expect(page.locator('body')).toContainText('Refresh');
 
     // Go to Archive

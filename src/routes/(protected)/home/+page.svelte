@@ -103,13 +103,11 @@
 		}
 	}
 
-	function markAllRead(e) {
-		e.preventDefault();
+	function markAllRead() {
 		collection.markAllRead();
 	}
 
-	function refresh(e) {
-		e.preventDefault();
+	function refresh() {
 		collection.fetch();
 	}
 </script>
@@ -117,7 +115,7 @@
 <div class="home">
 	{#if items.length > 0}
 		<div class="pageActions">
-			<a href="#" class="markAllRead button" on:click={markAllRead}> Mark All Read </a>
+			<button type="button" class="markAllRead button" on:click={markAllRead}> Mark All Read </button>
 			<div class="keyboardShortcuts">
 				<dl>
 					<dt>Move down:</dt>
@@ -133,7 +131,7 @@
 		</div>
 	{:else}
 		<div class="pageActions">
-			<a href="#" class="refresh button" on:click={refresh}>Refresh</a>
+			<button type="button" class="refresh button" on:click={refresh}>Refresh</button>
 			<p class="noUnread">No unread items as of {toTPRString(new Date())}.</p>
 		</div>
 	{/if}
@@ -159,7 +157,7 @@
 
 	{#if items.length > 15}
 		<div class="pageActions">
-			<a href="#" class="markAllRead button" on:click={markAllRead}> Mark All Read </a>
+			<button type="button" class="markAllRead button" on:click={markAllRead}> Mark All Read </button>
 			<div class="keyboardShortcuts">
 				<dl>
 					<dt>Move down:</dt>

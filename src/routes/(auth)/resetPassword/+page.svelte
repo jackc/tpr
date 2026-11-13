@@ -34,7 +34,7 @@
 				<label for="password">Password</label>
 			</dt>
 			<dd>
-				<input type="password" id="password" autofocus bind:value={password} />
+				<input type="password" id="password" bind:value={password} />
 			</dd>
 		</dl>
 

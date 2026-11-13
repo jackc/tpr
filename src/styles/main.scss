@@ -119,6 +119,7 @@ form {
   .pageActions {
     .button {
       display: block;
+      width: 100%;
       text-align: center;
     }
 
@@ -128,7 +129,18 @@ form {
   }
 }
 
-a {
+button.button, button.link {
+  font: inherit;
+  cursor: pointer;
+}
+
+button.link {
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+a, button.link {
   color: $dark-contrast-color;
   text-decoration: none;
   &:hover {
@@ -136,7 +148,7 @@ a {
   }
 }
 
-a.button {
+a.button, button.button {
   background-color: $primary-color;
   color: $light-contrast-color;
   border-radius: 4px;

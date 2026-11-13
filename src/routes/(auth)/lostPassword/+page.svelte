@@ -20,7 +20,7 @@
 				<label for="email">Email</label>
 			</dt>
 			<dd>
-				<input type="email" id="email" autofocus bind:value={email} />
+				<input type="email" id="email" bind:value={email} />
 			</dd>
 		</dl>
 
